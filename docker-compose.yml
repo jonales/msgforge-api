@@ -1,12 +1,12 @@
 services:
-  jarzap:
+  msgforge:
     build: .
-    image: jarzap-api:dev
+    image: msgforge-api:dev
     ports:
       - "8080:8080"
     env_file: .env
     environment:
-      DATABASE_URL: jdbc:postgresql://postgres:5432/jarzap
+      DATABASE_URL: jdbc:postgresql://postgres:5432/msgforge
       CACHE_REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
     depends_on:
@@ -20,13 +20,13 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_DB: jarzap
-      POSTGRES_USER: jarzap
-      POSTGRES_PASSWORD: jarzap
+      POSTGRES_DB: msgforge
+      POSTGRES_USER: msgforge
+      POSTGRES_PASSWORD: msgforge
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U jarzap"]
+      test: ["CMD-SHELL", "pg_isready -U msgforge"]
       interval: 5s
       retries: 10
 

@@ -1,4 +1,4 @@
-# JarZap API
+# Msgforge API
 
 API REST de WhatsApp em **Java 25 + Spring Boot 4.1**, com os mesmos endpoints, header `apikey`
 e payloads de webhook da Evolution API v2 — para trocar uma pela outra mudando só a URL.
@@ -8,7 +8,7 @@ e payloads de webhook da Evolution API v2 — para trocar uma pela outra mudando
 
 ## Stack
 
-| Papel | Evolution API | JarZap |
+| Papel | Evolution API | Msgforge |
 |---|---|---|
 | HTTP | Express (TS) | Spring Boot 4.1 (WebMVC + virtual threads) |
 | Protocolo WhatsApp | Baileys | Cobalt (Fase 2), atrás de `WhatsAppGateway` |
@@ -34,7 +34,7 @@ Sem Docker (precisa de JDK 25, Postgres e Redis locais):
 mvn spring-boot:run
 ```
 
-Por padrão roda com `JARZAP_GATEWAY=stub`: tudo funciona (instâncias, envio, webhooks, RabbitMQ),
+Por padrão roda com `MSGFORGE_GATEWAY=stub`: tudo funciona (instâncias, envio, webhooks, RabbitMQ),
 mas nada sai para o WhatsApp de verdade. Serve para validar o contrato contra seus sistemas atuais.
 
 ## Exemplo
@@ -46,13 +46,13 @@ curl -X POST http://localhost:8080/instance/create \
 
 curl -X POST http://localhost:8080/message/sendText/vendas \
   -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
-  -d '{"number":"5561999999999","text":"Olá do JarZap"}'
+  -d '{"number":"5561999999999","text":"Olá do Msgforge"}'
 ```
 
 ## Estrutura
 
 ```
-dev.jarzap
+dev.msgforge
 ├── instance/   /instance/*  (create, connect, connectionState, fetchInstances, logout, delete)
 ├── message/    /message/*   (sendText, sendMedia)
 ├── webhook/    /webhook/*   (set, find)

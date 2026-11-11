@@ -11,10 +11,10 @@
         <relativePath/>
     </parent>
 
-    <groupId>dev.jarzap</groupId>
-    <artifactId>jarzap-api</artifactId>
+    <groupId>dev.msgforge</groupId>
+    <artifactId>msgforge-api</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <name>JarZap API</name>
+    <name>Msgforge API</name>
     <description>API REST de WhatsApp em Java 25, compatível com os endpoints da Evolution API</description>
 
     <properties>

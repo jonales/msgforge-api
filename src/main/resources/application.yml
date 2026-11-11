@@ -3,14 +3,14 @@ server:
 
 spring:
   application:
-    name: jarzap-api
+    name: msgforge-api
   threads:
     virtual:
       enabled: true
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/jarzap}
-    username: ${DATABASE_USER:jarzap}
-    password: ${DATABASE_PASSWORD:jarzap}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/msgforge}
+    username: ${DATABASE_USER:msgforge}
+    password: ${DATABASE_PASSWORD:msgforge}
   jpa:
     open-in-view: false
     hibernate:
@@ -28,7 +28,7 @@ spring:
     password: ${RABBITMQ_PASSWORD:guest}
 
 # Nomes inspirados nas variáveis da Evolution API para facilitar a migração do .env
-jarzap:
+msgforge:
   server-url: ${SERVER_URL:http://localhost:8080}
   authentication:
     api-key: ${AUTHENTICATION_API_KEY:troque-esta-chave}
@@ -37,8 +37,8 @@ jarzap:
     global-enabled: ${WEBHOOK_GLOBAL_ENABLED:false}
   rabbitmq:
     enabled: ${RABBITMQ_ENABLED:false}
-    exchange: ${RABBITMQ_EXCHANGE_NAME:jarzap_exchange}
-  gateway: ${JARZAP_GATEWAY:stub}
+    exchange: ${RABBITMQ_EXCHANGE_NAME:msgforge_exchange}
+  gateway: ${MSGFORGE_GATEWAY:stub}
 
 management:
   health:
