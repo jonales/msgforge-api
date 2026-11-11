@@ -36,6 +36,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- No Boot 4 o RestClient.Builder (usado nos webhooks) saiu do starter web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-restclient</artifactId>
+        </dependency>
 
         <!-- Persistência (equivalente ao Prisma da Evolution) -->
         <dependency>
