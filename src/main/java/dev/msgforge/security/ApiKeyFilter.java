@@ -29,7 +29,8 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     public static final String SCOPED_INSTANCE = "msgforge.scopedInstance";
 
     private static final Set<String> PUBLIC_PREFIXES =
-            Set.of("/docs", "/v3/api-docs", "/swagger-ui", "/actuator/health");
+            Set.of("/docs", "/v3/api-docs", "/swagger-ui", "/actuator/health",
+                    "/manager");   // o Manager tem login próprio (ManagerSecurityConfig)
 
     /** Rotas sem instância no path que o token de instância pode usar (restritas a ela). */
     private static final Set<String> SCOPED_ROUTES = Set.of("/instance/fetchInstances");

@@ -56,8 +56,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
   Violação de constraint vira 400 (pelo nome da constraint); exceções do Spring com status
   (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.
-- `web/` *(planejado, ainda não existe)*: o **Manager**, front-end em Thymeleaf servido em
-  `/manager` (ADR 0005). Veja a seção "Front-end" abaixo.
+- `web/`: o **Manager**, front-end em Thymeleaf em `/manager` (ADR 0005). Veja a seção
+  "Front-end" abaixo.
 
 ## Convenções
 
@@ -73,28 +73,33 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - **Commits:** em português, no estilo Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`).
 - **Decisões de arquitetura:** registre em `docs/decisoes/` (ADR curto, numerado).
 
-## Front-end (Manager com Thymeleaf), planejado
+## Front-end (Manager com Thymeleaf)
 
-Decidido no ADR 0005; ainda não há código. Para criar ou alterar uma tela, use a skill
-`nova-tela`. Regras que valem desde a primeira linha:
+ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skill `nova-tela`.
 - Thymeleaf renderizado no servidor, rota base `/manager` (como o Evolution Manager), sem
   SPA e sem Node/npm. Interatividade com htmx vendorizado (sem CDN).
 - Controllers MVC em `dev.msgforge.web` chamam os **serviços**, nunca repositórios nem a
   API por HTTP. Os modelos de tela são records próprios; os DTOs da API são o contrato da
   Evolution e não são reaproveitados.
-- Login com a chave global e sessão HTTP + CSRF; o `ApiKeyFilter` continua só para a API
-  (incluir `/manager` e os estáticos nos prefixos que ele ignora).
+- Segurança: `ManagerSecurityConfig` aplica o Spring Security **só** em `/manager/**` (login com a
+  chave global, sessão, CSRF, CSP só `'self'`). A API tem uma cadeia aberta, sem sessão e sem
+  headers; quem a protege é o `ApiKeyFilter`. Não use estilo ou script inline: o CSP bloqueia.
+- Modelos de tela (`ManagerViews`) precisam ser **públicos**: o SpEL do Thymeleaf não chama
+  métodos de records não públicos. Erro de renderização não passa pelo
+  `ManagerExceptionHandler` (vira página 500); teste cada tela no `ManagerIT`.
+- E2E manual: subir a aplicação e rodar um script Playwright (login → criar → conectar →
+  webhook → excluir), verificando que o console não mostra erros (CSP).
 - Templates em `templates/manager/` (fragmentos em `fragments/`), textos em
   `messages.properties` (pt-BR).
-- Telas da v1 (marque `[x]` conforme forem entregues):
-  - [ ] login
-  - [ ] lista de instâncias com status
-  - [ ] criar instância
-  - [ ] conectar (QR/pairing ao vivo)
-  - [ ] webhook
-  - [ ] mensagem de teste
-  - [ ] logout e exclusão
-- Quando: depois da Fase 2 (QR real), ou antes, sobre o gateway stub, se ajudar a validar.
+- Telas da v1 (todas entregues):
+  - [x] login
+  - [x] lista de instâncias com status
+  - [x] criar instância
+  - [x] conectar (QR/pairing ao vivo)
+  - [x] webhook
+  - [x] mensagem de teste
+  - [x] logout e exclusão
+- Próximas ideias (não planejadas): webhook global, envio de mídia, ver as últimas mensagens.
 
 ## Estado atual e backlog
 
@@ -113,6 +118,7 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão, como na Evolution.
+7. O login do Manager e a API não limitam tentativas: a chave global depende só de ser forte.
 5. **Cobalt sem teste ao vivo** (ver acima). Pontos frágeis a observar no primeiro teste: o
    `profileName` vem do `Store.name()` (pode vir o nome do aparelho; nesse caso vai nulo); texto
    recebido sai sempre como `conversation` (nunca `extendedTextMessage`).
