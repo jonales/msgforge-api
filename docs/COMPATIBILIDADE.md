@@ -38,6 +38,11 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 | Eventos emitidos: QRCODE_UPDATED, CONNECTION_UPDATE, SEND_MESSAGE, MESSAGES_UPSERT | ✅ |
 | Demais eventos (MESSAGES_UPDATE, CONTACTS_*, CHATS_*, GROUPS_*) | ⬜ Fase 2/3 |
 
+## Manager (painel web)
+| Item | Status |
+|---|---|
+| `/manager`: equivalente ao Evolution Manager, em Thymeleaf (ADR 0005) | ⬜ planejado |
+
 ## Chat, Group, Profile, Settings, Integrações (Typebot, Chatwoot etc.)
 ⬜ Fora do escopo inicial — o foco é só a API do WhatsApp.
 

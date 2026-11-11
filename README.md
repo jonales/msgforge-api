@@ -69,6 +69,10 @@ dev.msgforge
 - **Fase 2:** `CobaltWhatsAppGateway` (QR/pairing, sessão persistida em `session_store`, envio e recebimento)
 - **Fase 3:** grupos, chat (findMessages, markAsRead), perfil, S3/MinIO para mídia
 - **Fase 4:** testes de contrato com a collection Postman da Evolution
+- **Manager (front-end):** painel web em `/manager` com Thymeleaf + htmx (login, instâncias,
+  QR code ao vivo, webhook, mensagem de teste). Desenho em
+  [docs/decisoes/0005](docs/decisoes/0005-front-manager-thymeleaf.md); entra após a Fase 2 ou
+  antes, sobre o stub
 
 Testes: `mvn test` (unitários) e `mvn verify` (com integração, via Testcontainers).
 

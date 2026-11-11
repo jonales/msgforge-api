@@ -41,6 +41,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `security/ApiKeyFilter`: a chave global libera tudo; o token da instância libera só as rotas
   `/{grupo}/{acao}/{instancia}`.
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
+- `web/` *(planejado, ainda não existe)*: o **Manager**, front-end em Thymeleaf servido em
+  `/manager` (ADR 0005). Veja a seção "Front-end" abaixo.
 
 ## Convenções
 
@@ -55,6 +57,29 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   costuma ser um starter faltando (o `spring-boot-starter-restclient`, por exemplo).
 - **Commits:** em português, no estilo Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`).
 - **Decisões de arquitetura:** registre em `docs/decisoes/` (ADR curto, numerado).
+
+## Front-end (Manager com Thymeleaf), planejado
+
+Decidido no ADR 0005; ainda não há código. Para criar ou alterar uma tela, use a skill
+`nova-tela`. Regras que valem desde a primeira linha:
+- Thymeleaf renderizado no servidor, rota base `/manager` (como o Evolution Manager), sem
+  SPA e sem Node/npm. Interatividade com htmx vendorizado (sem CDN).
+- Controllers MVC em `dev.msgforge.web` chamam os **serviços**, nunca repositórios nem a
+  API por HTTP. Os modelos de tela são records próprios; os DTOs da API são o contrato da
+  Evolution e não são reaproveitados.
+- Login com a chave global e sessão HTTP + CSRF; o `ApiKeyFilter` continua só para a API
+  (incluir `/manager` e os estáticos nos prefixos que ele ignora).
+- Templates em `templates/manager/` (fragmentos em `fragments/`), textos em
+  `messages.properties` (pt-BR).
+- Telas da v1 (marque `[x]` conforme forem entregues):
+  - [ ] login
+  - [ ] lista de instâncias com status
+  - [ ] criar instância
+  - [ ] conectar (QR/pairing ao vivo)
+  - [ ] webhook
+  - [ ] mensagem de teste
+  - [ ] logout e exclusão
+- Quando: depois da Fase 2 (QR real), ou antes, sobre o gateway stub, se ajudar a validar.
 
 ## Estado atual e backlog
 
