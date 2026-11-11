@@ -13,7 +13,6 @@ import dev.msgforge.webhook.WebhookService;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,13 +35,15 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>Assíncrono, numa virtual thread, só <b>depois do commit</b> (ou na hora, se não
  *       houver transação): entrega usando apenas o snapshot. Em rollback, nada é entregue.</li>
  * </ol>
+ * As entregas de uma mesma instância saem na ordem dos eventos (ADR 0006): uma fila por
+ * instância, instâncias diferentes em paralelo.
  */
 @Component
 public class EventDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(EventDispatcher.class);
 
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final OrderedExecutor deliveries;
     private final MsgforgeProperties properties;
     private final InstanceRepository instances;
     private final InstanceStateService stateService;
@@ -54,6 +55,8 @@ public class EventDispatcher {
     public EventDispatcher(MsgforgeProperties properties, InstanceRepository instances, InstanceStateService stateService,
                            WebhookService webhooks, WebhookSender sender, RabbitTemplate rabbit, JsonMapper json) {
         this.properties = properties;
+        this.deliveries = new OrderedExecutor(Executors.newVirtualThreadPerTaskExecutor(),
+                properties.webhook().maxPendingPerInstance());
         this.instances = instances;
         this.stateService = stateService;
         this.webhooks = webhooks;
@@ -91,7 +94,12 @@ public class EventDispatcher {
         }
         var data = dataOf(event);
         var dateTime = OffsetDateTime.now().toString();
-        Runnable delivery = () -> executor.submit(() -> deliver(target, type, data, dateTime));
+        Runnable delivery = () -> {
+            if (!deliveries.submit(target.instanceName(), () -> deliver(target, type, data, dateTime))) {
+                log.warn("Evento {} da instância {} descartado: {} entregas já aguardando",
+                        type, target.instanceName(), properties.webhook().maxPendingPerInstance());
+            }
+        };
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -136,7 +144,8 @@ public class EventDispatcher {
         var webhook = target.webhook();
         if (webhook != null && webhook.accepts(type)) {
             var url = webhook.urlFor(type);
-            sender.send(url, type.payloadName(), envelope(target, type, data, url, dateTime), webhook.headers());
+            sender.sendUntrusted(url, type.payloadName(), envelope(target, type, data, url, dateTime),
+                    webhook.headers());
         }
 
         var global = properties.webhook();

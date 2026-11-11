@@ -5,4 +5,6 @@ bin=$(command -v graphify 2>/dev/null || true)
 venv_bin="$HOME/.local/share/msgforge/graphify-venv/bin/graphify"
 if [ -z "$bin" ] && [ -x "$venv_bin" ]; then bin="$venv_bin"; fi
 [ -n "$bin" ] || exit 0
+# No máximo 2 lembretes de "use graphify query" por sessão (o padrão do graphify é 5)
+export GRAPHIFY_HOOK_NUDGE_CAP="${GRAPHIFY_HOOK_NUDGE_CAP:-2}"
 exec "$bin" hook-guard "$@"

@@ -18,17 +18,23 @@ public class HttpClientConfig {
     @Bean
     RestClient webhookRestClient(RestClient.Builder builder, MsgforgeProperties properties) {
         return builder
-                .requestFactory(requestFactory(properties.webhook().requestTimeoutMs()))
+                .requestFactory(requestFactory(properties.webhook().requestTimeoutMs(),
+                        !properties.webhook().blockPrivateNetworks()))
                 .defaultHeader("User-Agent", "Msgforge-API")
                 .build();
     }
 
     public static JdkClientHttpRequestFactory requestFactory(long timeoutMs) {
+        return requestFactory(timeoutMs, true);
+    }
+
+    /** @param followRedirects false quando a proteção contra rede privada está ligada (ver PrivateNetworkGuard) */
+    public static JdkClientHttpRequestFactory requestFactory(long timeoutMs, boolean followRedirects) {
         var timeout = Duration.ofMillis(timeoutMs);
         var client = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
                 .connectTimeout(timeout)
-                .followRedirects(HttpClient.Redirect.NORMAL)
+                .followRedirects(followRedirects ? HttpClient.Redirect.NORMAL : HttpClient.Redirect.NEVER)
                 .build();
         var factory = new JdkClientHttpRequestFactory(client);
         factory.setReadTimeout(timeout);

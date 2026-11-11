@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.msgforge.config.HttpClientConfig;
 import dev.msgforge.config.MsgforgeProperties;
+import dev.msgforge.security.PrivateNetworkGuard;
 import dev.msgforge.support.WebhookReceiver;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,8 +20,9 @@ class WebhookSenderTest {
             RestClient.builder().requestFactory(HttpClientConfig.requestFactory(2000)).build(),
             JsonMapper.builder().build(),
             new MsgforgeProperties("http://localhost", null,
-                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(3, 10, 40)),
-                    null, "stub"));
+                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(3, 10, 40), 1000, false),
+                    null, "stub"),
+            new PrivateNetworkGuard(false));
 
     @AfterEach
     void stop() {
@@ -58,6 +60,24 @@ class WebhookSenderTest {
         receiver.close();   // nada escutando na porta
 
         assertThat(sender.send(url, "send.message", Map.of(), Map.of())).isFalse();
+    }
+
+    @Test
+    void untrustedDestinationsArePrivateNetworkChecked() {
+        var guarded = new WebhookSender(
+                RestClient.builder().requestFactory(HttpClientConfig.requestFactory(2000, false)).build(),
+                JsonMapper.builder().build(),
+                new MsgforgeProperties("http://localhost", null,
+                        new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 40), 1000, true),
+                        null, "stub"),
+                new PrivateNetworkGuard(true));
+
+        // receptor em 127.0.0.1: bloqueado quando vem da instância, liberado quando é o global
+        assertThat(guarded.sendUntrusted(receiver.url("/h"), "send.message", Map.of(), Map.of())).isFalse();
+        assertThat(receiver.received()).isEmpty();
+        assertThat(guarded.send(receiver.url("/h"), "send.message", Map.of(), Map.of())).isTrue();
+        assertThat(sender.sendUntrusted(receiver.url("/h"), "send.message", Map.of(), Map.of()))
+                .as("proteção desligada").isTrue();
     }
 
     @Test
