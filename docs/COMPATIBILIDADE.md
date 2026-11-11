@@ -46,7 +46,7 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 ## Manager (painel web)
 | Item | Status |
 |---|---|
-| `/manager`: equivalente ao Evolution Manager, em Thymeleaf (ADR 0005) | ⬜ planejado |
+| `/manager`: equivalente ao Evolution Manager, em Thymeleaf (ADR 0005) | ✅ v1 (login, instâncias, QR/pairing ao vivo, webhook, mensagem de teste, desconectar/excluir) |
 
 ## Chat, Group, Profile, Settings, Integrações (Typebot, Chatwoot etc.)
 ⬜ Fora do escopo inicial — o foco é só a API do WhatsApp.

@@ -47,6 +47,26 @@ reaproveitar a stack e os serviços que já existem.
 - **Testes:** controllers com MockMvc (status, view, modelo); fluxo completo nos `*IT`
   existentes.
 
+## Implementação (v1, 2026-11)
+As propostas acima viraram decisão assim:
+- **htmx 2.0.11** vendorizado em `static/manager/vendor/` (integridade conferida com o sha512
+  do registry npm; licença 0BSD ao lado). Só GETs de atualização: a lista a cada 5 s; o trecho
+  "conexão" a cada 3 s enquanto não conecta e a cada 15 s depois. Todo POST é formulário normal.
+- **Autenticação com Spring Security, restrito a `/manager/**`** (`ManagerSecurityConfig`):
+  - Login por formulário com a chave global (comparação em tempo constante), sessão e CSRF.
+  - CSP rígido: só `'self'`, e `data:` para a imagem do QR. Por isso o htmx roda com
+    `includeIndicatorStyles: false`, porque ele injetaria um `<style>`.
+  - Uma segunda cadeia libera a API sem sessão, sem CSRF e sem headers extras; o
+    `ApiKeyFilter` ignora `/manager`. O `ManagerIT` garante que a API não mudou.
+- **QR ao vivo:** `QrCodeCache` (camada web) escuta `QrCodeUpdated` e guarda o último código por
+  instância, só em memória.
+- **Erros:** `ManagerExceptionHandler` (só para o `ManagerController`) transforma erros dos
+  serviços em mensagem na tela; o `ApiExceptionHandler` segue só para a API.
+- **Envio:** novo `MessageService`, usado pela API e pelo Manager.
+- **Token:** aparece **uma vez**, logo após criar; nenhuma tela o mostra depois.
+- **Telas entregues:** login; lista com estado; criar; detalhe com conectar (QR ou pairing),
+  webhook, mensagem de teste, desconectar e excluir.
+
 ## Consequências
 - Uma imagem só, sem toolchain de JavaScript; quem conhece Spring MVC mantém o front.
 - O QR code ao vivo depende de *polling* via htmx ou de SSE. Cobre bem o caso (uma pessoa
