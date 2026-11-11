@@ -21,7 +21,7 @@ class WebhookSenderTest {
             JsonMapper.builder().build(),
             new MsgforgeProperties("http://localhost", null,
                     new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(3, 10, 40), 1000, false),
-                    null, "stub"),
+                    null, "stub", null),
             new PrivateNetworkGuard(false));
 
     @AfterEach
@@ -69,7 +69,7 @@ class WebhookSenderTest {
                 JsonMapper.builder().build(),
                 new MsgforgeProperties("http://localhost", null,
                         new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 40), 1000, true),
-                        null, "stub"),
+                        null, "stub", null),
                 new PrivateNetworkGuard(true));
 
         // receptor em 127.0.0.1: bloqueado quando vem da instância, liberado quando é o global

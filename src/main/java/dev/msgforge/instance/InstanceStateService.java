@@ -21,7 +21,21 @@ public class InstanceStateService {
 
     @Transactional
     public void update(String instanceName, ConnectionState state) {
-        instances.findByName(instanceName).ifPresent(i -> i.setConnectionState(state));
+        update(instanceName, state, null, null);
+    }
+
+    /** Ao conectar (OPEN), grava também o número e o nome do perfil; nulos não apagam o que já existe. */
+    @Transactional
+    public void update(String instanceName, ConnectionState state, String ownerJid, String profileName) {
+        instances.findByName(instanceName).ifPresent(i -> {
+            i.setConnectionState(state);
+            if (ownerJid != null) {
+                i.setOwnerJid(ownerJid);
+            }
+            if (profileName != null) {
+                i.setProfileName(profileName);
+            }
+        });
         try {
             redis.opsForValue().set(KEY + instanceName, state.value());
         } catch (Exception ignored) {

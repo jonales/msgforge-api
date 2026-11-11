@@ -17,3 +17,4 @@ Uma decisão aceita não é editada; se ela mudar, crie um ADR novo que a substi
 | [0004](0004-entrega-de-eventos-apos-commit.md) | Entrega de eventos depois do commit, a partir de um snapshot | aceita |
 | [0005](0005-front-manager-thymeleaf.md) | Front-end (Manager) com Thymeleaf, renderizado no servidor | aceita |
 | [0006](0006-entrega-ordenada-por-instancia.md) | Entrega de eventos ordenada por instância, com limite de pendências | aceita |
+| [0007](0007-motor-whatsapp-cobalt.md) | Motor do WhatsApp: Cobalt 0.0.10, condicionado ao teste ao vivo | proposta |

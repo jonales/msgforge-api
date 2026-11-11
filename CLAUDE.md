@@ -27,9 +27,20 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 ## Arquitetura (pacote `dev.msgforge`)
 
 - `instance/`, `message/`, `webhook/`: controllers e DTOs (records) no formato JSON da Evolution.
-- `gateway/`: `WhatsAppGateway` é a **única** fronteira com o protocolo. Hoje existe
-  `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`); o `CobaltWhatsAppGateway` virá na Fase 2.
-  Nada fora de `gateway/` pode importar classes do motor (Cobalt).
+- `gateway/`: `WhatsAppGateway` é a **única** fronteira com o protocolo. Dois motores:
+  `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`, padrão) e `gateway/cobalt/CobaltWhatsAppGateway`
+  (`MSGFORGE_GATEWAY=cobalt`, ADR 0007). Nada fora de `gateway/cobalt/` pode importar classes do
+  Cobalt (`it.auties.*`).
+  - `CobaltMessageMapper`: mensagens do Cobalt → JSON Baileys (`messages.upsert`/`update`).
+  - `DatabaseSessionSerializer`: sessão do Cobalt (Keys + Store) no `session_store`, num blob só
+    (`CobaltSessionCodec`), com lock por instância.
+  - `src/main/java/com/aspose/words/` é um **shim** obrigatório (o `aspose-words` é comercial e
+    foi excluído). Sem ele, montar mídia quebra com `NoClassDefFoundError`. Não apague.
+  - Testes do Cobalt nunca falam com o WhatsApp: `COBALT_PROXY` aponta para uma porta fechada
+    (`CobaltWhatsAppGatewayTest`, `CobaltGatewayIT`).
+- `instance/InstanceService`: `create`/`connect`/`logout`/`delete` **não seguram transação**
+  enquanto o gateway trabalha (os eventos do motor chegam por outras threads e precisam ver a
+  instância commitada).
 - `event/`: o gateway publica `GatewayEvent` (interface selada) e o `EventDispatcher` converte
   no envelope da Evolution e entrega no webhook da instância, no webhook global e no RabbitMQ.
   Um evento novo exige um `case` novo nos `switch` exaustivos; isso é proposital.
@@ -87,17 +98,26 @@ Decidido no ADR 0005; ainda não há código. Para criar ou alterar uma tela, us
 
 ## Estado atual e backlog
 
-O roadmap está no `README.md`. A Fase 1.5 (estabilização) terminou; o próximo passo é a
-Fase 2 (`CobaltWhatsAppGateway`).
+O roadmap está no `README.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
+`CobaltWhatsAppGateway` está implementado e testado **offline** (ADR 0007 ainda *proposta*).
+**Nunca foi validado ao vivo**, porque o proxy da nuvem bloqueia `web.whatsapp.com`. O roteiro
+para validar com um número de teste está em `docs/spikes/cobalt/README.md`. Se o protocolo da
+0.0.10 não funcionar, a alternativa preferida é um sidecar com Baileys (só troca `gateway/`).
 
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
-1. `mentioned`, `quoted`, `delay` e `webhookBase64` são aceitos e ignorados (dependem do gateway real).
+1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
+   funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
 2. O RabbitMQ usa um exchange tópico; a Evolution usa filas por evento (`docs/COMPATIBILIDADE.md`).
 3. As entregas de webhook ficam só em memória (com teto por instância, ADR 0006): se o processo
    cair durante os retries, o evento se perde. Uma fila persistente (outbox) resolveria; ainda
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão, como na Evolution.
+5. **Cobalt sem teste ao vivo** (ver acima). Pontos frágeis a observar no primeiro teste: o
+   `profileName` vem do `Store.name()` (pode vir o nome do aparelho; nesse caso vai nulo); texto
+   recebido sai sempre como `conversation` (nunca `extendedTextMessage`).
+6. A imagem Docker não tem `ffmpeg`: vídeo e áudio enviados saem com duração 0. Com o ffmpeg,
+   um "vídeo" com bytes inválidos faz o `ffprobe` do Cobalt esperar cerca de 10 s.
 
 ## Memória entre sessões
 

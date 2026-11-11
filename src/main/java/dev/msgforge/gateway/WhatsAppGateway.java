@@ -26,4 +26,11 @@ public interface WhatsAppGateway {
                          String caption, String fileName, Integer delayMs) {}
 
     record SentMessage(String id, String remoteJid, long timestamp) {}
+
+    /** Falha do motor ao executar a operação (rede, recusa do WhatsApp, timeout). Vira HTTP 500 com a mensagem. */
+    class GatewayException extends RuntimeException {
+        public GatewayException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 }

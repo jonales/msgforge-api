@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Spike do Cobalt (ADR 0007). Projeto isolado: NÃO faz parte do build da aplicação. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>dev.msgforge.spike</groupId>
+    <artifactId>cobalt-spike</artifactId>
+    <version>1</version>
+
+    <properties>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.github.auties00</groupId>
+            <artifactId>cobalt</artifactId>
+            <version>0.0.10</version>
+            <exclusions>
+                <!-- Comercial e fora do Maven Central (só no repositório da Aspose). Usada apenas para
+                     contar páginas e gerar miniatura de documento; sem ela o Cobalt cai no padrão. -->
+                <exclusion>
+                    <groupId>com.aspose</groupId>
+                    <artifactId>aspose-words</artifactId>
+                </exclusion>
+                <!-- Silenciaria o log da aplicação inteira -->
+                <exclusion>
+                    <groupId>org.slf4j</groupId>
+                    <artifactId>slf4j-nop</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -52,6 +52,12 @@ msgforge:
     enabled: ${RABBITMQ_ENABLED:false}
     exchange: ${RABBITMQ_EXCHANGE_NAME:msgforge_exchange}
   gateway: ${MSGFORGE_GATEWAY:stub}
+  cobalt:
+    device-name: ${CONFIG_SESSION_PHONE_CLIENT:Msgforge}
+    qr-wait-ms: ${COBALT_QR_WAIT_MS:10000}
+    send-timeout-ms: ${COBALT_SEND_TIMEOUT_MS:30000}
+    media-max-bytes: ${COBALT_MEDIA_MAX_BYTES:67108864}
+    proxy: ${COBALT_PROXY:}
 
 management:
   health:
