@@ -53,7 +53,7 @@ public class MessageController {
     @PostMapping("/sendWhatsAppAudio/{instance}")
     public ResponseEntity<MessageResponse> sendWhatsAppAudio(@PathVariable String instance,
                                                              @Valid @RequestBody SendWhatsAppAudioRequest body) {
-        var sent = messages.sendVoice(instance, body.number(), body.audio(), body.delay());
+        var sent = messages.sendVoice(instance, body.number(), body.audio(), body.delay(), body.encoding());
         return created(sent.instance(), sent.message(), "audioMessage",
                 Map.of("audioMessage", Map.of("ptt", true)));
     }

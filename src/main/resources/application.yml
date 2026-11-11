@@ -58,6 +58,9 @@ msgforge:
     enabled: ${RABBITMQ_ENABLED:false}
     exchange: ${RABBITMQ_EXCHANGE_NAME:msgforge_exchange}
   gateway: ${MSGFORGE_GATEWAY:stub}
+  media:
+    ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
+    transcode-timeout-ms: ${MEDIA_TRANSCODE_TIMEOUT_MS:60000}
   cobalt:
     device-name: ${CONFIG_SESSION_PHONE_CLIENT:Msgforge}
     qr-wait-ms: ${COBALT_QR_WAIT_MS:10000}

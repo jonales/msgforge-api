@@ -40,8 +40,11 @@ public interface WhatsAppGateway {
         Integer delayMs();
     }
 
-    /** {@code audio}: URL http(s) ou base64, como em OutgoingMedia. Enviado como mensagem de voz (PTT). */
-    record VoiceNote(String jid, String audio, Integer delayMs) implements Outgoing {}
+    /**
+     * {@code audio}: URL http(s) ou base64, como em OutgoingMedia. Enviado como mensagem de voz (PTT).
+     * {@code encode}: converter para OGG/Opus com o ffmpeg antes de enviar.
+     */
+    record VoiceNote(String jid, String audio, Integer delayMs, boolean encode) implements Outgoing {}
 
     record Location(String jid, double latitude, double longitude, String name, String address,
                     Integer delayMs) implements Outgoing {}
