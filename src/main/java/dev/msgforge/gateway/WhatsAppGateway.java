@@ -21,6 +21,40 @@ public interface WhatsAppGateway {
     /** Demais tipos de mensagem (áudio de voz, localização, contatos, reação, enquete). */
     SentMessage send(Instance instance, Outgoing message);
 
+    /** Quais JIDs têm WhatsApp. Mantém a ordem da consulta. */
+    java.util.Map<String, Boolean> checkNumbers(Instance instance, java.util.List<String> jids);
+
+    /** Marca mensagens recebidas como lidas (tique azul). */
+    void markRead(Instance instance, java.util.List<MessageKey> keys);
+
+    /** Mostra a presença na conversa; com {@code delayMs}, mantém por esse tempo e volta ao normal. */
+    void sendPresence(Instance instance, String jid, Presence presence, Integer delayMs);
+
+    /** Perfil de um contato (ou da própria conta, com o JID dela). */
+    Profile fetchProfile(Instance instance, String jid);
+
+    /** URL da foto de perfil, ou null se não houver (ou se a privacidade esconder). */
+    String profilePictureUrl(Instance instance, String jid);
+
+    /** Altera o perfil da própria conta. */
+    void updateProfile(Instance instance, ProfileUpdate update);
+
+    record MessageKey(String remoteJid, String id, boolean fromMe) {}
+
+    enum Presence { AVAILABLE, UNAVAILABLE, COMPOSING, RECORDING, PAUSED }
+
+    record Profile(String jid, boolean exists, String name, String pictureUrl, String status) {}
+
+    /** Selado: cada motor trata todos os tipos de alteração (switch exaustivo). */
+    sealed interface ProfileUpdate {}
+
+    record ProfileName(String name) implements ProfileUpdate {}
+
+    record ProfileStatus(String status) implements ProfileUpdate {}
+
+    /** {@code picture}: URL http(s) ou base64, como em OutgoingMedia. */
+    record ProfilePicture(String picture) implements ProfileUpdate {}
+
     record ConnectResult(String pairingCode, String qrCode, String qrBase64) {}
 
     record OutgoingText(String jid, String text, Integer delayMs, Boolean linkPreview) {}

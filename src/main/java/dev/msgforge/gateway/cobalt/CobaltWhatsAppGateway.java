@@ -42,6 +42,11 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -433,6 +438,124 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                     .title(media.caption()).mimeType(media.mimeType()).build();
             default -> throw new BadRequestException("Unsupported mediatype: " + media.mediaType());
         };
+    }
+
+    @Override
+    public Map<String, Boolean> checkNumbers(Instance instance, List<String> jids) {
+        var connection = requireConnected(instance);
+        var query = jids.stream().map(Jid::of).toArray(Jid[]::new);
+        var found = await(connection.api.hasWhatsapp(query), "consulta de números");
+        var exists = new HashMap<String, Boolean>();
+        found.forEach((jid, has) -> exists.put(jid.toSimpleJid().toString(), has));
+        var result = new LinkedHashMap<String, Boolean>();
+        jids.forEach(jid -> result.put(jid, Boolean.TRUE.equals(exists.get(jid))));
+        return result;
+    }
+
+    /**
+     * Mensagem conhecida no Store: lida uma a uma. Desconhecida (chegou antes desta sessão, por
+     * exemplo): a conversa inteira é marcada como lida. As enviadas por nós são ignoradas.
+     */
+    @Override
+    public void markRead(Instance instance, List<MessageKey> keys) {
+        var connection = requireConnected(instance);
+        var wholeChats = new LinkedHashSet<String>();
+        for (var key : keys) {
+            if (key.fromMe()) {
+                continue;
+            }
+            var message = connection.api.store().findMessageById(Jid.of(key.remoteJid()), key.id());
+            if (message.isPresent() && message.get() instanceof ChatMessageInfo info) {
+                await(connection.api.markMessageRead(info), "leitura");
+            } else {
+                wholeChats.add(key.remoteJid());
+            }
+        }
+        for (var chat : wholeChats) {
+            await(connection.api.markChatRead(Jid.of(chat)), "leitura");
+        }
+    }
+
+    @Override
+    public void sendPresence(Instance instance, String jid, Presence presence, Integer delayMs) {
+        var connection = requireConnected(instance);
+        var target = Jid.of(jid);
+        await(connection.api.changePresence(target, contactStatus(presence)), "presença");
+        var temporary = presence == Presence.COMPOSING || presence == Presence.RECORDING;
+        if (temporary && delayMs != null && delayMs > 0) {
+            try {
+                Thread.sleep(Math.min(delayMs, MAX_TYPING_DELAY_MS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            await(connection.api.changePresence(target, ContactStatus.AVAILABLE), "presença");
+        }
+    }
+
+    /** O Cobalt não tem "paused": voltar a AVAILABLE encerra o "digitando...". */
+    static ContactStatus contactStatus(Presence presence) {
+        return switch (presence) {
+            case AVAILABLE, PAUSED -> ContactStatus.AVAILABLE;
+            case UNAVAILABLE -> ContactStatus.UNAVAILABLE;
+            case COMPOSING -> ContactStatus.COMPOSING;
+            case RECORDING -> ContactStatus.RECORDING;
+        };
+    }
+
+    @Override
+    public Profile fetchProfile(Instance instance, String jid) {
+        var connection = requireConnected(instance);
+        var target = Jid.of(jid);
+        var exists = Boolean.TRUE.equals(await(connection.api.hasWhatsapp(target), "consulta de número"));
+        if (!exists) {
+            return new Profile(jid, false, null, null, null);
+        }
+        var self = connection.api.store().jid().map(own -> own.toSimpleJid().toString()).orElse(null);
+        var name = jid.equals(self)
+                ? connection.api.store().name()
+                : connection.api.store().findContactByJid(target)
+                        .flatMap(contact -> contact.chosenName().or(contact::fullName))
+                        .orElse(null);
+        var status = optional(connection, connection.api.queryAbout(target))
+                .flatMap(about -> about).flatMap(about -> about.about()).orElse(null);
+        return new Profile(jid, true, name, profilePictureUrl(connection, target), status);
+    }
+
+    @Override
+    public String profilePictureUrl(Instance instance, String jid) {
+        return profilePictureUrl(requireConnected(instance), Jid.of(jid));
+    }
+
+    private String profilePictureUrl(Connection connection, Jid jid) {
+        return optional(connection, connection.api.queryPicture(jid))
+                .flatMap(uri -> uri).map(URI::toString).orElse(null);
+    }
+
+    /** Foto e recado podem ser escondidos pela privacidade: a falha vira "sem valor", não erro. */
+    private <T> Optional<T> optional(Connection connection, CompletableFuture<T> future) {
+        try {
+            return Optional.ofNullable(await(future, "consulta de perfil"));
+        } catch (GatewayException e) {
+            log.debug("[cobalt] {}: {}", connection.instanceName, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public void updateProfile(Instance instance, ProfileUpdate update) {
+        var connection = requireConnected(instance);
+        switch (update) {
+            case ProfileName name -> await(connection.api.changeName(name.name()), "alteração do nome");
+            case ProfileStatus status -> await(connection.api.changeAbout(status.status()), "alteração do recado");
+            case ProfilePicture picture -> {
+                var bytes = loadMedia(picture.picture());
+                if (!MediaSignatures.isImage(bytes)) {
+                    throw new BadRequestException("picture must be a JPEG or PNG image");
+                }
+                await(connection.api.changeProfilePicture(bytes), "alteração da foto");
+            }
+        }
     }
 
     /** {@code delay} da API: mostra "digitando..." por esse tempo antes de enviar. */

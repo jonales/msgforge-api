@@ -27,7 +27,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 
 ## Arquitetura (pacote `dev.msgforge`)
 
-- `instance/`, `message/`, `webhook/`: controllers e DTOs (records) no formato JSON do contrato.
+- `instance/`, `message/`, `chat/`, `webhook/`: controllers e DTOs (records) no formato JSON do contrato.
 - `gateway/`: `WhatsAppGateway` é a **única** fronteira com o protocolo. Dois motores:
   `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`, padrão) e `gateway/cobalt/CobaltWhatsAppGateway`
   (`MSGFORGE_GATEWAY=cobalt`, ADR 0007). Nada fora de `gateway/cobalt/` pode importar classes do
@@ -47,6 +47,10 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
   Enquete no Cobalt usa o builder completo: o `simpleBuilder` ignora o `selectableCount`.
+- `/chat/*` (`ChatService`) usa `checkNumbers`, `markRead`, `sendPresence`, `fetchProfile`,
+  `profilePictureUrl` e `updateProfile` (`ProfileUpdate` selado). Foto e recado escondidos pela
+  privacidade viram null, não erro. `markRead` de mensagem fora do Store do Cobalt marca a conversa
+  inteira.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log).

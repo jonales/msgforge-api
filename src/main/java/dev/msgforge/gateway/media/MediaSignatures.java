@@ -9,6 +9,16 @@ public final class MediaSignatures {
 
     private MediaSignatures() {}
 
+    /** JPEG ou PNG (o que o WhatsApp aceita como foto de perfil). */
+    public static boolean isImage(byte[] media) {
+        if (media == null || media.length < 8) {
+            return false;
+        }
+        var jpeg = (media[0] & 0xff) == 0xFF && (media[1] & 0xff) == 0xD8 && (media[2] & 0xff) == 0xFF;
+        var png = (media[0] & 0xff) == 0x89 && media[1] == 'P' && media[2] == 'N' && media[3] == 'G';
+        return jpeg || png;
+    }
+
     /** MP4, MOV e 3GP (caixa "ftyp" no byte 4) ou WebM/Matroska (cabeçalho EBML). */
     public static boolean isVideo(byte[] media) {
         if (media == null || media.length < 12) {

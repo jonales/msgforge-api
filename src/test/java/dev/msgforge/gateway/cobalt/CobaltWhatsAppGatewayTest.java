@@ -280,6 +280,31 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void chatAndProfileOperationsNeedAConnectedInstance() {
+        var gateway = gateway(false, 1 << 20);
+        var instance = instance("desconectada");
+        var jid = "5561999999999@s.whatsapp.net";
+        List<org.assertj.core.api.ThrowableAssert.ThrowingCallable> calls = List.of(
+                () -> gateway.checkNumbers(instance, List.of(jid)),
+                () -> gateway.markRead(instance, List.of(new dev.msgforge.gateway.WhatsAppGateway.MessageKey(jid, "X", false))),
+                () -> gateway.sendPresence(instance, jid, dev.msgforge.gateway.WhatsAppGateway.Presence.COMPOSING, null),
+                () -> gateway.fetchProfile(instance, jid),
+                () -> gateway.profilePictureUrl(instance, jid),
+                () -> gateway.updateProfile(instance, new dev.msgforge.gateway.WhatsAppGateway.ProfileName("Ana")));
+        for (var call : calls) {
+            assertThatThrownBy(call).isInstanceOf(BadRequestException.class).hasMessageContaining("not connected");
+        }
+    }
+
+    @Test
+    void pausedPresenceEndsTyping() {
+        assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.PAUSED))
+                .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.AVAILABLE);
+        assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.RECORDING))
+                .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.RECORDING);
+    }
+
+    @Test
     void pairingNumbersAreDigitsOnly() {
         assertThat(CobaltWhatsAppGateway.pairingNumber("+55 (61) 99999-9999")).isEqualTo(5561999999999L);
         assertThatThrownBy(() -> CobaltWhatsAppGateway.pairingNumber("123")).isInstanceOf(BadRequestException.class);

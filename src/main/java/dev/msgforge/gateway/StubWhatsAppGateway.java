@@ -69,6 +69,44 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
         return sent(instance, message.jid());
     }
 
+    /** No stub, todo número bem formado "tem WhatsApp". */
+    @Override
+    public java.util.Map<String, Boolean> checkNumbers(Instance instance, java.util.List<String> jids) {
+        var result = new java.util.LinkedHashMap<String, Boolean>();
+        jids.forEach(jid -> result.put(jid, true));
+        return result;
+    }
+
+    @Override
+    public void markRead(Instance instance, java.util.List<MessageKey> keys) {
+        log.info("[stub] markRead {}: {} mensagem(ns)", instance.getName(), keys.size());
+    }
+
+    @Override
+    public void sendPresence(Instance instance, String jid, Presence presence, Integer delayMs) {
+        log.info("[stub] presença {} -> {}: {}", instance.getName(), jid, presence);
+    }
+
+    @Override
+    public Profile fetchProfile(Instance instance, String jid) {
+        return new Profile(jid, true, null, null, null);
+    }
+
+    @Override
+    public String profilePictureUrl(Instance instance, String jid) {
+        return null;
+    }
+
+    @Override
+    public void updateProfile(Instance instance, ProfileUpdate update) {
+        var what = switch (update) {
+            case ProfileName n -> "nome '" + n.name() + "'";
+            case ProfileStatus st -> "recado '" + st.status() + "'";
+            case ProfilePicture _ -> "foto";
+        };
+        log.info("[stub] perfil {}: {}", instance.getName(), what);
+    }
+
     private SentMessage sent(Instance instance, String jid) {
         var id = "3EB0" + HexFormat.of().withUpperCase().formatHex(UUID.randomUUID().toString().getBytes(), 0, 8);
         var message = new SentMessage(id, jid, Instant.now().getEpochSecond());

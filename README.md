@@ -15,6 +15,8 @@ ou RabbitMQ. Inclui um painel web (**Manager**) para operar tudo pelo navegador.
   instância reconecta sozinha, sem QR.
 - **Mensagens:** texto (com "digitando..." opcional), mídia (imagem, vídeo, áudio e documento) por
   URL ou base64, áudio de voz, localização, contatos (vCard), reações e enquetes.
+- **Chat e perfil:** verificar quais números têm WhatsApp, marcar como lida, presença
+  ("digitando...", "gravando..."), foto e perfil de contatos, e alterar nome, recado e foto da conta.
 - **Eventos:** QR code, conexão, mensagem enviada, mensagem recebida e status de entrega/leitura.
   Saem por webhook da instância, webhook global e RabbitMQ:
   - entregues depois que a operação é gravada no banco;
@@ -89,6 +91,14 @@ Todas exigem o header `apikey`: a chave global, ou o token da instância para as
 | POST | `/message/sendContact/{instancia}` | Envia um ou mais contatos (`contact: [{fullName, phoneNumber, wuid, organization, email, url}]`) |
 | POST | `/message/sendReaction/{instancia}` | Reage a uma mensagem (`key: {remoteJid, fromMe, id}`, `reaction`; vazio remove) |
 | POST | `/message/sendPoll/{instancia}` | Envia enquete (`name`, `values` de 2 a 12, `selectableCount`: 1 = escolha única) |
+| POST | `/chat/whatsappNumbers/{instancia}` | Quais números têm WhatsApp (`numbers`, até 100) → `[{exists, jid, number}]` |
+| POST | `/chat/markMessageAsRead/{instancia}` | Marca como lidas (`readMessages: [{remoteJid, fromMe, id}]`) |
+| POST | `/chat/sendPresence/{instancia}` | Presença na conversa (`presence`: available, unavailable, composing, recording, paused; `delay`) |
+| POST | `/chat/fetchProfilePictureUrl/{instancia}` | URL da foto de perfil de `number` |
+| POST | `/chat/fetchProfile/{instancia}` | Perfil de `number` (sem `number`, o da própria conta) |
+| POST | `/chat/updateProfileName/{instancia}` | Altera o nome da conta (até 25 caracteres) |
+| POST | `/chat/updateProfileStatus/{instancia}` | Altera o recado da conta (até 139 caracteres) |
+| POST | `/chat/updateProfilePicture/{instancia}` | Altera a foto da conta (`picture`: JPEG/PNG em URL ou base64) |
 | POST | `/webhook/set/{instancia}` | Configura o webhook da instância |
 | GET | `/webhook/find/{instancia}` | Mostra o webhook configurado |
 
@@ -138,6 +148,7 @@ Manager).
 dev.msgforge
 ├── instance/   rotas /instance, serviço de instâncias e estado (Redis + banco)
 ├── message/    rotas /message e MessageService
+├── chat/       rotas /chat: números no WhatsApp, leitura, presença e perfil
 ├── webhook/    rotas /webhook e configuração por instância
 ├── event/      eventos do motor → envelope → webhook / RabbitMQ (ordenado, com retry)
 ├── gateway/    WhatsAppGateway: única fronteira com o protocolo (stub e cobalt/)
@@ -174,7 +185,9 @@ scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do proj
 - [ ] Validar o motor Cobalt ao vivo com um número de teste
 - [x] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
 - [ ] Figurinha (sticker), botões e listas
-- [ ] Grupos, histórico de chat (buscar mensagens, marcar como lida), perfil
+- [x] Chat e perfil: números no WhatsApp, marcar como lida, presença, foto, perfil e alterações
+- [ ] Grupos
+- [ ] Histórico de chat (buscar mensagens e conversas)
 - [x] `ffmpeg` na imagem Docker (duração de áudio/vídeo, voz em OGG/Opus)
 - [ ] Armazenamento de mídia (S3/MinIO)
 - [ ] Testes de contrato automatizados da API

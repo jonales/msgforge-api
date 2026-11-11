@@ -49,8 +49,19 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 |---|---|
 | `/manager`: equivalente ao Evolution Manager, em Thymeleaf (ADR 0005) | ✅ v1 (login, instâncias, QR/pairing ao vivo, webhook, mensagem de teste, desconectar/excluir) |
 
-## Chat, Group, Profile, Settings, Integrações (Typebot, Chatwoot etc.)
-⬜ Fora do escopo inicial — o foco é só a API do WhatsApp.
+## Chat e Profile
+| Método | Rota | Status |
+|---|---|---|
+| POST | `/chat/whatsappNumbers/{instance}` | ✅ `[{exists, jid, number}]` na ordem pedida; número sem formato de telefone (ou grupo) volta `exists:false, jid:null` sem consultar o WhatsApp; até 100 por chamada |
+| POST | `/chat/markMessageAsRead/{instance}` | 🟡 Cobalt: mensagem conhecida na sessão é lida uma a uma; desconhecida marca a conversa inteira; `fromMe:true` é ignorada |
+| POST | `/chat/sendPresence/{instance}` | 🟡 `{number, presence, delay}` → 201 `{presence}`; `composing`/`recording` com `delay` voltam ao normal depois (teto 20 s); `paused` = `available` no Cobalt |
+| POST | `/chat/fetchProfilePictureUrl/{instance}` | ✅ `{wuid, profilePictureUrl}` (null se não houver ou a privacidade esconder) |
+| POST | `/chat/fetchProfile/{instance}` | 🟡 `{wuid, name, numberExists, picture, status}`; sem `number`, a própria conta; `name` só de contatos da sessão; sem dados de conta comercial |
+| POST | `/chat/updateProfileName`, `updateProfileStatus`, `updateProfilePicture` | ✅ `{update: "success"}`; foto só JPEG/PNG |
+| | `findMessages`, `findChats`, `findContacts`, `archiveChat`, `deleteMessage`, `removeProfilePicture`, privacidade | ⬜ |
+
+## Group, Settings, Integrações (Typebot, Chatwoot etc.)
+⬜ Grupos são o próximo passo; integrações estão fora do escopo.
 
 ## Erros
 Todos no formato `{ "status", "error", "response": { "message": [...] } }`: validação, JSON
