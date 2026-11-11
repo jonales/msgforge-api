@@ -77,6 +77,32 @@ class ManagerIT extends IntegrationTest {
     }
 
     @Test
+    void tooManyWrongKeysBlockTheAddressEvenForTheRightKey() throws Exception {
+        org.springframework.test.web.servlet.request.RequestPostProcessor fromAttacker = request -> {
+            request.setRemoteAddr("203.0.113.77");
+            return request;
+        };
+        for (int i = 0; i < 10; i++) {
+            mvc.perform(POST("/manager/login").with(csrf()).with(fromAttacker)
+                            .param("username", "manager").param("apikey", "chute-" + i))
+                    .andExpect(redirectedUrl("/manager/login?error"));
+        }
+        mvc.perform(POST("/manager/login").with(csrf()).with(fromAttacker)
+                        .param("username", "manager").param("apikey", API_KEY))
+                .andExpect(redirectedUrl("/manager/login?blocked"));
+        // Outro endereço continua entrando
+        mvc.perform(POST("/manager/login").with(csrf()).param("username", "manager").param("apikey", API_KEY))
+                .andExpect(redirectedUrl("/manager"));
+    }
+
+    @Test
+    void expiredSessionDuringHtmxPollingRedirectsTheWholePage() throws Exception {
+        mvc.perform(GET("/manager/instances/table").header("HX-Request", "true"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("HX-Redirect", "/manager/login"));
+    }
+
+    @Test
     void formsRequireCsrf() throws Exception {
         mvc.perform(asManager(POST("/manager/instances")).param("instanceName", uniqueName("x")))
                 .andExpect(status().isForbidden());

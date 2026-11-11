@@ -98,7 +98,11 @@ public class ManagerController {
     @PostMapping("/instances/{name}/connect")
     public String connect(@PathVariable String name, @RequestParam(required = false) String number,
                           RedirectAttributes flash) {
-        instances.connect(name, blankToNull(number));
+        // O QR anterior pode ter expirado (ex.: reconexão com sessão salva, que não gera QR novo)
+        qrCodes.forget(name);
+        var result = instances.connect(name, blankToNull(number));
+        // Se o gateway devolveu o código atual (conexão já pendente), ele não é republicado como evento
+        qrCodes.remember(name, result.code(), result.pairingCode(), result.base64());
         flash.addFlashAttribute("success", "manager.flash.connecting");
         return redirectTo(name);
     }
