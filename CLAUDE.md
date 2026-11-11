@@ -74,6 +74,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - **Spring Boot 4:** Jackson 3 (`tools.jackson.*`; as anotações continuam em
   `com.fasterxml.jackson.annotation`). Os starters são modulares: um auto-config que "sumiu"
   costuma ser um starter faltando (o `spring-boot-starter-restclient`, por exemplo).
+- **README:** apresenta o Msgforge por si só e **não cita a Evolution** (decisão do usuário,
+  2026-11). A compatibilidade de contrato é detalhe interno (`docs/COMPATIBILIDADE.md`, este arquivo,
+  ADRs). Ao mudar rotas, eventos ou variáveis, atualize as tabelas do README.
 - **Commits:** em português, no estilo Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`).
 - **Decisões de arquitetura:** registre em `docs/decisoes/` (ADR curto, numerado).
 
