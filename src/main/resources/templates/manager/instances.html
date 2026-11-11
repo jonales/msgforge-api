@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(#{manager.instances.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container">
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <p class="flash success" th:if="${deletedName}" th:text="#{manager.flash.deletedName(${deletedName})}"></p>
+
+    <section class="card">
+        <h2 th:text="#{manager.create.title}">Nova instância</h2>
+        <form class="inline-form" th:action="@{/manager/instances}" method="post">
+            <label>
+                <span th:text="#{manager.create.name}">Nome</span>
+                <input name="instanceName" required pattern="[A-Za-z0-9_\-]{1,100}"
+                       th:title="#{manager.create.nameRule}" th:placeholder="#{manager.create.namePlaceholder}">
+            </label>
+            <label>
+                <span th:text="#{manager.create.number}">Número (opcional)</span>
+                <input name="number" inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
+            </label>
+            <button type="submit" class="primary" th:text="#{manager.create.submit}">Criar</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{manager.instances.title}">Instâncias</h2>
+        <div th:fragment="table" id="instances-table"
+             th:attr="hx-get=@{/manager/instances/table}" hx-trigger="every 5s" hx-swap="outerHTML">
+            <p class="muted" th:if="${#lists.isEmpty(instances)}" th:text="#{manager.instances.empty}">Nenhuma</p>
+            <table th:unless="${#lists.isEmpty(instances)}">
+                <thead>
+                <tr>
+                    <th th:text="#{manager.col.name}">Nome</th>
+                    <th th:text="#{manager.col.state}">Estado</th>
+                    <th th:text="#{manager.col.number}">Número</th>
+                    <th th:text="#{manager.col.profile}">Perfil</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="row : ${instances}">
+                    <td><a th:href="@{/manager/instances/{n}(n=${row.name})}" th:text="${row.name}">vendas</a></td>
+                    <td><span th:class="'badge ' + ${row.state}" th:text="#{'manager.state.' + ${row.state}}">open</span></td>
+                    <td th:text="${row.number} ?: '—'">5561...</td>
+                    <td th:text="${row.profileName} ?: '—'">Fulano</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+</main>
+</body>
+</html>

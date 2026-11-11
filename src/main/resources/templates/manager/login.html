@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(#{manager.login.title})}"></head>
+<body class="login-page">
+<main class="login-card">
+    <h1 th:text="#{manager.brand}">Msgforge</h1>
+    <p class="muted" th:text="#{manager.login.hint}">Entre com a chave da API.</p>
+
+    <div class="flash error" role="alert" th:if="${param.error}" th:text="#{manager.login.invalid}">inválida</div>
+    <div class="flash success" role="status" th:if="${param.logout}" th:text="#{manager.login.loggedOut}">saiu</div>
+
+    <form th:action="@{/manager/login}" method="post">
+        <input type="hidden" name="username" value="manager">
+        <label for="apikey" th:text="#{manager.login.apikey}">API key</label>
+        <input id="apikey" name="apikey" type="password" autocomplete="current-password" required autofocus>
+        <button type="submit" class="primary" th:text="#{manager.login.submit}">Entrar</button>
+    </form>
+</main>
+</body>
+</html>

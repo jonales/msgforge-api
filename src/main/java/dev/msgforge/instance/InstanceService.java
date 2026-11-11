@@ -88,6 +88,19 @@ public class InstanceService {
         return new QrCode(result.pairingCode(), result.qrCode(), result.qrBase64(), 1);
     }
 
+    /** Todas as instâncias, por nome (Manager). */
+    @Transactional(readOnly = true)
+    public List<Instance> list() {
+        return instances.findAll().stream()
+                .sorted(java.util.Comparator.comparing(Instance::getName))
+                .toList();
+    }
+
+    /** Estado atual: o cache do Redis primeiro, o banco depois. */
+    public ConnectionState stateOf(Instance instance) {
+        return currentState(instance);
+    }
+
     private ConnectionState currentState(Instance instance) {
         return state.cached(instance.getName())
                 .orElseGet(() -> instances.findById(instance.getId())

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(${instance.name})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container">
+    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <div class="flash warning" role="status" th:if="${createdToken}">
+        <span th:text="#{manager.flash.token}">Token</span> <code th:text="${createdToken}">TOKEN</code>
+    </div>
+    <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
+
+    <h1 th:text="${instance.name}">vendas</h1>
+    <p class="muted">
+        <span th:text="#{manager.col.number}">Número</span>: <span th:text="${instance.number} ?: '—'"></span>
+        · <span th:text="#{manager.col.profile}">Perfil</span>: <span th:text="${instance.profileName} ?: '—'"></span>
+        · <span th:text="${instance.integration}">WHATSAPP-BAILEYS</span>
+    </p>
+
+    <!-- Trecho vivo: estado + QR. Enquanto não conecta, o htmx busca a versão nova a cada 3 s -->
+    <section class="card" th:fragment="live" id="live"
+             th:attr="hx-get=@{/manager/instances/{n}/live(n=${live.name})},hx-trigger=(${live.open()} ? 'every 15s' : 'every 3s')"
+             hx-swap="outerHTML">
+        <h2 th:text="#{manager.connection.title}">Conexão</h2>
+        <p><span th:class="'badge ' + ${live.state}" th:text="#{'manager.state.' + ${live.state}}">close</span></p>
+
+        <div th:if="${live.hasCode()}" class="qr">
+            <img th:if="${live.qrImage}" th:src="${live.qrImage}" th:alt="#{manager.connection.qrAlt}" width="280" height="280">
+            <p th:if="${live.qrImage == null and live.qrCode != null}" class="muted">
+                <span th:text="#{manager.connection.qrTextOnly}">QR sem imagem</span><br><code th:text="${live.qrCode}"></code>
+            </p>
+            <p th:if="${live.pairingCode}">
+                <span th:text="#{manager.connection.pairing}">Código</span>
+                <strong class="pairing" th:text="${live.pairingCode}">ABCD-1234</strong>
+            </p>
+            <p class="muted" th:text="#{manager.connection.scanHint}">Escaneie</p>
+        </div>
+        <p class="muted" th:if="${live.open()}" th:text="#{manager.connection.connected}">Conectada</p>
+    </section>
+
+    <div class="grid">
+        <section class="card">
+            <h2 th:text="#{manager.connect.title}">Conectar</h2>
+            <form th:action="@{/manager/instances/{n}/connect(n=${instance.name})}" method="post">
+                <label>
+                    <span th:text="#{manager.connect.pairingNumber}">Número para pairing (opcional)</span>
+                    <input name="number" inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
+                </label>
+                <p class="muted small" th:text="#{manager.connect.hint}">Sem número: QR code.</p>
+                <button type="submit" class="primary" th:text="#{manager.connect.submit}">Gerar QR</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2 th:text="#{manager.send.title}">Mensagem de teste</h2>
+            <form th:action="@{/manager/instances/{n}/send(n=${instance.name})}" method="post">
+                <label>
+                    <span th:text="#{manager.send.number}">Número</span>
+                    <input name="number" required inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
+                </label>
+                <label>
+                    <span th:text="#{manager.send.text}">Texto</span>
+                    <textarea name="text" required rows="3"></textarea>
+                </label>
+                <button type="submit" th:disabled="${!instance.open()}" th:text="#{manager.send.submit}">Enviar</button>
+                <p class="muted small" th:unless="${instance.open()}" th:text="#{manager.send.needsConnection}"></p>
+            </form>
+        </section>
+    </div>
+
+    <section class="card">
+        <h2 th:text="#{manager.webhook.title}">Webhook</h2>
+        <form th:action="@{/manager/instances/{n}/webhook(n=${instance.name})}" method="post">
+            <label>
+                <span th:text="#{manager.webhook.url}">URL</span>
+                <input name="url" type="url" required th:value="${webhook.url}" placeholder="https://">
+            </label>
+            <div class="checks">
+                <label class="check"><input type="checkbox" name="enabled" value="true" th:checked="${webhook.enabled}">
+                    <span th:text="#{manager.webhook.enabled}">Ativo</span></label>
+                <label class="check"><input type="checkbox" name="byEvents" value="true" th:checked="${webhook.byEvents}">
+                    <span th:text="#{manager.webhook.byEvents}">Por evento</span></label>
+            </div>
+            <fieldset>
+                <legend th:text="#{manager.webhook.events}">Eventos</legend>
+                <p class="muted small" th:text="#{manager.webhook.eventsHint}">Nenhum = todos</p>
+                <div class="events">
+                    <label class="check" th:each="event : ${eventNames}">
+                        <input type="checkbox" name="events" th:value="${event}"
+                               th:checked="${#lists.contains(webhook.events, event)}">
+                        <code th:text="${event}">MESSAGES_UPSERT</code>
+                    </label>
+                </div>
+            </fieldset>
+            <button type="submit" class="primary" th:text="#{manager.webhook.submit}">Salvar</button>
+        </form>
+    </section>
+
+    <section class="card danger-zone">
+        <h2 th:text="#{manager.danger.title}">Zona de perigo</h2>
+        <div class="row">
+            <form th:action="@{/manager/instances/{n}/logout(n=${instance.name})}" method="post">
+                <button type="submit" th:text="#{manager.danger.logout}">Desconectar</button>
+            </form>
+            <form th:action="@{/manager/instances/{n}/delete(n=${instance.name})}" method="post">
+                <label class="check"><input type="checkbox" name="confirm" required>
+                    <span th:text="#{manager.danger.confirm}">Confirmo</span></label>
+                <button type="submit" class="danger" th:text="#{manager.danger.delete}">Excluir</button>
+            </form>
+        </div>
+    </section>
+</main>
+</body>
+</html>

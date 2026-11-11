@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:fragment="head(title)">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Sem o <style> que o htmx injeta: o CSP só aceita CSS de arquivo ('self') -->
+    <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+    <title th:text="${title} + ' · ' + #{manager.brand}">Msgforge</title>
+    <link rel="stylesheet" th:href="@{/manager/manager.css}">
+    <script th:src="@{/manager/vendor/htmx-2.0.11.min.js}" defer></script>
+</head>
+<body>
+
+<header th:fragment="header" class="topbar">
+    <a class="brand" th:href="@{/manager}" th:text="#{manager.brand}">Msgforge</a>
+    <span class="brand-sub" th:text="#{manager.subtitle}">Manager</span>
+    <form class="topbar-logout" th:action="@{/manager/logout}" method="post">
+        <button type="submit" class="link" th:text="#{manager.signOut}">Sair</button>
+    </form>
+</header>
+
+<div th:fragment="flash">
+    <div class="flash success" role="status" th:if="${success}" th:text="#{${success}}">ok</div>
+    <div class="flash error" role="alert" th:if="${error}" th:text="#{${error}}">erro</div>
+    <div class="flash error" role="alert" th:if="${errorText}" th:text="${errorText}">erro</div>
+</div>
+
+</body>
+</html>
