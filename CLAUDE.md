@@ -43,6 +43,10 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   - `connect`/`logout` são serializados por instância (lock): nunca dois clientes do WhatsApp para
     a mesma sessão. Um `connect` com QR já pendente **reaproveita** a conexão e devolve o QR atual;
     pedir pairing code recomeça.
+- Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
+  `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
+  Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
+  Enquete no Cobalt usa o builder completo: o `simpleBuilder` ignora o `selectableCount`.
 - `instance/InstanceService`: `create`/`connect`/`logout`/`delete` **não seguram transação**
   enquanto o gateway trabalha (os eventos do motor chegam por outras threads e precisam ver a
   instância commitada).
@@ -129,6 +133,8 @@ para validar com um número de teste está em `docs/spikes/cobalt/README.md`. Se
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
    funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
+   `sendWhatsAppAudio` ignora `encoding` (sem conversão para Opus). Figurinha, botões e listas
+   ainda não existem.
 2. O RabbitMQ usa um exchange tópico, e não filas por evento (`docs/COMPATIBILIDADE.md`).
 3. As entregas de webhook ficam só em memória (com teto por instância, ADR 0006): se o processo
    cair durante os retries, o evento se perde. Uma fila persistente (outbox) resolveria; ainda
@@ -137,7 +143,8 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    padrão.
 5. **Cobalt sem teste ao vivo** (ver acima). Pontos frágeis a observar no primeiro teste: o
    `profileName` vem do `Store.name()` (pode vir o nome do aparelho; nesse caso vai nulo); texto
-   recebido sai sempre como `conversation` (nunca `extendedTextMessage`).
+   recebido sai sempre como `conversation` (nunca `extendedTextMessage`); a reação manda o
+   timestamp em milissegundos num campo que o Cobalt chama de `timestampSeconds`.
 6. A imagem Docker não tem `ffmpeg`: vídeo e áudio enviados saem com duração 0. Com o ffmpeg,
    um "vídeo" com bytes inválidos faz o `ffprobe` do Cobalt esperar cerca de 10 s.
 7. A **API** não limita tentativas de chave errada; o Manager sim.

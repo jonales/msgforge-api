@@ -13,8 +13,8 @@ ou RabbitMQ. Inclui um painel web (**Manager**) para operar tudo pelo navegador.
 - **Instâncias:** criar, conectar (QR code em texto e imagem, ou código de pareamento), consultar
   o estado, listar, desconectar e excluir. A sessão fica no PostgreSQL: a aplicação reinicia e a
   instância reconecta sozinha, sem QR.
-- **Mensagens:** texto (com "digitando..." opcional) e mídia (imagem, vídeo, áudio e documento),
-  por URL ou base64.
+- **Mensagens:** texto (com "digitando..." opcional), mídia (imagem, vídeo, áudio e documento) por
+  URL ou base64, áudio de voz, localização, contatos (vCard), reações e enquetes.
 - **Eventos:** QR code, conexão, mensagem enviada, mensagem recebida e status de entrega/leitura.
   Saem por webhook da instância, webhook global e RabbitMQ:
   - entregues depois que a operação é gravada no banco;
@@ -84,6 +84,11 @@ Todas exigem o header `apikey`: a chave global, ou o token da instância para as
 | DELETE | `/instance/delete/{instancia}` | Exclui a instância |
 | POST | `/message/sendText/{instancia}` | Envia texto (`number`, `text`, `delay`) |
 | POST | `/message/sendMedia/{instancia}` | Envia mídia (`mediatype`, `media` em URL ou base64, `caption`, `fileName`) |
+| POST | `/message/sendWhatsAppAudio/{instancia}` | Envia áudio de voz (`audio` em URL ou base64; de preferência OGG/Opus) |
+| POST | `/message/sendLocation/{instancia}` | Envia localização (`latitude`, `longitude`, `name`, `address`) |
+| POST | `/message/sendContact/{instancia}` | Envia um ou mais contatos (`contact: [{fullName, phoneNumber, wuid, organization, email, url}]`) |
+| POST | `/message/sendReaction/{instancia}` | Reage a uma mensagem (`key: {remoteJid, fromMe, id}`, `reaction`; vazio remove) |
+| POST | `/message/sendPoll/{instancia}` | Envia enquete (`name`, `values` de 2 a 12, `selectableCount`: 1 = escolha única) |
 | POST | `/webhook/set/{instancia}` | Configura o webhook da instância |
 | GET | `/webhook/find/{instancia}` | Mostra o webhook configurado |
 
@@ -165,7 +170,8 @@ scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do proj
 - [x] Motor real (Cobalt): QR/pareamento, sessão no banco, envio, recebimento e status
 - [x] Manager v1: login, instâncias, QR ao vivo, webhook, mensagem de teste
 - [ ] Validar o motor Cobalt ao vivo com um número de teste
-- [ ] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
+- [x] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
+- [ ] Figurinha (sticker), botões e listas
 - [ ] Grupos, histórico de chat (buscar mensagens, marcar como lida), perfil
 - [ ] Armazenamento de mídia (S3/MinIO) e `ffmpeg` na imagem Docker
 - [ ] Testes de contrato automatizados da API

@@ -19,11 +19,12 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 |---|---|---|
 | POST | `/message/sendText/{instance}` | 🟡 (`delay` = digitando no Cobalt; mentioned/quoted ignorados) |
 | POST | `/message/sendMedia/{instance}` | 🟡 (image/video/audio/document por URL ou base64; teto `COBALT_MEDIA_MAX_BYTES`) |
-| POST | `/message/sendWhatsAppAudio/{instance}` | ⬜ |
-| POST | `/message/sendLocation/{instance}` | ⬜ |
-| POST | `/message/sendContact/{instance}` | ⬜ |
-| POST | `/message/sendReaction/{instance}` | ⬜ |
-| POST | `/message/sendButtons`, `sendList`, `sendPoll`, `sendSticker` | ⬜ |
+| POST | `/message/sendWhatsAppAudio/{instance}` | 🟡 envia como voz (PTT); `encoding` é ignorado (sem conversão para Opus: mande OGG/Opus) |
+| POST | `/message/sendLocation/{instance}` | ✅ |
+| POST | `/message/sendContact/{instance}` | ✅ (1 contato → `contactMessage`; vários → `contactsArrayMessage`; vCard com escape) |
+| POST | `/message/sendReaction/{instance}` | ✅ (`reaction` vazio remove) |
+| POST | `/message/sendPoll/{instance}` | ✅ (`selectableCount` respeitado; opções únicas, 2 a 12) |
+| POST | `/message/sendButtons`, `sendList`, `sendSticker` | ⬜ (o Cobalt 0.0.10 não tem builder simples de figurinha) |
 
 ## Webhook / Eventos
 | Item | Status |
