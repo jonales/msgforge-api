@@ -1,5 +1,6 @@
 package dev.msgforge.common;
 
+import dev.msgforge.gateway.WhatsAppGateway;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -34,6 +35,12 @@ public class ApiExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     ResponseEntity<Map<String, Object>> badRequest(BadRequestException ex) {
         return error(HttpStatus.BAD_REQUEST, List.of(ex.getMessage()));
+    }
+
+    @ExceptionHandler(WhatsAppGateway.GatewayException.class)
+    ResponseEntity<Map<String, Object>> gateway(WhatsAppGateway.GatewayException ex) {
+        log.warn("Falha do motor do WhatsApp: {}", ex.getMessage(), ex.getCause());
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, List.of(ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

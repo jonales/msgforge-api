@@ -6,6 +6,7 @@ import dev.msgforge.event.DeliveryTarget.WebhookTarget;
 import dev.msgforge.event.GatewayEvent.ConnectionUpdated;
 import dev.msgforge.event.GatewayEvent.MessageReceived;
 import dev.msgforge.event.GatewayEvent.MessageSent;
+import dev.msgforge.event.GatewayEvent.MessageStatusUpdated;
 import dev.msgforge.event.GatewayEvent.QrCodeUpdated;
 import dev.msgforge.instance.InstanceRepository;
 import dev.msgforge.instance.InstanceStateService;
@@ -81,11 +82,12 @@ public class EventDispatcher {
         var type = switch (event) {
             case QrCodeUpdated _ -> EventType.QRCODE_UPDATED;
             case ConnectionUpdated c -> {
-                stateService.update(c.instanceName(), c.state());
+                stateService.update(c.instanceName(), c.state(), c.wuid(), c.profileName());
                 yield EventType.CONNECTION_UPDATE;
             }
             case MessageSent _ -> EventType.SEND_MESSAGE;
             case MessageReceived _ -> EventType.MESSAGES_UPSERT;
+            case MessageStatusUpdated _ -> EventType.MESSAGES_UPDATE;
         };
         var target = snapshot(event.instanceName());
         if (target == null) {
@@ -128,15 +130,20 @@ public class EventDispatcher {
 
     private static Object dataOf(GatewayEvent event) {
         return switch (event) {
-            case QrCodeUpdated q -> Map.of("qrcode", nonNull(Map.of(
-                    "instance", q.instanceName()), "code", q.code(), "pairingCode", q.pairingCode()));
-            case ConnectionUpdated c -> nonNull(Map.of(
-                    "instance", c.instanceName(), "state", c.state().value()), "statusReason", c.statusReason());
+            case QrCodeUpdated q -> Map.of("qrcode", nonNull(nonNull(Map.of(
+                    "instance", q.instanceName()), "code", q.code(), "pairingCode", q.pairingCode()),
+                    "base64", q.base64()));
+            case ConnectionUpdated c -> {
+                var map = nonNull(Map.of("instance", c.instanceName(), "state", c.state().value()),
+                        "statusReason", c.statusReason());
+                yield nonNull(map, "wuid", c.wuid(), "profileName", c.profileName());
+            }
             case MessageSent m -> Map.of(
                     "key", Map.of("remoteJid", m.message().remoteJid(), "fromMe", true, "id", m.message().id()),
                     "messageTimestamp", m.message().timestamp(),
                     "status", "PENDING");
             case MessageReceived r -> r.data();
+            case MessageStatusUpdated s -> s.data();
         };
     }
 

@@ -15,8 +15,16 @@ import dev.msgforge.webhook.WebhookService;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+/**
+ * Operações de instância. As que falam com o gateway ({@code create} com QR, {@code connect},
+ * {@code logout}, {@code delete}) <b>não</b> seguram transação enquanto o motor trabalha: com um
+ * motor real, eventos chegam por outras threads e precisam enxergar a instância já commitada
+ * (ADR 0004), e uma espera de rede não pode prender uma conexão do pool.
+ */
 @Service
 public class InstanceService {
 
@@ -26,10 +34,13 @@ public class InstanceService {
     private final WhatsAppGateway gateway;
     private final MsgforgeProperties properties;
     private final SessionStore sessions;
+    private final TransactionTemplate tx;
 
     public InstanceService(InstanceRepository instances, InstanceStateService state, WebhookService webhooks,
-                           WhatsAppGateway gateway, MsgforgeProperties properties, SessionStore sessions) {
+                           WhatsAppGateway gateway, MsgforgeProperties properties, SessionStore sessions,
+                           PlatformTransactionManager transactionManager) {
         this.sessions = sessions;
+        this.tx = new TransactionTemplate(transactionManager);
         this.instances = instances;
         this.state = state;
         this.webhooks = webhooks;
@@ -37,8 +48,18 @@ public class InstanceService {
         this.properties = properties;
     }
 
-    @Transactional
     public CreateInstanceResponse create(CreateInstanceRequest request) {
+        var instance = tx.execute(status -> persist(request));
+        QrCode qr = null;
+        if (Boolean.TRUE.equals(request.qrcode())) {
+            qr = connect(instance, request.number());   // depois do commit: eventos do motor enxergam a instância
+        }
+        var info = new InstanceInfo(instance.getName(), instance.getId().toString(),
+                instance.getIntegration(), currentState(instance).value());
+        return new CreateInstanceResponse(info, instance.getToken(), qr);
+    }
+
+    private Instance persist(CreateInstanceRequest request) {
         if (instances.existsByName(request.instanceName())) {
             throw new BadRequestException("This name \"" + request.instanceName() + "\" is already in use.");
         }
@@ -54,25 +75,24 @@ public class InstanceService {
         if (request.webhook() != null) {
             webhooks.save(instance, request.webhook());
         }
-
-        QrCode qr = null;
-        if (Boolean.TRUE.equals(request.qrcode())) {
-            qr = connect(instance, request.number());
-        }
-        var info = new InstanceInfo(instance.getName(), instance.getId().toString(),
-                instance.getIntegration(), instance.getConnectionState().value());
-        return new CreateInstanceResponse(info, token, qr);
+        return instance;
     }
 
-    @Transactional
     public QrCode connect(String instanceName, String number) {
         return connect(get(instanceName), number);
     }
 
+    /** O estado (connecting/open) vem dos eventos do gateway, não daqui: um login rápido já pode ter chegado. */
     private QrCode connect(Instance instance, String number) {
         var result = gateway.connect(instance, number);
-        instance.setConnectionState(ConnectionState.CONNECTING);
         return new QrCode(result.pairingCode(), result.qrCode(), result.qrBase64(), 1);
+    }
+
+    private ConnectionState currentState(Instance instance) {
+        return state.cached(instance.getName())
+                .orElseGet(() -> instances.findById(instance.getId())
+                        .map(Instance::getConnectionState)
+                        .orElse(instance.getConnectionState()));
     }
 
     @Transactional(readOnly = true)
@@ -87,21 +107,19 @@ public class InstanceService {
         return list.stream().map(FetchedInstance::of).toList();
     }
 
-    @Transactional
     public void logout(String instanceName) {
         var instance = get(instanceName);
         gateway.logout(instance);
         sessions.delete(instance.getId());
-        instance.setConnectionState(ConnectionState.CLOSE);
+        state.update(instanceName, ConnectionState.CLOSE);
     }
 
-    @Transactional
     public void delete(String instanceName) {
         var instance = get(instanceName);
-        if (instance.getConnectionState() != ConnectionState.CLOSE) {
+        if (currentState(instance) != ConnectionState.CLOSE || sessions.exists(instance.getId())) {
             gateway.logout(instance);
         }
-        instances.delete(instance);
+        instances.delete(instance);   // a sessão sai junto (FK ON DELETE CASCADE)
         state.evict(instanceName);
     }
 
