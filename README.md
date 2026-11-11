@@ -70,3 +70,12 @@ dev.msgforge
 - **Fase 4:** testes de contrato com a collection Postman da Evolution
 
 Detalhe de cada rota em [docs/COMPATIBILIDADE.md](docs/COMPATIBILIDADE.md).
+
+## Manutenção
+
+- **Banco:** migrations Flyway no padrão de [docs/MIGRATIONS.md](docs/MIGRATIONS.md); crie com
+  `scripts/new-migration.sh "descricao"`.
+- **Decisões de arquitetura:** [docs/decisoes/](docs/decisoes/).
+- **Memória para agentes (Claude Code):** [CLAUDE.md](CLAUDE.md), skills em `.claude/skills/` e
+  [Graphify](https://github.com/Graphify-Labs/graphify) (`pip install "graphifyy[sql]==0.9.106"`,
+  depois `graphify update .`). As memórias versionadas ficam em `graphify-out/memory/`.

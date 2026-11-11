@@ -6,3 +6,8 @@ target/
 .vscode/
 .DS_Store
 sessions/
+
+# Graphify: o grafo é gerado (SessionStart ou `graphify update .`); só as memórias são versionadas
+graphify-out/*
+!graphify-out/memory/
+!graphify-out/reflections/

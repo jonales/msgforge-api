@@ -15,8 +15,14 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  # Padrão de migrations: docs/MIGRATIONS.md
   flyway:
     enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+    validate-migration-naming: true
+    out-of-order: false
+    clean-disabled: true
   data:
     redis:
       host: ${CACHE_REDIS_HOST:localhost}

@@ -1,0 +1,4 @@
+# O que o Graphify não deve indexar (além do .gitignore)
+.claude/skills/
+graphify-out/
+target/
