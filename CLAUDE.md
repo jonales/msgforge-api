@@ -87,8 +87,12 @@ Decidido no ADR 0005; ainda não há código. Para criar ou alterar uma tela, us
 
 ## Estado atual e backlog
 
-O roadmap está no `README.md`. A Fase 1.5 (estabilização) terminou; o próximo passo é a
-Fase 2 (`CobaltWhatsAppGateway`).
+O roadmap está no `README.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2 em andamento:** o
+spike do Cobalt foi feito (`docs/spikes/cobalt/`, ADR 0007 *proposta*). Offline, tudo funciona no
+Java 25, com a exclusão de `aspose-words` (comercial) e `slf4j-nop`. **Falta o teste ao vivo**
+(QR/envio/recebimento/reconexão com um número de teste), que só roda fora da nuvem, porque o
+proxy bloqueia `web.whatsapp.com`. Se ele falhar, a alternativa preferida é um sidecar com
+Baileys. Não comece o `CobaltWhatsAppGateway` completo antes desse resultado.
 
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
 1. `mentioned`, `quoted`, `delay` e `webhookBase64` são aceitos e ignorados (dependem do gateway real).
