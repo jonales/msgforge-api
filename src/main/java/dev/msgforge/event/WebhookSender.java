@@ -1,6 +1,7 @@
 package dev.msgforge.event;
 
 import dev.msgforge.config.MsgforgeProperties;
+import dev.msgforge.security.PrivateNetworkGuard;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,15 +25,33 @@ public class WebhookSender {
     private final RestClient http;
     private final JsonMapper json;
     private final MsgforgeProperties.Retry retry;
+    private final PrivateNetworkGuard guard;
 
-    public WebhookSender(RestClient webhookRestClient, JsonMapper json, MsgforgeProperties properties) {
+    public WebhookSender(RestClient webhookRestClient, JsonMapper json, MsgforgeProperties properties,
+                         PrivateNetworkGuard guard) {
         this.http = webhookRestClient;
         this.json = json;
         this.retry = properties.webhook().retry();
+        this.guard = guard;
+    }
+
+    /** Destino configurado pelo operador (webhook global): sem checagem de rede privada. */
+    public boolean send(String url, String event, Object body, Map<String, String> headers) {
+        return deliver(url, event, body, headers);
+    }
+
+    /** Destino configurado por quem tem o token da instância: aplica {@link PrivateNetworkGuard}. */
+    public boolean sendUntrusted(String url, String event, Object body, Map<String, String> headers) {
+        var refusal = guard.check(url);
+        if (refusal.isPresent()) {
+            log.warn("Webhook {} para {} bloqueado: {}", event, url, refusal.get());
+            return false;
+        }
+        return deliver(url, event, body, headers);
     }
 
     /** @return true se algum envio recebeu 2xx */
-    public boolean send(String url, String event, Object body, Map<String, String> headers) {
+    private boolean deliver(String url, String event, Object body, Map<String, String> headers) {
         var bytes = json.writeValueAsBytes(body);
         var attempts = Math.max(1, retry.maxAttempts());
         var delay = Math.max(0, retry.initialDelayMs());
