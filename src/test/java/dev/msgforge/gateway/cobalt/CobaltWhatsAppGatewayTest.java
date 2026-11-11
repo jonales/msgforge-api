@@ -94,6 +94,52 @@ class CobaltWhatsAppGatewayTest {
                 .as("a conexão que falhou não fica registrada").isInstanceOf(BadRequestException.class);
     }
 
+    /** Proxy que aceita a conexão e nunca responde: o connect fica pendente, como esperando o QR. */
+    private static java.net.ServerSocket silentProxy() throws Exception {
+        var server = new java.net.ServerSocket(0);
+        Thread.ofVirtual().start(() -> {
+            var held = new java.util.ArrayList<java.net.Socket>();
+            while (!server.isClosed()) {
+                try {
+                    held.add(server.accept());   // segura o socket aberto, sem responder
+                } catch (java.io.IOException e) {
+                    return;
+                }
+            }
+        });
+        return server;
+    }
+
+    @Test
+    void concurrentConnectsShareOnePendingConnection() throws Exception {
+        try (var proxy = silentProxy()) {
+            var properties = new MsgforgeProperties("http://localhost", null,
+                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false),
+                    null, "cobalt",
+                    new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
+                            "http://127.0.0.1:" + proxy.getLocalPort()));
+            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), properties);
+            var instance = instance("corrida");
+            try {
+                var start = new java.util.concurrent.CountDownLatch(1);
+                try (var pool = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+                    for (int i = 0; i < 10; i++) {
+                        pool.submit(() -> {
+                            start.await();
+                            return gateway.connect(instance, null);
+                        });
+                    }
+                    start.countDown();
+                }
+                // Sem o lock, cada chamada criava (e publicava) um cliente do WhatsApp para a mesma sessão
+                assertThat(gateway.activeConnections()).isEqualTo(1);
+                assertThat(events).filteredOn(ConnectionUpdated.class::isInstance).hasSize(1);
+            } finally {
+                gateway.destroy();
+            }
+        }
+    }
+
     @Test
     void sendingWithoutConnectionIsABadRequest() {
         var gateway = gateway(false, 1024);

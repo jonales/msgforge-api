@@ -75,16 +75,29 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     /** Estado de uma instância conectada (ou conectando). */
     private static final class Connection {
         final String instanceName;
-        final Whatsapp api;
+        /** Conexão pedida com pairing code (número informado) em vez de QR. */
+        final boolean pairing;
+        /** Completa com o primeiro QR/pairing code, no login ou na falha. */
+        final CompletableFuture<ConnectResult> firstCode = new CompletableFuture<>();
+        volatile Whatsapp api;
+        /** Último QR/pairing code gerado, para quem chamar connect de novo enquanto espera o scan. */
+        volatile ConnectResult lastCode;
         volatile boolean closingOnPurpose;
 
-        Connection(String instanceName, Whatsapp api) {
+        Connection(String instanceName, boolean pairing) {
             this.instanceName = instanceName;
-            this.api = api;
+            this.pairing = pairing;
+        }
+
+        void codeGenerated(ConnectResult code) {
+            lastCode = code;
+            firstCode.complete(code);
         }
     }
 
     private final ConcurrentHashMap<UUID, Connection> connections = new ConcurrentHashMap<>();
+    /** Serializa connect/logout por instância: nunca dois clientes do WhatsApp para a mesma sessão. */
+    private final ConcurrentHashMap<UUID, Object> locks = new ConcurrentHashMap<>();
     private final ApplicationEventPublisher events;
     private final SessionStore sessions;
     private final DatabaseSessionSerializer serializer;
@@ -111,16 +124,43 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     @Override
     public ConnectResult connect(Instance instance, String phoneNumberForPairing) {
         var id = instance.getId();
-        var existing = connections.get(id);
-        if (existing != null && existing.api.isConnected()) {
-            return NO_CODE;   // já conectada: nada a escanear
+        var wantsPairing = phoneNumberForPairing != null && !phoneNumberForPairing.isBlank();
+        Connection connection;
+        synchronized (lock(id)) {
+            var existing = connections.get(id);
+            if (existing != null && existing.api.isConnected()) {
+                return NO_CODE;   // já conectada: nada a escanear
+            }
+            if (existing != null && !wantsPairing && !existing.pairing) {
+                connection = existing;   // já esperando o scan: devolve o QR atual, não gera outro
+            } else {
+                if (existing != null) {
+                    close(id, existing);   // pedido diferente (ex.: agora com pairing): recomeça
+                }
+                connection = start(instance, wantsPairing ? phoneNumberForPairing : null);
+            }
         }
-        if (existing != null) {
-            close(id, existing);   // QR anterior pendente: começa de novo
+        var current = connection.lastCode;
+        if (current != null) {
+            return current;
         }
+        try {
+            return connection.firstCode.get(config.qrWaitMs(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            return NO_CODE;   // o QR chega depois pelo webhook qrcode.updated
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return NO_CODE;
+        } catch (ExecutionException e) {
+            return NO_CODE;
+        }
+    }
 
+    /** Cria o cliente do Cobalt e começa a conectar. Chamado com o lock da instância. */
+    private Connection start(Instance instance, String phoneNumberForPairing) {
+        var id = instance.getId();
         var name = instance.getName();
-        var firstCode = new CompletableFuture<ConnectResult>();
+        var connection = new Connection(name, phoneNumberForPairing != null);
         var options = Whatsapp.webBuilder()
                 .serializer(serializer)
                 .newConnection(id)
@@ -134,53 +174,41 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         }
 
         var restored = sessions.exists(id) ? options.registered() : Optional.<Whatsapp>empty();
-        Whatsapp api;
         if (restored.isPresent()) {
-            api = restored.get();   // sessão salva: reconecta sem QR
-        } else if (phoneNumberForPairing != null && !phoneNumberForPairing.isBlank()) {
-            api = options.unregistered(pairingNumber(phoneNumberForPairing), (PairingCodeHandler) code -> {
+            connection.api = restored.get();   // sessão salva: reconecta sem QR
+        } else if (phoneNumberForPairing != null) {
+            connection.api = options.unregistered(pairingNumber(phoneNumberForPairing), (PairingCodeHandler) code -> {
                 events.publishEvent(new GatewayEvent.QrCodeUpdated(name, null, code));
-                firstCode.complete(new ConnectResult(code, null, null));
+                connection.codeGenerated(new ConnectResult(code, null, null));
             });
         } else {
             var count = new AtomicInteger();
-            api = options.unregistered((QrHandler) qr -> {
+            connection.api = options.unregistered((QrHandler) qr -> {
                 var base64 = QrImages.toDataUrl(qr);
                 log.info("[cobalt] {}: QR #{} gerado", name, count.incrementAndGet());
                 events.publishEvent(new GatewayEvent.QrCodeUpdated(name, qr, null, base64));
-                firstCode.complete(new ConnectResult(null, qr, base64));
+                connection.codeGenerated(new ConnectResult(null, qr, base64));
             });
         }
 
-        var connection = new Connection(name, api);
-        registerListeners(id, connection, firstCode);
+        registerListeners(id, connection);
         connections.put(id, connection);
         events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.CONNECTING, null));
 
-        api.connect().whenComplete((ignored, error) -> {
+        connection.api.connect().whenComplete((ignored, error) -> {
             if (error != null) {
                 log.warn("[cobalt] {}: falha ao conectar: {}", name, rootMessage(error));
                 if (connections.remove(id, connection)) {
                     events.publishEvent(new GatewayEvent.ConnectionUpdated(
                             name, ConnectionState.CLOSE, REASON_CONNECTION_CLOSED));
                 }
-                firstCode.complete(NO_CODE);
+                connection.firstCode.complete(NO_CODE);
             }
         });
-
-        try {
-            return firstCode.get(config.qrWaitMs(), TimeUnit.MILLISECONDS);
-        } catch (TimeoutException e) {
-            return NO_CODE;   // o QR chega depois pelo webhook qrcode.updated
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return NO_CODE;
-        } catch (ExecutionException e) {
-            return NO_CODE;
-        }
+        return connection;
     }
 
-    private void registerListeners(UUID id, Connection connection, CompletableFuture<ConnectResult> firstCode) {
+    private void registerListeners(UUID id, Connection connection) {
         var name = connection.instanceName;
         var api = connection.api;
         api.addLoggedInListener(whatsapp -> {
@@ -191,7 +219,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             log.info("[cobalt] {}: conectada como {}", name, wuid);
             events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.OPEN, REASON_OK,
                     wuid, profileName));
-            firstCode.complete(NO_CODE);
+            connection.lastCode = null;   // conectada: não há mais QR para mostrar
+            connection.firstCode.complete(NO_CODE);
         });
         api.addDisconnectedListener(reason -> onDisconnected(id, connection, reason));
         api.addNewChatMessageListener((ChatMessageInfo message) -> CobaltMessageMapper.upsert(message, id)
@@ -228,9 +257,14 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
 
     @Override
     public void logout(Instance instance) {
-        var connection = connections.remove(instance.getId());
+        Connection connection;
+        synchronized (lock(instance.getId())) {
+            connection = connections.remove(instance.getId());
+            if (connection != null) {
+                connection.closingOnPurpose = true;
+            }
+        }
         if (connection != null) {
-            connection.closingOnPurpose = true;
             await(connection.api.logout(), "logout");
         }
         events.publishEvent(new GatewayEvent.ConnectionUpdated(instance.getName(), ConnectionState.CLOSE,
@@ -246,6 +280,15 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         } catch (Exception e) {
             log.debug("[cobalt] {}: disconnect: {}", connection.instanceName, rootMessage(e));
         }
+    }
+
+    private Object lock(UUID id) {
+        return locks.computeIfAbsent(id, k -> new Object());
+    }
+
+    /** Conexões registradas agora (para testes). */
+    int activeConnections() {
+        return connections.size();
     }
 
     @Override
