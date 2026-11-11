@@ -36,6 +36,12 @@ public class SessionStore {
                 () -> sessions.save(new StoredSession(instanceId, payload)));
     }
 
+    /** Ids das instâncias que têm sessão gravada. */
+    @Transactional(readOnly = true)
+    public java.util.List<UUID> instanceIds() {
+        return sessions.findAll().stream().map(StoredSession::getInstanceId).toList();
+    }
+
     @Transactional
     public void delete(UUID instanceId) {
         sessions.deleteById(instanceId);
