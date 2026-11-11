@@ -56,6 +56,19 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
         return sent(instance, media.jid());
     }
 
+    @Override
+    public SentMessage send(Instance instance, Outgoing message) {
+        var kind = switch (message) {
+            case VoiceNote _ -> "áudio de voz";
+            case Location l -> "localização " + l.latitude() + "," + l.longitude();
+            case Contacts c -> c.contacts().size() + " contato(s)";
+            case Reaction r -> "reação '" + r.emoji() + "' em " + r.messageId();
+            case Poll p -> "enquete '" + p.name() + "' (" + p.values().size() + " opções)";
+        };
+        log.info("[stub] send {} -> {}: {}", instance.getName(), message.jid(), kind);
+        return sent(instance, message.jid());
+    }
+
     private SentMessage sent(Instance instance, String jid) {
         var id = "3EB0" + HexFormat.of().withUpperCase().formatHex(UUID.randomUUID().toString().getBytes(), 0, 8);
         var message = new SentMessage(id, jid, Instant.now().getEpochSecond());

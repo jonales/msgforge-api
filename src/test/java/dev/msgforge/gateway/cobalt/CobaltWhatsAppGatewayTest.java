@@ -205,6 +205,51 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void buildsLocationContactsReactionPollAndVoiceMessages() {
+        var jid = "5561999999999@s.whatsapp.net";
+
+        var location = (it.auties.whatsapp.model.message.standard.LocationMessage) CobaltWhatsAppGateway.buildMessage(
+                new dev.msgforge.gateway.WhatsAppGateway.Location(jid, -15.79, -47.88, "Esplanada", "Brasília", null), null);
+        assertThat(location.latitude()).isEqualTo(-15.79);
+        assertThat(location.longitude()).isEqualTo(-47.88);
+        assertThat(location.name()).contains("Esplanada");
+
+        var card = new dev.msgforge.gateway.WhatsAppGateway.ContactCard("Ana", "BEGIN:VCARD\nFN:Ana\nEND:VCARD");
+        var one = CobaltWhatsAppGateway.buildMessage(
+                new dev.msgforge.gateway.WhatsAppGateway.Contacts(jid, java.util.List.of(card), null), null);
+        assertThat(one).isInstanceOf(it.auties.whatsapp.model.message.standard.ContactMessage.class);
+        var many = CobaltWhatsAppGateway.buildMessage(
+                new dev.msgforge.gateway.WhatsAppGateway.Contacts(jid, java.util.List.of(card, card), null), null);
+        assertThat(many).isInstanceOf(it.auties.whatsapp.model.message.standard.ContactsMessage.class);
+
+        var reaction = (it.auties.whatsapp.model.message.standard.ReactionMessage) CobaltWhatsAppGateway.buildMessage(
+                new dev.msgforge.gateway.WhatsAppGateway.Reaction(jid, "3EB0ABC", true, "👍"), null);
+        assertThat(reaction.content()).isEqualTo("👍");
+        assertThat(reaction.key().id()).isEqualTo("3EB0ABC");
+        assertThat(reaction.key().fromMe()).isTrue();
+        assertThat(reaction.key().chatJid().toString()).isEqualTo(jid);
+
+        var voice = (AudioMessage) CobaltWhatsAppGateway.buildMessage(
+                new dev.msgforge.gateway.WhatsAppGateway.VoiceNote(jid, "x", null), "ogg".getBytes());
+        assertThat(voice.voiceMessage()).isTrue();
+        assertThat(voice.mimetype()).contains("audio/ogg; codecs=opus");
+    }
+
+    @Test
+    void pollsKeepTheRequestedSelectableCountAndHashTheOptions() throws Exception {
+        var single = CobaltWhatsAppGateway.poll(new dev.msgforge.gateway.WhatsAppGateway.Poll(
+                "5561999999999@s.whatsapp.net", "Almoço?", 1, java.util.List.of("Sim", "Não"), null));
+
+        assertThat(single.title()).isEqualTo("Almoço?");
+        assertThat(single.selectableOptionsCount()).isEqualTo(1);   // o simpleBuilder do Cobalt forçaria 2
+        assertThat(single.selectableOptions()).extracting(o -> o.name()).containsExactly("Sim", "Não");
+        var sha = java.security.MessageDigest.getInstance("SHA-256");
+        var hashOfSim = java.util.HexFormat.of().formatHex(sha.digest("Sim".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThat(single.getSelectableOption(hashOfSim)).isPresent();
+        assertThat(single.encryptionKey()).isPresent();
+    }
+
+    @Test
     void pairingNumbersAreDigitsOnly() {
         assertThat(CobaltWhatsAppGateway.pairingNumber("+55 (61) 99999-9999")).isEqualTo(5561999999999L);
         assertThatThrownBy(() -> CobaltWhatsAppGateway.pairingNumber("123")).isInstanceOf(BadRequestException.class);

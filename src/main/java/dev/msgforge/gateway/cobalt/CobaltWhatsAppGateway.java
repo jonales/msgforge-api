@@ -18,7 +18,18 @@ import it.auties.whatsapp.model.info.ChatMessageInfo;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
 import it.auties.whatsapp.model.message.model.Message;
+import it.auties.protobuf.model.ProtobufString;
+import it.auties.whatsapp.model.message.model.ChatMessageKeyBuilder;
 import it.auties.whatsapp.model.message.standard.AudioMessageSimpleBuilder;
+import it.auties.whatsapp.model.message.standard.ContactMessage;
+import it.auties.whatsapp.model.message.standard.ContactMessageBuilder;
+import it.auties.whatsapp.model.message.standard.ContactsMessageBuilder;
+import it.auties.whatsapp.model.message.standard.LocationMessageBuilder;
+import it.auties.whatsapp.model.message.standard.PollCreationMessage;
+import it.auties.whatsapp.model.message.standard.PollCreationMessageBuilder;
+import it.auties.whatsapp.model.message.standard.ReactionMessageBuilder;
+import it.auties.whatsapp.model.poll.PollOption;
+import it.auties.whatsapp.model.poll.PollOptionBuilder;
 import it.auties.whatsapp.model.message.standard.DocumentMessageSimpleBuilder;
 import it.auties.whatsapp.model.message.standard.ImageMessageSimpleBuilder;
 import it.auties.whatsapp.model.message.standard.VideoMessageSimpleBuilder;
@@ -70,6 +81,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     static final int REASON_CONNECTION_CLOSED = 428;
 
     private static final ConnectResult NO_CODE = new ConnectResult(null, null, null);
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
     private static final long MAX_TYPING_DELAY_MS = 20_000;
 
     /** Estado de uma instância conectada (ou conectando). */
@@ -316,6 +328,77 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         typing(connection, jid, media.delayMs());
         var sent = await(connection.api.sendMessage(jid, buildMedia(media, bytes)), "envio de mídia");
         return sentMessage(sent, media.jid());
+    }
+
+    @Override
+    public SentMessage send(Instance instance, Outgoing message) {
+        var connection = requireConnected(instance);
+        var audio = message instanceof VoiceNote voice ? loadMedia(voice.audio()) : null;
+        var jid = Jid.of(message.jid());
+        typing(connection, jid, message.delayMs());
+        var sent = await(connection.api.sendMessage(jid, buildMessage(message, audio)), "envio");
+        return sentMessage(sent, message.jid());
+    }
+
+    /** Monta a mensagem do Cobalt. {@code audio} só é usado para VoiceNote (bytes já carregados). */
+    static Message buildMessage(Outgoing message, byte[] audio) {
+        return switch (message) {
+            // Mensagem de voz: o WhatsApp espera OGG/Opus; outros formatos são enviados como estão
+            case VoiceNote _ -> new AudioMessageSimpleBuilder().media(audio)
+                    .mimeType("audio/ogg; codecs=opus").voiceMessage(true).build();
+            case Location location -> new LocationMessageBuilder()
+                    .latitude(location.latitude()).longitude(location.longitude())
+                    .name(location.name()).address(location.address()).build();
+            case Contacts contacts when contacts.contacts().size() == 1 -> contact(contacts.contacts().getFirst());
+            case Contacts contacts -> new ContactsMessageBuilder()
+                    .name(contacts.contacts().size() + " contacts")
+                    .contacts(contacts.contacts().stream().map(CobaltWhatsAppGateway::contact).toList())
+                    .build();
+            case Reaction reaction -> new ReactionMessageBuilder()
+                    .key(new ChatMessageKeyBuilder().chatJid(Jid.of(reaction.jid())).fromMe(reaction.fromMe())
+                            .id(reaction.messageId()).build())
+                    .content(reaction.emoji())
+                    // O Cobalt chama o campo 4 de "timestampSeconds", mas no protocolo do WhatsApp ele é
+                    // senderTimestampMs (milissegundos). Conferir no primeiro teste ao vivo.
+                    .timestampSeconds(Instant.now().toEpochMilli())
+                    .build();
+            case Poll poll -> poll(poll);
+        };
+    }
+
+    private static ContactMessage contact(ContactCard card) {
+        return new ContactMessageBuilder().name(card.displayName()).vcard(ProtobufString.wrap(card.vcard())).build();
+    }
+
+    /**
+     * Mesmo procedimento do {@code PollCreationMessage.simpleBuilder} do Cobalt (chave aleatória e
+     * opções indexadas pelo SHA-256 do nome), mas respeitando o {@code selectableCount} pedido:
+     * o simpleBuilder sempre fixa "várias escolhas".
+     */
+    static PollCreationMessage poll(Poll poll) {
+        var options = poll.values().stream().map(v -> new PollOptionBuilder().name(v).build()).toList();
+        var byHash = new java.util.LinkedHashMap<String, PollOption>();
+        for (var option : options) {
+            byHash.put(sha256Hex(option.name()), option);
+        }
+        var key = new byte[32];
+        RANDOM.nextBytes(key);
+        return new PollCreationMessageBuilder()
+                .encryptionKey(key)
+                .title(poll.name())
+                .selectableOptions(options)
+                .selectableOptionsCount(poll.selectableCount())
+                .selectableOptionsMap(byHash)
+                .build();
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            var digest = java.security.MessageDigest.getInstance("SHA-256");
+            return java.util.HexFormat.of().formatHex(digest.digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     static Message buildMedia(OutgoingMedia media, byte[] bytes) {
