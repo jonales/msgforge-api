@@ -37,7 +37,11 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   - `src/main/java/com/aspose/words/` é um **shim** obrigatório (o `aspose-words` é comercial e
     foi excluído). Sem ele, montar mídia quebra com `NoClassDefFoundError`. Não apague.
   - Testes do Cobalt nunca falam com o WhatsApp: `COBALT_PROXY` aponta para uma porta fechada
-    (`CobaltWhatsAppGatewayTest`, `CobaltGatewayIT`).
+    (`CobaltWhatsAppGatewayTest`, `CobaltGatewayIT`). Para manter um connect **pendente**, use
+    um proxy "mudo" (aceita e não responde), como em `concurrentConnectsShareOnePendingConnection`.
+  - `connect`/`logout` são serializados por instância (lock): nunca dois clientes do WhatsApp para
+    a mesma sessão. Um `connect` com QR já pendente **reaproveita** a conexão e devolve o QR atual;
+    pedir pairing code recomeça.
 - `instance/InstanceService`: `create`/`connect`/`logout`/`delete` **não seguram transação**
   enquanto o gateway trabalha (os eventos do motor chegam por outras threads e precisam ver a
   instância commitada).
@@ -82,13 +86,21 @@ ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skil
   API por HTTP. Os modelos de tela são records próprios; os DTOs da API são o contrato da
   Evolution e não são reaproveitados.
 - Segurança: `ManagerSecurityConfig` aplica o Spring Security **só** em `/manager/**` (login com a
-  chave global, sessão, CSRF, CSP só `'self'`). A API tem uma cadeia aberta, sem sessão e sem
-  headers; quem a protege é o `ApiKeyFilter`. Não use estilo ou script inline: o CSP bloqueia.
+  chave global, sessão, CSRF, CSP só `'self'`, cookie `SameSite=Strict`). A API tem uma cadeia
+  aberta, sem sessão e sem headers; quem a protege é o `ApiKeyFilter`. Não use estilo ou script
+  inline: o CSP bloqueia.
+  - Login limitado a 10 falhas por IP em 15 min (`LoginAttemptLimiter`). **Conte falhas no
+    failure handler, nunca no `AuthenticationProvider`**: o Boot registra o provider também no
+    `AuthenticationManager` pai, e numa chave errada ele roda duas vezes.
+  - Sem sessão, o entry point manda para o login; no polling do htmx (`HX-Request`) responde
+    401 + `HX-Redirect`. Não use `defaultAuthenticationEntryPointFor` sozinho: ele substitui o
+    entry point do form login para todas as requisições.
 - Modelos de tela (`ManagerViews`) precisam ser **públicos**: o SpEL do Thymeleaf não chama
   métodos de records não públicos. Erro de renderização não passa pelo
   `ManagerExceptionHandler` (vira página 500); teste cada tela no `ManagerIT`.
-- E2E manual: subir a aplicação e rodar um script Playwright (login → criar → conectar →
-  webhook → excluir), verificando que o console não mostra erros (CSP).
+- E2E: suba a aplicação (stub) e rode `node scripts/e2e/manager.js [pasta-screenshots]`
+  (login → criar → conectar → webhook → erro → excluir → sair; falha se o console tiver erro,
+  inclusive de CSP).
 - Templates em `templates/manager/` (fragmentos em `fragments/`), textos em
   `messages.properties` (pt-BR).
 - Telas da v1 (todas entregues):
@@ -118,12 +130,12 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão, como na Evolution.
-7. O login do Manager e a API não limitam tentativas: a chave global depende só de ser forte.
 5. **Cobalt sem teste ao vivo** (ver acima). Pontos frágeis a observar no primeiro teste: o
    `profileName` vem do `Store.name()` (pode vir o nome do aparelho; nesse caso vai nulo); texto
    recebido sai sempre como `conversation` (nunca `extendedTextMessage`).
 6. A imagem Docker não tem `ffmpeg`: vídeo e áudio enviados saem com duração 0. Com o ffmpeg,
    um "vídeo" com bytes inválidos faz o `ffprobe` do Cobalt esperar cerca de 10 s.
+7. A **API** não limita tentativas de chave errada (como na Evolution); o Manager sim.
 
 ## Memória entre sessões
 

@@ -70,6 +70,9 @@ Pacote `dev.msgforge.gateway.cobalt`:
     (401 logout, 403 banido, 428 fechada).
   - `messages.upsert` via `CobaltMessageMapper` (formato Baileys).
   - `messages.update` (status `SERVER_ACK`/`DELIVERY_ACK`/`READ`/`PLAYED`).
+- **Concorrência:** `connect`/`logout` são serializados por instância. Antes da revisão, 10
+  chamadas simultâneas criavam 10 clientes do WhatsApp para a mesma sessão (provado em teste).
+  Agora, um connect com QR pendente reaproveita a conexão e devolve o QR atual.
 - **`DatabaseSessionSerializer`:** Keys e Store no `session_store`, num blob só
   (`CobaltSessionCodec`), com lock por instância.
 - **Mudança nas camadas acima:** `InstanceService` não segura transação enquanto fala com o
