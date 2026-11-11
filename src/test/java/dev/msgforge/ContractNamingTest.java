@@ -9,11 +9,11 @@ import dev.msgforge.event.EventType;
 import dev.msgforge.gateway.Jids;
 import org.junit.jupiter.api.Test;
 
-/** Garante que nomes e formatos batem com o que a Evolution envia/recebe. */
+/** Garante que nomes e formatos do contrato da API não mudam (clientes dependem deles). */
 class ContractNamingTest {
 
     @Test
-    void eventNamesMatchEvolutionPayload() {
+    void eventNamesMatchTheContract() {
         assertEquals("messages.upsert", EventType.MESSAGES_UPSERT.payloadName());
         assertEquals("/messages-upsert", EventType.MESSAGES_UPSERT.urlSuffix());
         assertEquals("connection.update", EventType.CONNECTION_UPDATE.payloadName());

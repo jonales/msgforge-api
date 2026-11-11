@@ -5,7 +5,7 @@ import dev.msgforge.webhook.WebhookDtos.WebhookConfig;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 
-/** DTOs no mesmo formato JSON da Evolution API v2. */
+/** DTOs de /instance no formato JSON do contrato da API. */
 public final class InstanceDtos {
 
     private InstanceDtos() {}

@@ -82,7 +82,7 @@ public class WebhookService {
         throw new BadRequestException("Invalid webhook url: \"" + url + "\"");
     }
 
-    /** Aceita os nomes da Evolution (MESSAGES_UPSERT) em qualquer caixa; rejeita os desconhecidos. */
+    /** Aceita os nomes de evento (MESSAGES_UPSERT) em qualquer caixa; rejeita os desconhecidos. */
     private static List<String> validEvents(List<String> events) {
         if (events == null) {
             return List.of();

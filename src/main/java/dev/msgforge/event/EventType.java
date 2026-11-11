@@ -2,7 +2,7 @@ package dev.msgforge.event;
 
 import java.util.Locale;
 
-/** Mesmos nomes de eventos da Evolution API (usados em webhook.events). */
+/** Eventos do contrato da API (usados em webhook.events). Os nomes são estáveis: não renomeie. */
 public enum EventType {
     APPLICATION_STARTUP,
     QRCODE_UPDATED,

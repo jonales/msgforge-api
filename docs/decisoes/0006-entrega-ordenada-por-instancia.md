@@ -7,7 +7,7 @@ depois do commit.
 Desde o 0004, cada evento era entregue numa virtual thread própria. Com o retry de webhook,
 um evento que falha pode ser entregue *depois* do evento seguinte. Por exemplo, um
 `qrcode.updated` com retry chega depois do `connection.update: open`. Os consumidores da
-Evolution (n8n, CRMs, chatbots) tratam esses eventos como uma sequência, e com o motor real
+API (n8n, CRMs, chatbots) tratam esses eventos como uma sequência, e com o motor real
 da Fase 2 a inversão fica frequente. Além disso, sem limite, um destino fora do ar acumula
 entregas pendentes na memória.
 

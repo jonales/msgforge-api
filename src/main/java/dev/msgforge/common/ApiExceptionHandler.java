@@ -21,7 +21,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
-/** Formato de erro igual ao da Evolution: { status, error, response: { message: [...] } } */
+/** Formato de erro do contrato da API: { status, error, response: { message: [...] } } (docs/COMPATIBILIDADE.md) */
 @RestControllerAdvice
 public class ApiExceptionHandler {
 

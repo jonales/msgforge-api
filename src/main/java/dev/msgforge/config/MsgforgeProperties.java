@@ -47,7 +47,7 @@ public record MsgforgeProperties(
     /**
      * Motor Cobalt ({@code MSGFORGE_GATEWAY=cobalt}).
      *
-     * @param deviceName     nome do aparelho em "Aparelhos conectados" (CONFIG_SESSION_PHONE_CLIENT, como na Evolution)
+     * @param deviceName     nome do aparelho em "Aparelhos conectados" (CONFIG_SESSION_PHONE_CLIENT)
      * @param qrWaitMs       quanto o /instance/connect espera pelo primeiro QR ou pairing code
      * @param sendTimeoutMs  limite para o WhatsApp confirmar um envio
      * @param mediaMaxBytes  tamanho máximo de mídia enviada (URL ou base64)

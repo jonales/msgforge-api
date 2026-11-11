@@ -12,7 +12,7 @@ public sealed interface GatewayEvent {
 
     String instanceName();
 
-    /** @param base64 imagem PNG do QR como data URL ({@code data:image/png;base64,...}), como na Evolution */
+    /** @param base64 imagem PNG do QR como data URL ({@code data:image/png;base64,...}) */
     record QrCodeUpdated(String instanceName, String code, String pairingCode, String base64) implements GatewayEvent {
 
         public QrCodeUpdated(String instanceName, String code, String pairingCode) {
@@ -21,7 +21,7 @@ public sealed interface GatewayEvent {
     }
 
     /**
-     * @param statusReason código no padrão do Baileys/Evolution (200 ok, 401 logout, 403 banido, 428 conexão fechada)
+     * @param statusReason código no padrão do Baileys (200 ok, 401 logout, 403 banido, 428 conexão fechada)
      * @param wuid         JID do número conectado; só quando {@code state} é OPEN
      * @param profileName  nome do perfil conectado; só quando {@code state} é OPEN
      */
@@ -35,9 +35,9 @@ public sealed interface GatewayEvent {
 
     record MessageSent(String instanceName, SentMessage message) implements GatewayEvent {}
 
-    /** Mensagem recebida, já convertida para o formato do MESSAGES_UPSERT da Evolution. */
+    /** Mensagem recebida, já convertida para o formato do MESSAGES_UPSERT do contrato. */
     record MessageReceived(String instanceName, Map<String, Object> data) implements GatewayEvent {}
 
-    /** Mudança de status (entregue, lida...), já no formato do MESSAGES_UPDATE da Evolution. */
+    /** Mudança de status (entregue, lida...), já no formato do MESSAGES_UPDATE do contrato. */
     record MessageStatusUpdated(String instanceName, Map<String, Object> data) implements GatewayEvent {}
 }

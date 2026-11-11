@@ -26,7 +26,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Converte {@link GatewayEvent} no envelope da Evolution e entrega em webhook
+ * Converte {@link GatewayEvent} no envelope de evento do contrato e entrega em webhook
  * (da instância e global) e RabbitMQ.
  *
  * <p>Dois tempos (ver docs/decisoes/0004):
@@ -66,7 +66,7 @@ public class EventDispatcher {
         this.json = json;
     }
 
-    /** Envelope idêntico ao payload de webhook da Evolution. */
+    /** Envelope de evento do contrato da API (docs/COMPATIBILIDADE.md). */
     public record EventEnvelope(
             String event,
             String instance,

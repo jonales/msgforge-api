@@ -11,7 +11,7 @@ public final class WebhookDtos {
 
     private WebhookDtos() {}
 
-    /** Corpo de POST /webhook/set/{instance} na Evolution v2: { "webhook": { ... } } */
+    /** Corpo de POST /webhook/set/{instance}: { "webhook": { ... } } */
     public record SetWebhookRequest(@NotNull @Valid WebhookConfig webhook) {}
 
     @JsonInclude(JsonInclude.Include.NON_NULL)

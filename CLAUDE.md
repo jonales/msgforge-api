@@ -1,8 +1,9 @@
 # Msgforge API: memória do projeto
 
-API REST de WhatsApp em Java 25 + Spring Boot 4.1, **compatível com a Evolution API v2**: mesmas
-rotas, header `apikey`, formato de erro e envelope de webhook. Um cliente da Evolution deve
-conseguir trocar só a URL. Antes de mudar qualquer contrato, confira `docs/COMPATIBILIDADE.md`.
+API REST de WhatsApp em Java 25 + Spring Boot 4.1. O **contrato público** (rotas, header `apikey`,
+formato de erro e envelope de webhook) é estável e está fixado em `docs/COMPATIBILIDADE.md`:
+clientes existentes dependem dele. Antes de mudar qualquer rota, campo ou evento, confira esse
+documento.
 
 ## Comandos
 
@@ -26,7 +27,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 
 ## Arquitetura (pacote `dev.msgforge`)
 
-- `instance/`, `message/`, `webhook/`: controllers e DTOs (records) no formato JSON da Evolution.
+- `instance/`, `message/`, `webhook/`: controllers e DTOs (records) no formato JSON do contrato.
 - `gateway/`: `WhatsAppGateway` é a **única** fronteira com o protocolo. Dois motores:
   `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`, padrão) e `gateway/cobalt/CobaltWhatsAppGateway`
   (`MSGFORGE_GATEWAY=cobalt`, ADR 0007). Nada fora de `gateway/cobalt/` pode importar classes do
@@ -46,7 +47,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   enquanto o gateway trabalha (os eventos do motor chegam por outras threads e precisam ver a
   instância commitada).
 - `event/`: o gateway publica `GatewayEvent` (interface selada) e o `EventDispatcher` converte
-  no envelope da Evolution e entrega no webhook da instância, no webhook global e no RabbitMQ.
+  no envelope do contrato e entrega no webhook da instância, no webhook global e no RabbitMQ.
   Um evento novo exige um `case` novo nos `switch` exaustivos; isso é proposital.
   **A entrega roda depois do commit e usa só um snapshot (`DeliveryTarget`)**; a thread de
   entrega nunca lê o banco (ADR 0004). As entregas de uma instância saem **em ordem**, numa fila
@@ -67,27 +68,28 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 
 - **Banco:** só via Flyway. Siga `docs/MIGRATIONS.md` (nome `V{yyyyMMddHHmm}__desc.sql`, nunca
   editar uma migration que já foi para `main`, entidade JPA no mesmo commit). `ddl-auto: validate`.
-- **Nomes de rotas, campos e eventos:** iguais aos da Evolution, mesmo quando parecerem estranhos.
-  `ContractNamingTest` protege os nomes de eventos e JIDs.
+- **Nomes de rotas, campos e eventos:** os do contrato (`docs/COMPATIBILIDADE.md`), mesmo quando
+  parecerem estranhos. `ContractNamingTest` protege os nomes de eventos e JIDs.
 - **Java 25:** records para DTOs, `sealed` + pattern matching, virtual threads
   (`spring.threads.virtual.enabled`). Injeção por construtor, sem Lombok.
 - **Spring Boot 4:** Jackson 3 (`tools.jackson.*`; as anotações continuam em
   `com.fasterxml.jackson.annotation`). Os starters são modulares: um auto-config que "sumiu"
   costuma ser um starter faltando (o `spring-boot-starter-restclient`, por exemplo).
-- **README:** apresenta o Msgforge por si só e **não cita a Evolution** (decisão do usuário,
-  2026-11). A compatibilidade de contrato é detalhe interno (`docs/COMPATIBILIDADE.md`, este arquivo,
-  ADRs). Ao mudar rotas, eventos ou variáveis, atualize as tabelas do README.
+- **Identidade:** o projeto se apresenta só como Msgforge. Não cite outros produtos como origem ou
+  referência em README, código, comentários, configuração, ADRs ou neste arquivo (decisão do
+  usuário, 2026-11). A única exceção é `docs/COMPATIBILIDADE.md`, que documenta de onde vem o
+  contrato. Ao mudar rotas, eventos ou variáveis, atualize também as tabelas do README.
 - **Commits:** em português, no estilo Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`).
 - **Decisões de arquitetura:** registre em `docs/decisoes/` (ADR curto, numerado).
 
 ## Front-end (Manager com Thymeleaf)
 
 ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skill `nova-tela`.
-- Thymeleaf renderizado no servidor, rota base `/manager` (como o Evolution Manager), sem
+- Thymeleaf renderizado no servidor, rota base `/manager`, sem
   SPA e sem Node/npm. Interatividade com htmx vendorizado (sem CDN).
 - Controllers MVC em `dev.msgforge.web` chamam os **serviços**, nunca repositórios nem a
-  API por HTTP. Os modelos de tela são records próprios; os DTOs da API são o contrato da
-  Evolution e não são reaproveitados.
+  API por HTTP. Os modelos de tela são records próprios; os DTOs da API são o contrato público e
+  não são reaproveitados.
 - Segurança: `ManagerSecurityConfig` aplica o Spring Security **só** em `/manager/**` (login com a
   chave global, sessão, CSRF, CSP só `'self'`, cookie `SameSite=Strict`). A API tem uma cadeia
   aberta, sem sessão e sem headers; quem a protege é o `ApiKeyFilter`. Não use estilo ou script
@@ -127,18 +129,18 @@ para validar com um número de teste está em `docs/spikes/cobalt/README.md`. Se
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
    funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
-2. O RabbitMQ usa um exchange tópico; a Evolution usa filas por evento (`docs/COMPATIBILIDADE.md`).
+2. O RabbitMQ usa um exchange tópico, e não filas por evento (`docs/COMPATIBILIDADE.md`).
 3. As entregas de webhook ficam só em memória (com teto por instância, ADR 0006): se o processo
    cair durante os retries, o evento se perde. Uma fila persistente (outbox) resolveria; ainda
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
-   padrão, como na Evolution.
+   padrão.
 5. **Cobalt sem teste ao vivo** (ver acima). Pontos frágeis a observar no primeiro teste: o
    `profileName` vem do `Store.name()` (pode vir o nome do aparelho; nesse caso vai nulo); texto
    recebido sai sempre como `conversation` (nunca `extendedTextMessage`).
 6. A imagem Docker não tem `ffmpeg`: vídeo e áudio enviados saem com duração 0. Com o ffmpeg,
    um "vídeo" com bytes inválidos faz o `ffprobe` do Cobalt esperar cerca de 10 s.
-7. A **API** não limita tentativas de chave errada (como na Evolution); o Manager sim.
+7. A **API** não limita tentativas de chave errada; o Manager sim.
 
 ## Memória entre sessões
 

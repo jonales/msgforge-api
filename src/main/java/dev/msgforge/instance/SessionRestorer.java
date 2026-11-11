@@ -8,7 +8,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * No boot, reconecta as instâncias que têm sessão salva (como a Evolution faz).
+ * No boot, reconecta as instâncias que têm sessão salva.
  * Sem sessão, a instância fica "close" até alguém chamar /instance/connect.
  */
 @Component

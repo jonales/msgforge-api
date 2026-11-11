@@ -7,8 +7,8 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Modelos das telas do Manager. São próprios da camada web: os DTOs da API são o contrato da
- * Evolution e não são reaproveitados aqui (ADR 0005). Nenhum deles carrega o token da instância.
+ * Modelos das telas do Manager. São próprios da camada web: os DTOs da API são o contrato público e
+ * não são reaproveitados aqui (ADR 0005). Nenhum deles carrega o token da instância.
  */
 public final class ManagerViews {
 

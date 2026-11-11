@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Mesmo modelo da Evolution: header {@code apikey} com a chave global
+ * Autenticação da API: header {@code apikey} com a chave global
  * (acesso total) ou o token da instância (acesso só às rotas dela).
  */
 @Component

@@ -28,7 +28,7 @@ public class WebhookController {
 
     @GetMapping("/find/{instance}")
     public ResponseEntity<WebhookResponse> find(@PathVariable String instance) {
-        // A Evolution responde 200 com corpo nulo quando não há webhook
+        // Contrato: 200 com corpo vazio quando não há webhook
         return ResponseEntity.ok(service.find(instance).orElse(null));
     }
 }

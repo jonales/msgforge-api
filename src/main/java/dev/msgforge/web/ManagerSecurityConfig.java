@@ -26,8 +26,8 @@ import org.springframework.security.web.authentication.LoginUrlAuthenticationEnt
 /**
  * Spring Security <b>só</b> para o Manager ({@code /manager/**}, ADR 0005).
  *
- * <p>A API continua autenticada pelo {@code ApiKeyFilter} (header {@code apikey}, contrato da
- * Evolution): a segunda cadeia libera tudo, sem sessão, sem CSRF e sem os headers extras, para a
+ * <p>A API continua autenticada pelo {@code ApiKeyFilter} (header {@code apikey}, contrato
+ * público): a segunda cadeia libera tudo, sem sessão, sem CSRF e sem os headers extras, para a
  * resposta da API não mudar por causa do Manager.
  */
 @Configuration

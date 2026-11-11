@@ -11,7 +11,7 @@ Uma decisão aceita não é editada; se ela mudar, crie um ADR novo que a substi
 
 | Nº | Decisão | Status |
 |---|---|---|
-| [0001](0001-contrato-evolution-e-gateway.md) | Contrato da Evolution v2 + motor atrás de `WhatsAppGateway` | aceita |
+| [0001](0001-contrato-e-gateway.md) | Contrato público estável da API + motor atrás de `WhatsAppGateway` | aceita |
 | [0002](0002-migrations-com-timestamp.md) | Migrations Flyway versionadas por timestamp | aceita |
 | [0003](0003-memoria-do-projeto-graphify.md) | Memória do projeto: CLAUDE.md, ADRs e Graphify | aceita |
 | [0004](0004-entrega-de-eventos-apos-commit.md) | Entrega de eventos depois do commit, a partir de um snapshot | aceita |

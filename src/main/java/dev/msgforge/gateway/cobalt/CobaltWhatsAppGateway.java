@@ -63,7 +63,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
 
     private static final Logger log = LoggerFactory.getLogger(CobaltWhatsAppGateway.class);
 
-    /** Códigos de statusReason no padrão do Baileys, que a Evolution repassa. */
+    /** Códigos de statusReason no padrão do Baileys. */
     static final int REASON_OK = 200;
     static final int REASON_LOGGED_OUT = 401;
     static final int REASON_BANNED = 403;
@@ -332,7 +332,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         };
     }
 
-    /** {@code delay} da Evolution: mostra "digitando..." por esse tempo antes de enviar. */
+    /** {@code delay} da API: mostra "digitando..." por esse tempo antes de enviar. */
     private void typing(Connection connection, Jid jid, Integer delayMs) {
         if (delayMs == null || delayMs <= 0) {
             return;
@@ -348,7 +348,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         }
     }
 
-    /** Mídia como na Evolution: URL http(s) ou base64 (com ou sem prefixo data:). */
+    /** Mídia da API: URL http(s) ou base64 (com ou sem prefixo data:). */
     byte[] loadMedia(String media) {
         if (media.startsWith("http://") || media.startsWith("https://")) {
             guard.check(media).ifPresent(reason -> {

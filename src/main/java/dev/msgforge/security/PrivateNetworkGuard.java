@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 /**
  * Proteção opcional contra SSRF nos webhooks de instância ({@code WEBHOOK_BLOCK_PRIVATE_NETWORKS}).
  *
- * <p>Desligada por padrão, como na Evolution: é comum o webhook apontar para um serviço na mesma
+ * <p>Desligada por padrão: é comum o webhook apontar para um serviço na mesma
  * rede Docker (n8n, por exemplo). Ligue quando terceiros tiverem tokens de instância.
  *
  * <p>Limite conhecido: a checagem resolve o DNS antes da conexão, então um DNS que muda de
