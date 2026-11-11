@@ -60,8 +60,27 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 | POST | `/chat/updateProfileName`, `updateProfileStatus`, `updateProfilePicture` | ✅ `{update: "success"}`; foto só JPEG/PNG |
 | | `findMessages`, `findChats`, `findContacts`, `archiveChat`, `deleteMessage`, `removeProfilePicture`, privacidade | ⬜ |
 
-## Group, Settings, Integrações (Typebot, Chatwoot etc.)
-⬜ Grupos são o próximo passo; integrações estão fora do escopo.
+## Group
+`groupJid` vai na query string e precisa ser um grupo (`...@g.us` ou o ID numérico); senão 400.
+Grupo inexistente no stub dá 404; no Cobalt, o erro do WhatsApp vira 500.
+
+| Método | Rota | Status |
+|---|---|---|
+| POST | `/group/create/{instance}` | ✅ 201 com o grupo; participantes repetidos contam uma vez |
+| GET | `/group/findGroupInfos/{instance}` | ✅ `{id, subject, subjectOwner, subjectTime, pictureUrl, size, creation, owner, desc, restrict, announce, participants}` |
+| GET | `/group/fetchAllGroups/{instance}` | 🟡 `getParticipants` opcional (padrão false). Cobalt: grupos do Store da sessão, consultados em paralelo; `pictureUrl` sempre null na lista |
+| GET | `/group/participants/{instance}` | ✅ `{participants: [{id, admin}]}` |
+| POST | `/group/updateParticipant/{instance}` | 🟡 `{updateParticipants: [{jid, status}]}` com status `"200"` ou `"400"` (sem o motivo) |
+| POST | `/group/updateSetting/{instance}` | ✅ announcement / not_announcement / locked / unlocked → `{update: "success"}` |
+| POST | `/group/updateGroupSubject`, `updateGroupDescription`, `updateGroupPicture` | ✅ `{update: "success"}`; foto só JPEG/PNG |
+| GET | `/group/inviteCode/{instance}` | ✅ `{inviteUrl, inviteCode}` |
+| POST | `/group/revokeInviteCode/{instance}` | ✅ `{revoked: true, inviteCode}` |
+| GET | `/group/acceptInviteCode/{instance}?inviteCode=` | ✅ `{accepted: true, groupJid}`; aceita o código ou o link |
+| DELETE | `/group/leaveGroup/{instance}` | ✅ `{groupJid, leave: true}` |
+| | `inviteInfo`, `sendInvite`, `toggleEphemeral`, eventos `GROUPS_*` | ⬜ |
+
+## Settings, Integrações (Typebot, Chatwoot etc.)
+⬜ Fora do escopo: o foco é a API do WhatsApp.
 
 ## Erros
 Todos no formato `{ "status", "error", "response": { "message": [...] } }`: validação, JSON

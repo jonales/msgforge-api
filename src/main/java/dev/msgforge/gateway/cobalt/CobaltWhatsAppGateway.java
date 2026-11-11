@@ -17,6 +17,8 @@ import it.auties.whatsapp.api.QrHandler;
 import it.auties.whatsapp.api.Whatsapp;
 import it.auties.whatsapp.model.contact.ContactStatus;
 import it.auties.whatsapp.model.info.ChatMessageInfo;
+import it.auties.whatsapp.model.chat.ChatMetadata;
+import it.auties.whatsapp.model.chat.ChatSettingPolicy;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
 import it.auties.whatsapp.model.message.model.Message;
@@ -556,6 +558,126 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 await(connection.api.changeProfilePicture(bytes), "alteração da foto");
             }
         }
+    }
+
+    // ---- Grupos
+
+    @Override
+    public GroupInfo createGroup(Instance instance, String subject, String description, List<String> participants) {
+        var connection = requireConnected(instance);
+        var members = participants.stream().map(Jid::of).toArray(Jid[]::new);
+        var created = await(connection.api.createGroup(subject, members), "criação do grupo")
+                .orElseThrow(() -> new GatewayException("O WhatsApp não devolveu o grupo criado", null));
+        if (description != null && !description.isBlank()) {
+            await(connection.api.changeGroupDescription(created.jid(), description), "descrição do grupo");
+            return groupInfo(connection, created.jid());
+        }
+        return groupInfo(created);
+    }
+
+    @Override
+    public GroupInfo groupInfo(Instance instance, String groupJid) {
+        return groupInfo(requireConnected(instance), Jid.of(groupJid));
+    }
+
+    private GroupInfo groupInfo(Connection connection, Jid groupJid) {
+        return groupInfo(await(connection.api.queryGroupMetadata(groupJid), "consulta do grupo"));
+    }
+
+    /** Consulta os grupos do Store em paralelo; os que falharem (a conta saiu, por exemplo) ficam de fora. */
+    @Override
+    public List<GroupInfo> groups(Instance instance) {
+        var connection = requireConnected(instance);
+        var queries = connection.api.store().chats().stream()
+                .filter(chat -> chat.isGroup())
+                .map(chat -> connection.api.queryGroupMetadata(chat.jid())
+                        .handle((metadata, error) -> error == null ? metadata : null))
+                .toList();
+        await(CompletableFuture.allOf(queries.toArray(CompletableFuture[]::new)), "consulta dos grupos");
+        return queries.stream().map(CompletableFuture::join).filter(java.util.Objects::nonNull)
+                .map(CobaltWhatsAppGateway::groupInfo).toList();
+    }
+
+    static GroupInfo groupInfo(ChatMetadata metadata) {
+        var participants = metadata.participants().stream()
+                .map(p -> new GroupParticipant(p.jid().toSimpleJid().toString(), switch (p.role()) {
+                    case FOUNDER -> "superadmin";
+                    case ADMIN -> "admin";
+                    case USER -> null;
+                }))
+                .toList();
+        return new GroupInfo(metadata.jid().toString(), metadata.subject(),
+                metadata.subjectAuthorJid().map(jid -> jid.toSimpleJid().toString()).orElse(null),
+                metadata.subjectTimestampSeconds(), metadata.foundationTimestampSeconds(),
+                metadata.founder().map(jid -> jid.toSimpleJid().toString()).orElse(null),
+                metadata.description().orElse(null),
+                metadata.getPolicy(it.auties.whatsapp.model.chat.GroupSetting.SEND_MESSAGES)
+                        .orElse(ChatSettingPolicy.ANYONE) == ChatSettingPolicy.ADMINS,
+                metadata.getPolicy(it.auties.whatsapp.model.chat.GroupSetting.EDIT_GROUP_INFO)
+                        .orElse(ChatSettingPolicy.ANYONE) == ChatSettingPolicy.ADMINS,
+                participants);
+    }
+
+    @Override
+    public String groupInviteCode(Instance instance, String groupJid) {
+        return await(requireConnected(instance).api.queryGroupInviteCode(Jid.of(groupJid)), "convite do grupo");
+    }
+
+    @Override
+    public String revokeGroupInvite(Instance instance, String groupJid) {
+        var connection = requireConnected(instance);
+        await(connection.api.revokeGroupInvite(Jid.of(groupJid)), "revogação do convite");
+        return await(connection.api.queryGroupInviteCode(Jid.of(groupJid)), "convite do grupo");
+    }
+
+    @Override
+    public String acceptGroupInvite(Instance instance, String inviteCode) {
+        var chat = await(requireConnected(instance).api.acceptGroupInvite(inviteCode), "entrada no grupo")
+                .orElseThrow(() -> new BadRequestException("Invalid invite code"));
+        return chat.jid().toString();
+    }
+
+    @Override
+    public List<String> updateParticipants(Instance instance, String groupJid, ParticipantAction action,
+                                           List<String> participants) {
+        var connection = requireConnected(instance);
+        var group = Jid.of(groupJid);
+        var members = participants.stream().map(Jid::of).toArray(Jid[]::new);
+        var future = switch (action) {
+            case ADD -> connection.api.addGroupParticipants(group, members);
+            case REMOVE -> connection.api.removeGroupParticipants(group, members);
+            case PROMOTE -> connection.api.promoteGroupParticipants(group, members);
+            case DEMOTE -> connection.api.demoteGroupParticipants(group, members);
+        };
+        return await(future, "participantes do grupo").stream().map(jid -> jid.toSimpleJid().toString()).toList();
+    }
+
+    @Override
+    public void updateGroup(Instance instance, String groupJid, GroupUpdate update) {
+        var connection = requireConnected(instance);
+        var group = Jid.of(groupJid);
+        switch (update) {
+            case GroupSubject subject -> await(connection.api.changeGroupSubject(group, subject.subject()), "assunto do grupo");
+            case GroupDescription description ->
+                    await(connection.api.changeGroupDescription(group, description.description()), "descrição do grupo");
+            case GroupPicture picture -> {
+                var bytes = loadMedia(picture.image());
+                if (!MediaSignatures.isImage(bytes)) {
+                    throw new BadRequestException("image must be a JPEG or PNG image");
+                }
+                await(connection.api.changeGroupPicture(group, bytes), "foto do grupo");
+            }
+            case GroupSetting setting -> await(connection.api.changeGroupSetting(group,
+                    setting.setting() == Setting.SEND_MESSAGES
+                            ? it.auties.whatsapp.model.chat.GroupSetting.SEND_MESSAGES
+                            : it.auties.whatsapp.model.chat.GroupSetting.EDIT_GROUP_INFO,
+                    setting.adminsOnly() ? ChatSettingPolicy.ADMINS : ChatSettingPolicy.ANYONE), "configuração do grupo");
+        }
+    }
+
+    @Override
+    public void leaveGroup(Instance instance, String groupJid) {
+        await(requireConnected(instance).api.leaveGroup(Jid.of(groupJid)), "saída do grupo");
     }
 
     /** {@code delay} da API: mostra "digitando..." por esse tempo antes de enviar. */

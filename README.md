@@ -17,6 +17,8 @@ ou RabbitMQ. Inclui um painel web (**Manager**) para operar tudo pelo navegador.
   URL ou base64, áudio de voz, localização, contatos (vCard), reações e enquetes.
 - **Chat e perfil:** verificar quais números têm WhatsApp, marcar como lida, presença
   ("digitando...", "gravando..."), foto e perfil de contatos, e alterar nome, recado e foto da conta.
+- **Grupos:** criar, consultar, listar, gerenciar participantes e admins, assunto, descrição, foto,
+  quem pode mandar mensagem ou editar, convites e sair.
 - **Eventos:** QR code, conexão, mensagem enviada, mensagem recebida e status de entrega/leitura.
   Saem por webhook da instância, webhook global e RabbitMQ:
   - entregues depois que a operação é gravada no banco;
@@ -99,6 +101,17 @@ Todas exigem o header `apikey`: a chave global, ou o token da instância para as
 | POST | `/chat/updateProfileName/{instancia}` | Altera o nome da conta (até 25 caracteres) |
 | POST | `/chat/updateProfileStatus/{instancia}` | Altera o recado da conta (até 139 caracteres) |
 | POST | `/chat/updateProfilePicture/{instancia}` | Altera a foto da conta (`picture`: JPEG/PNG em URL ou base64) |
+| POST | `/group/create/{instancia}` | Cria grupo (`subject`, `description`, `participants`) |
+| GET | `/group/findGroupInfos/{instancia}?groupJid=` | Dados do grupo, com participantes e foto |
+| GET | `/group/fetchAllGroups/{instancia}?getParticipants=` | Grupos da conta |
+| GET | `/group/participants/{instancia}?groupJid=` | Participantes (`admin`: null, admin ou superadmin) |
+| POST | `/group/updateParticipant/{instancia}?groupJid=` | `action`: add, remove, promote ou demote; status por participante |
+| POST | `/group/updateGroupSubject`, `updateGroupDescription`, `updateGroupPicture` `/{instancia}?groupJid=` | Assunto, descrição e foto |
+| POST | `/group/updateSetting/{instancia}?groupJid=` | `action`: announcement, not_announcement, locked ou unlocked |
+| GET | `/group/inviteCode/{instancia}?groupJid=` | Link e código do convite |
+| POST | `/group/revokeInviteCode/{instancia}?groupJid=` | Novo código (o anterior deixa de valer) |
+| GET | `/group/acceptInviteCode/{instancia}?inviteCode=` | Entra no grupo pelo código ou link |
+| DELETE | `/group/leaveGroup/{instancia}?groupJid=` | Sai do grupo |
 | POST | `/webhook/set/{instancia}` | Configura o webhook da instância |
 | GET | `/webhook/find/{instancia}` | Mostra o webhook configurado |
 
@@ -149,6 +162,7 @@ dev.msgforge
 ├── instance/   rotas /instance, serviço de instâncias e estado (Redis + banco)
 ├── message/    rotas /message e MessageService
 ├── chat/       rotas /chat: números no WhatsApp, leitura, presença e perfil
+├── group/      rotas /group: grupos, participantes e convites
 ├── webhook/    rotas /webhook e configuração por instância
 ├── event/      eventos do motor → envelope → webhook / RabbitMQ (ordenado, com retry)
 ├── gateway/    WhatsAppGateway: única fronteira com o protocolo (stub e cobalt/)
@@ -186,7 +200,7 @@ scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do proj
 - [x] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
 - [ ] Figurinha (sticker), botões e listas
 - [x] Chat e perfil: números no WhatsApp, marcar como lida, presença, foto, perfil e alterações
-- [ ] Grupos
+- [x] Grupos: criar, consultar, participantes, assunto, descrição, foto, configurações, convite e sair
 - [ ] Histórico de chat (buscar mensagens e conversas)
 - [x] `ffmpeg` na imagem Docker (duração de áudio/vídeo, voz em OGG/Opus)
 - [ ] Armazenamento de mídia (S3/MinIO)

@@ -297,6 +297,67 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void groupMetadataBecomesContractGroup() {
+        var founder = it.auties.whatsapp.model.jid.Jid.of("5561911111111@s.whatsapp.net");
+        var admin = it.auties.whatsapp.model.jid.Jid.of("5561922222222@s.whatsapp.net");
+        var member = it.auties.whatsapp.model.jid.Jid.of("5561933333333@s.whatsapp.net");
+        var participants = new java.util.LinkedHashSet<it.auties.whatsapp.model.chat.ChatParticipant>();
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(founder, it.auties.whatsapp.model.chat.ChatRole.FOUNDER));
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(admin, it.auties.whatsapp.model.chat.ChatRole.ADMIN));
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(member, it.auties.whatsapp.model.chat.ChatRole.USER));
+        var metadata = new it.auties.whatsapp.model.chat.ChatMetadataBuilder()
+                .jid(it.auties.whatsapp.model.jid.Jid.of("120363000000000001@g.us"))
+                .subject("Família")
+                .subjectAuthorJid(admin)
+                .subjectTimestampSeconds(1_700_000_100L)
+                .foundationTimestampSeconds(1_700_000_000L)
+                .founderJid(founder)
+                .description("Regras")
+                .settings(java.util.Map.of(
+                        it.auties.whatsapp.model.chat.GroupSetting.SEND_MESSAGES.index(),
+                        it.auties.whatsapp.model.chat.ChatSettingPolicy.ADMINS))
+                .participants(participants)
+                .pastParticipants(new java.util.LinkedHashSet<>())
+                .communityGroups(new java.util.LinkedHashSet<>())
+                .build();
+
+        var group = CobaltWhatsAppGateway.groupInfo(metadata);
+
+        assertThat(group.id()).isEqualTo("120363000000000001@g.us");
+        assertThat(group.subject()).isEqualTo("Família");
+        assertThat(group.subjectOwner()).isEqualTo("5561922222222@s.whatsapp.net");
+        assertThat(group.creation()).isEqualTo(1_700_000_000L);
+        assertThat(group.owner()).isEqualTo("5561911111111@s.whatsapp.net");
+        assertThat(group.desc()).isEqualTo("Regras");
+        assertThat(group.announce()).isTrue();
+        assertThat(group.restrict()).isFalse();   // sem política: qualquer um edita
+        assertThat(group.participants()).extracting(p -> p.id() + "=" + p.admin()).containsExactly(
+                "5561911111111@s.whatsapp.net=superadmin", "5561922222222@s.whatsapp.net=admin",
+                "5561933333333@s.whatsapp.net=null");
+    }
+
+    @Test
+    void groupOperationsNeedAConnectedInstance() {
+        var gateway = gateway(false, 1 << 20);
+        var instance = instance("desconectada");
+        var group = "120363000000000001@g.us";
+        List<org.assertj.core.api.ThrowableAssert.ThrowingCallable> calls = List.of(
+                () -> gateway.createGroup(instance, "G", null, List.of("5561999999999@s.whatsapp.net")),
+                () -> gateway.groupInfo(instance, group),
+                () -> gateway.groups(instance),
+                () -> gateway.groupInviteCode(instance, group),
+                () -> gateway.revokeGroupInvite(instance, group),
+                () -> gateway.acceptGroupInvite(instance, "ABCDEFGHIJ"),
+                () -> gateway.updateParticipants(instance, group,
+                        dev.msgforge.gateway.WhatsAppGateway.ParticipantAction.ADD, List.of("5561999999999@s.whatsapp.net")),
+                () -> gateway.updateGroup(instance, group, new dev.msgforge.gateway.WhatsAppGateway.GroupSubject("x")),
+                () -> gateway.leaveGroup(instance, group));
+        for (var call : calls) {
+            assertThatThrownBy(call).isInstanceOf(BadRequestException.class).hasMessageContaining("not connected");
+        }
+    }
+
+    @Test
     void pausedPresenceEndsTyping() {
         assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.PAUSED))
                 .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.AVAILABLE);
