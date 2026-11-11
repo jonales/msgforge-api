@@ -34,13 +34,17 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   no envelope da Evolution e entrega no webhook da instância, no webhook global e no RabbitMQ.
   Um evento novo exige um `case` novo nos `switch` exaustivos; isso é proposital.
   **A entrega roda depois do commit e usa só um snapshot (`DeliveryTarget`)**; a thread de
-  entrega nunca lê o banco (ADR 0004). `WebhookSender` cuida de timeout, retry e
-  `Content-Length`.
+  entrega nunca lê o banco (ADR 0004). As entregas de uma instância saem **em ordem**, numa fila
+  por instância com teto de pendências (`OrderedExecutor`, ADR 0006). `WebhookSender` cuida de
+  timeout, retry e `Content-Length`; `sendUntrusted` (webhook de instância) passa pelo
+  `security/PrivateNetworkGuard` quando `WEBHOOK_BLOCK_PRIVATE_NETWORKS=true`.
 - `gateway/session/SessionStore`: blob da sessão do WhatsApp por instância (`session_store`).
   `SessionRestorer` reconecta no boot quem tem sessão; logout apaga a sessão.
 - `security/ApiKeyFilter`: a chave global libera tudo; o token da instância libera só as rotas
   `/{grupo}/{acao}/{instancia}`.
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
+  Violação de constraint vira 400 (pelo nome da constraint); exceções do Spring com status
+  (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.
 - `web/` *(planejado, ainda não existe)*: o **Manager**, front-end em Thymeleaf servido em
   `/manager` (ADR 0005). Veja a seção "Front-end" abaixo.
 
@@ -89,8 +93,11 @@ Fase 2 (`CobaltWhatsAppGateway`).
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
 1. `mentioned`, `quoted`, `delay` e `webhookBase64` são aceitos e ignorados (dependem do gateway real).
 2. O RabbitMQ usa um exchange tópico; a Evolution usa filas por evento (`docs/COMPATIBILIDADE.md`).
-3. As entregas de webhook ficam só em memória: se o processo cair durante os retries, o evento
-   se perde. Uma fila persistente (outbox) resolveria; ainda não é necessário.
+3. As entregas de webhook ficam só em memória (com teto por instância, ADR 0006): se o processo
+   cair durante os retries, o evento se perde. Uma fila persistente (outbox) resolveria; ainda
+   não é necessário.
+4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
+   padrão, como na Evolution.
 
 ## Memória entre sessões
 
@@ -105,6 +112,11 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
   graphify reflect --graph graphify-out/graph.json   # consolida em graphify-out/reflections/LESSONS.md
   ```
   Leia `graphify-out/reflections/LESSONS.md` antes de mexer numa área que você não conhece.
+  Escreva o `--question` **sem acentos**: ele vira o nome do arquivo, e nomes ASCII evitam
+  problemas no macOS e no Windows.
+- **Testes de concorrência:** nunca presuma que uma thread "já começou". Sincronize com latch
+  (veja `OrderedExecutorTest`) e rode o teste centenas de vezes (`@RepeatedTest` temporário)
+  antes de confiar nele.
 - O grafo (`graph.json`, `GRAPH_REPORT.md`, `graph.html`) é **gerado** e não é versionado.
 
 ## graphify

@@ -35,6 +35,8 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 | RabbitMQ (routing key `{instancia}.{evento}`) | ✅ |
 | Retry de webhook (timeout, backoff exponencial) | ✅ (`WEBHOOK_REQUEST_TIMEOUT_MS`, `WEBHOOK_RETRY_*`) |
 | Validação de `events` (nomes da Evolution, qualquer caixa) | ✅ |
+| Ordem de entrega por instância (inclusive com retry) | ✅ (`WEBHOOK_MAX_PENDING_PER_INSTANCE`) |
+| Bloqueio opcional de webhook para rede interna (SSRF) | ✅ `WEBHOOK_BLOCK_PRIVATE_NETWORKS` (padrão `false`; sem equivalente na Evolution) |
 | Eventos emitidos: QRCODE_UPDATED, CONNECTION_UPDATE, SEND_MESSAGE, MESSAGES_UPSERT | ✅ |
 | Demais eventos (MESSAGES_UPDATE, CONTACTS_*, CHATS_*, GROUPS_*) | ⬜ Fase 2/3 |
 

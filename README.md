@@ -65,6 +65,7 @@ dev.msgforge
 ## Roadmap
 
 - **Fase 1:** contrato da API, persistência, webhooks, RabbitMQ, gateway stub
+- **Fase 1.6 (concluída):** entrega ordenada por instância, erros de constraint/Spring no formato da Evolution, bloqueio opcional de rede privada nos webhooks, testes mais robustos
 - **Fase 1.5 (concluída):** entrega de eventos após commit, retry de webhook, validações e erros no formato da Evolution, `session_store`, testes de integração e CI
 - **Fase 2:** `CobaltWhatsAppGateway` (QR/pairing, sessão persistida em `session_store`, envio e recebimento)
 - **Fase 3:** grupos, chat (findMessages, markAsRead), perfil, S3/MinIO para mídia
