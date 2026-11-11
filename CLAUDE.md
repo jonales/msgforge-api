@@ -54,6 +54,10 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `/group/*` (`GroupService` valida `groupJid` e participantes; o gateway recebe JIDs prontos).
   O stub guarda os grupos **em memória** por instância, para o `GroupIT` exercitar o fluxo
   inteiro. No Cobalt, `fetchAllGroups` parte dos chats do Store (não há consulta "todos os grupos").
+- `history/` (ADR 0008): tabela `message` por **SQL direto** (`MessageHistory`, sem entidade JPA).
+  O `HistoryRecorder` grava as recebidas (`MessageReceived`), as enviadas (no `created()` do
+  `MessageController`) e os status (`MessageStatusUpdated`, que **só avançam**). Repetidas são
+  ignoradas (`ON CONFLICT`). Falha ao gravar só vai para o log.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log).
@@ -156,6 +160,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    recebido sai sempre como `conversation` (nunca `extendedTextMessage`); a reação manda o
    timestamp em milissegundos num campo que o Cobalt chama de `timestampSeconds`.
 6. A **API** não limita tentativas de chave errada; o Manager sim.
+7. Histórico (ADR 0008): sem retenção (a tabela `message` só cresce); o que chegou antes de a
+   instância receber eventos não aparece; a mensagem de teste do Manager não é gravada (passa
+   pelo `MessageService`, não pelo `MessageController`).
 
 ## Memória entre sessões
 

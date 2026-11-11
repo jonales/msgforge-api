@@ -58,6 +58,8 @@ msgforge:
     enabled: ${RABBITMQ_ENABLED:false}
     exchange: ${RABBITMQ_EXCHANGE_NAME:msgforge_exchange}
   gateway: ${MSGFORGE_GATEWAY:stub}
+  history:
+    enabled: ${DATABASE_SAVE_DATA_NEW_MESSAGE:true}
   media:
     ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
     transcode-timeout-ms: ${MEDIA_TRANSCODE_TIMEOUT_MS:60000}

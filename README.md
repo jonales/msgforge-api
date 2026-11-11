@@ -17,6 +17,7 @@ ou RabbitMQ. Inclui um painel web (**Manager**) para operar tudo pelo navegador.
   URL ou base64, áudio de voz, localização, contatos (vCard), reações e enquetes.
 - **Chat e perfil:** verificar quais números têm WhatsApp, marcar como lida, presença
   ("digitando...", "gravando..."), foto e perfil de contatos, e alterar nome, recado e foto da conta.
+  Histórico das mensagens no banco, com busca paginada e lista de conversas.
 - **Grupos:** criar, consultar, listar, gerenciar participantes e admins, assunto, descrição, foto,
   quem pode mandar mensagem ou editar, convites e sair.
 - **Eventos:** QR code, conexão, mensagem enviada, mensagem recebida e status de entrega/leitura.
@@ -98,6 +99,8 @@ Todas exigem o header `apikey`: a chave global, ou o token da instância para as
 | POST | `/chat/sendPresence/{instancia}` | Presença na conversa (`presence`: available, unavailable, composing, recording, paused; `delay`) |
 | POST | `/chat/fetchProfilePictureUrl/{instancia}` | URL da foto de perfil de `number` |
 | POST | `/chat/fetchProfile/{instancia}` | Perfil de `number` (sem `number`, o da própria conta) |
+| POST | `/chat/findMessages/{instancia}` | Histórico: `where.key` (`remoteJid`, `fromMe`, `id`), `page` e `offset` (tamanho da página, até 500) |
+| POST | `/chat/findChats/{instancia}` | Conversas com a última mensagem, mais recentes primeiro |
 | POST | `/chat/updateProfileName/{instancia}` | Altera o nome da conta (até 25 caracteres) |
 | POST | `/chat/updateProfileStatus/{instancia}` | Altera o recado da conta (até 139 caracteres) |
 | POST | `/chat/updateProfilePicture/{instancia}` | Altera a foto da conta (`picture`: JPEG/PNG em URL ou base64) |
@@ -149,6 +152,7 @@ As principais variáveis (todas em [.env.example](.env.example)):
 | `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
 | `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome exibido em "Aparelhos conectados" (Cobalt) |
 | `COBALT_PROXY` | vazio | Proxy para a conexão com o WhatsApp (Cobalt) |
+| `DATABASE_SAVE_DATA_NEW_MESSAGE` | `true` | Grava as mensagens no banco (histórico de `/chat/findMessages`) |
 | `FFMPEG_PATH` | `ffmpeg` | Binário do ffmpeg (já vem na imagem Docker); sem ele, a voz vai sem conversão |
 | `MEDIA_TRANSCODE_TIMEOUT_MS` | `60000` | Limite de uma conversão de áudio |
 
@@ -163,6 +167,7 @@ dev.msgforge
 ├── message/    rotas /message e MessageService
 ├── chat/       rotas /chat: números no WhatsApp, leitura, presença e perfil
 ├── group/      rotas /group: grupos, participantes e convites
+├── history/    histórico de mensagens no banco (gravado a partir dos eventos)
 ├── webhook/    rotas /webhook e configuração por instância
 ├── event/      eventos do motor → envelope → webhook / RabbitMQ (ordenado, com retry)
 ├── gateway/    WhatsAppGateway: única fronteira com o protocolo (stub e cobalt/)
@@ -201,7 +206,7 @@ scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do proj
 - [ ] Figurinha (sticker), botões e listas
 - [x] Chat e perfil: números no WhatsApp, marcar como lida, presença, foto, perfil e alterações
 - [x] Grupos: criar, consultar, participantes, assunto, descrição, foto, configurações, convite e sair
-- [ ] Histórico de chat (buscar mensagens e conversas)
+- [x] Histórico de chat no banco (buscar mensagens e conversas, ADR 0008)
 - [x] `ffmpeg` na imagem Docker (duração de áudio/vídeo, voz em OGG/Opus)
 - [ ] Armazenamento de mídia (S3/MinIO)
 - [ ] Testes de contrato automatizados da API

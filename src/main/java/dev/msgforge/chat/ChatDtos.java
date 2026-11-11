@@ -51,4 +51,39 @@ public final class ChatDtos {
     public record UpdateProfilePictureRequest(@NotBlank String picture) {}
 
     public record UpdateResponse(String update) {}
+
+    // ---- Histórico (ADR 0008)
+
+    public record KeyFilter(String remoteJid, Boolean fromMe, String id) {}
+
+    public record Where(@Valid KeyFilter key) {}
+
+    /** {@code offset}: tamanho da página (padrão 50, até 500), como no contrato. {@code page} começa em 1. */
+    public record FindMessagesRequest(@Valid Where where,
+                                      @jakarta.validation.constraints.Min(1) Integer page,
+                                      @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(500) Integer offset) {}
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record RecordKey(String remoteJid, boolean fromMe, String id, String participant) {}
+
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    public record MessageRecord(String id, RecordKey key, String pushName, String messageType,
+                                java.util.Map<String, Object> message, long messageTimestamp, String instanceId,
+                                String status) {
+
+        public static MessageRecord of(dev.msgforge.history.MessageHistory.Stored m) {
+            return new MessageRecord(m.id().toString(),
+                    new RecordKey(m.key().remoteJid(), m.key().fromMe(), m.key().id(), m.key().participant()),
+                    m.pushName(), m.messageType(), m.message(), m.messageTimestamp(), m.instanceId().toString(),
+                    m.status());
+        }
+    }
+
+    public record MessagesPage(long total, long pages, int currentPage, List<MessageRecord> records) {}
+
+    public record FindMessagesResponse(MessagesPage messages) {}
+
+    /** {@code updatedAt}: horário da última mensagem (ISO-8601). */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    public record ChatSummary(String remoteJid, String pushName, String updatedAt, MessageRecord lastMessage) {}
 }

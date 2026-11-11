@@ -18,12 +18,39 @@ import org.springframework.stereotype.Service;
 @Service
 public class ChatService {
 
+    static final int DEFAULT_PAGE_SIZE = 50;
+
     private final InstanceService instances;
     private final WhatsAppGateway gateway;
+    private final dev.msgforge.history.MessageHistory history;
 
-    public ChatService(InstanceService instances, WhatsAppGateway gateway) {
+    public ChatService(InstanceService instances, WhatsAppGateway gateway, dev.msgforge.history.MessageHistory history) {
         this.instances = instances;
         this.gateway = gateway;
+        this.history = history;
+    }
+
+    /** Histórico gravado no banco; filtros da key opcionais, mais novas primeiro. */
+    public ChatDtos.MessagesPage findMessages(String instanceName, ChatDtos.KeyFilter key, Integer page, Integer size) {
+        var instance = instances.get(instanceName);
+        var remoteJid = key == null || key.remoteJid() == null || key.remoteJid().isBlank() ? null : Jids.toJid(key.remoteJid());
+        var fromMe = key == null ? null : key.fromMe();
+        var id = key == null || key.id() == null || key.id().isBlank() ? null : key.id();
+        var pageSize = size == null ? DEFAULT_PAGE_SIZE : size;
+        var current = page == null ? 1 : page;
+        var total = history.count(instance.getId(), remoteJid, fromMe, id);
+        var records = history.find(instance.getId(), remoteJid, fromMe, id, current, pageSize).stream()
+                .map(ChatDtos.MessageRecord::of).toList();
+        return new ChatDtos.MessagesPage(total, (total + pageSize - 1) / pageSize, current, records);
+    }
+
+    public List<ChatDtos.ChatSummary> findChats(String instanceName) {
+        var instance = instances.get(instanceName);
+        return history.chats(instance.getId()).stream()
+                .map(chat -> new ChatDtos.ChatSummary(chat.remoteJid(), chat.pushName(),
+                        java.time.Instant.ofEpochSecond(chat.lastMessage().messageTimestamp()).toString(),
+                        ChatDtos.MessageRecord.of(chat.lastMessage())))
+                .toList();
     }
 
     /** Números com formato inválido voltam como inexistentes, sem consultar o WhatsApp. */

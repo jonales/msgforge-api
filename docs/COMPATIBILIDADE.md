@@ -58,7 +58,9 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 | POST | `/chat/fetchProfilePictureUrl/{instance}` | ✅ `{wuid, profilePictureUrl}` (null se não houver ou a privacidade esconder) |
 | POST | `/chat/fetchProfile/{instance}` | 🟡 `{wuid, name, numberExists, picture, status}`; sem `number`, a própria conta; `name` só de contatos da sessão; sem dados de conta comercial |
 | POST | `/chat/updateProfileName`, `updateProfileStatus`, `updateProfilePicture` | ✅ `{update: "success"}`; foto só JPEG/PNG |
-| | `findMessages`, `findChats`, `findContacts`, `archiveChat`, `deleteMessage`, `removeProfilePicture`, privacidade | ⬜ |
+| POST | `/chat/findMessages/{instance}` | 🟡 `{messages: {total, pages, currentPage, records}}`; filtro só por `where.key` (`remoteJid`, `fromMe`, `id`); `offset` = tamanho da página (padrão 50, até 500); mais novas primeiro. Só o que chegou depois que a instância passou a receber eventos (ADR 0008) |
+| POST | `/chat/findChats/{instance}` | 🟡 `[{remoteJid, pushName, updatedAt, lastMessage}]` montado do histórico; sem `unreadCount` nem foto |
+| | `findContacts`, `findStatusMessage`, `archiveChat`, `deleteMessage`, `removeProfilePicture`, privacidade | ⬜ |
 
 ## Group
 `groupJid` vai na query string e precisa ser um grupo (`...@g.us` ou o ID numérico); senão 400.

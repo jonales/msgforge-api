@@ -73,6 +73,19 @@ public class ChatController {
                 profile.status());
     }
 
+    @PostMapping("/findMessages/{instance}")
+    public ChatDtos.FindMessagesResponse findMessages(@PathVariable String instance,
+                                                      @Valid @RequestBody(required = false) ChatDtos.FindMessagesRequest body) {
+        var key = body == null || body.where() == null ? null : body.where().key();
+        return new ChatDtos.FindMessagesResponse(chats.findMessages(instance, key,
+                body == null ? null : body.page(), body == null ? null : body.offset()));
+    }
+
+    @PostMapping("/findChats/{instance}")
+    public List<ChatDtos.ChatSummary> findChats(@PathVariable String instance) {
+        return chats.findChats(instance);
+    }
+
     @PostMapping("/updateProfileName/{instance}")
     public UpdateResponse updateProfileName(@PathVariable String instance,
                                             @Valid @RequestBody UpdateProfileNameRequest body) {
