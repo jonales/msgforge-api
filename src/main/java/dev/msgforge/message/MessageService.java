@@ -31,8 +31,10 @@ public class MessageService {
         return new Sent(instance, sent);
     }
 
-    public Sent sendVoice(String instanceName, String number, String audio, Integer delay) {
-        return send(instanceName, new WhatsAppGateway.VoiceNote(Jids.toJid(number), audio, delay));
+    /** {@code encoding}: converter para OGG/Opus (padrão: sim). */
+    public Sent sendVoice(String instanceName, String number, String audio, Integer delay, Boolean encoding) {
+        return send(instanceName, new WhatsAppGateway.VoiceNote(Jids.toJid(number), audio, delay,
+                !Boolean.FALSE.equals(encoding)));
     }
 
     public Sent sendLocation(String instanceName, String number, double latitude, double longitude,

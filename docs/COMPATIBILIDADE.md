@@ -18,8 +18,8 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 | Método | Rota | Status |
 |---|---|---|
 | POST | `/message/sendText/{instance}` | 🟡 (`delay` = digitando no Cobalt; mentioned/quoted ignorados) |
-| POST | `/message/sendMedia/{instance}` | 🟡 (image/video/audio/document por URL ou base64; teto `COBALT_MEDIA_MAX_BYTES`) |
-| POST | `/message/sendWhatsAppAudio/{instance}` | 🟡 envia como voz (PTT); `encoding` é ignorado (sem conversão para Opus: mande OGG/Opus) |
+| POST | `/message/sendMedia/{instance}` | 🟡 (image/video/audio/document por URL ou base64; teto `COBALT_MEDIA_MAX_BYTES`; vídeo precisa ser MP4/3GP/WebM, senão 400) |
+| POST | `/message/sendWhatsAppAudio/{instance}` | ✅ envia como voz (PTT); `encoding` (padrão true) converte para OGG/Opus com o ffmpeg; `false` envia como veio |
 | POST | `/message/sendLocation/{instance}` | ✅ |
 | POST | `/message/sendContact/{instance}` | ✅ (1 contato → `contactMessage`; vários → `contactsArrayMessage`; vCard com escape) |
 | POST | `/message/sendReaction/{instance}` | ✅ (`reaction` vazio remove) |

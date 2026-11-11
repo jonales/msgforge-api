@@ -36,7 +36,10 @@ public final class MessageDtos {
             String fileName,
             Integer delay) {}
 
-    /** Áudio de voz (PTT): {@code audio} em URL http(s) ou base64; de preferência OGG/Opus. */
+    /**
+     * Áudio de voz (PTT): {@code audio} em URL http(s) ou base64, em qualquer formato que o ffmpeg
+     * leia. {@code encoding} (padrão true) converte para OGG/Opus; false envia como veio.
+     */
     public record SendWhatsAppAudioRequest(
             @NotBlank String number,
             @NotBlank String audio,

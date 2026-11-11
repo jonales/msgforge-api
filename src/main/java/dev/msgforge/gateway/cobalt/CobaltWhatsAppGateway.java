@@ -4,6 +4,8 @@ import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.GatewayEvent;
 import dev.msgforge.gateway.WhatsAppGateway;
+import dev.msgforge.gateway.media.AudioTranscoder;
+import dev.msgforge.gateway.media.MediaSignatures;
 import dev.msgforge.gateway.session.SessionStore;
 import dev.msgforge.instance.ConnectionState;
 import dev.msgforge.instance.Instance;
@@ -114,15 +116,18 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private final SessionStore sessions;
     private final DatabaseSessionSerializer serializer;
     private final PrivateNetworkGuard guard;
+    private final AudioTranscoder transcoder;
     private final MsgforgeProperties.Cobalt config;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final HttpClient http;
 
     public CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
-                                 PrivateNetworkGuard guard, MsgforgeProperties properties) {
+                                 PrivateNetworkGuard guard, AudioTranscoder transcoder,
+                                 MsgforgeProperties properties) {
         this.events = events;
         this.sessions = sessions;
         this.guard = guard;
+        this.transcoder = transcoder;
         this.config = properties.cobalt();
         this.serializer = new DatabaseSessionSerializer(sessions, executor);
         this.http = HttpClient.newBuilder()
@@ -324,6 +329,9 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     public SentMessage sendMedia(Instance instance, OutgoingMedia media) {
         var connection = requireConnected(instance);
         var bytes = loadMedia(media.media());
+        if ("video".equals(media.mediaType()) && !MediaSignatures.isVideo(bytes)) {
+            throw new BadRequestException("media is not a supported video (MP4, 3GP or WebM)");
+        }
         var jid = Jid.of(media.jid());
         typing(connection, jid, media.delayMs());
         var sent = await(connection.api.sendMessage(jid, buildMedia(media, bytes)), "envio de mídia");
@@ -333,11 +341,23 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     @Override
     public SentMessage send(Instance instance, Outgoing message) {
         var connection = requireConnected(instance);
-        var audio = message instanceof VoiceNote voice ? loadMedia(voice.audio()) : null;
+        var audio = message instanceof VoiceNote voice ? voiceAudio(voice) : null;
         var jid = Jid.of(message.jid());
         typing(connection, jid, message.delayMs());
         var sent = await(connection.api.sendMessage(jid, buildMessage(message, audio)), "envio");
         return sentMessage(sent, message.jid());
+    }
+
+    /** Carrega o áudio e, se pedido e necessário, converte para OGG/Opus. */
+    byte[] voiceAudio(VoiceNote voice) {
+        var audio = loadMedia(voice.audio());
+        if (!voice.encode() || AudioTranscoder.isOggOpus(audio)) {
+            return audio;
+        }
+        if (!transcoder.available()) {
+            return audio;   // sem ffmpeg: envia como veio (o aviso sai uma vez no log)
+        }
+        return transcoder.toOggOpus(audio);
     }
 
     /** Monta a mensagem do Cobalt. {@code audio} só é usado para VoiceNote (bytes já carregados). */

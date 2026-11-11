@@ -84,7 +84,7 @@ Todas exigem o header `apikey`: a chave global, ou o token da instância para as
 | DELETE | `/instance/delete/{instancia}` | Exclui a instância |
 | POST | `/message/sendText/{instancia}` | Envia texto (`number`, `text`, `delay`) |
 | POST | `/message/sendMedia/{instancia}` | Envia mídia (`mediatype`, `media` em URL ou base64, `caption`, `fileName`) |
-| POST | `/message/sendWhatsAppAudio/{instancia}` | Envia áudio de voz (`audio` em URL ou base64; de preferência OGG/Opus) |
+| POST | `/message/sendWhatsAppAudio/{instancia}` | Envia áudio de voz (`audio` em URL ou base64, qualquer formato; `encoding` (padrão true) converte para OGG/Opus com o ffmpeg) |
 | POST | `/message/sendLocation/{instancia}` | Envia localização (`latitude`, `longitude`, `name`, `address`) |
 | POST | `/message/sendContact/{instancia}` | Envia um ou mais contatos (`contact: [{fullName, phoneNumber, wuid, organization, email, url}]`) |
 | POST | `/message/sendReaction/{instancia}` | Reage a uma mensagem (`key: {remoteJid, fromMe, id}`, `reaction`; vazio remove) |
@@ -126,6 +126,8 @@ As principais variáveis (todas em [.env.example](.env.example)):
 | `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
 | `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome exibido em "Aparelhos conectados" (Cobalt) |
 | `COBALT_PROXY` | vazio | Proxy para a conexão com o WhatsApp (Cobalt) |
+| `FFMPEG_PATH` | `ffmpeg` | Binário do ffmpeg (já vem na imagem Docker); sem ele, a voz vai sem conversão |
+| `MEDIA_TRANSCODE_TIMEOUT_MS` | `60000` | Limite de uma conversão de áudio |
 
 Em produção atrás de HTTPS, ligue também `SERVER_SERVLET_SESSION_COOKIE_SECURE=true` (cookie do
 Manager).
@@ -173,5 +175,6 @@ scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do proj
 - [x] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
 - [ ] Figurinha (sticker), botões e listas
 - [ ] Grupos, histórico de chat (buscar mensagens, marcar como lida), perfil
-- [ ] Armazenamento de mídia (S3/MinIO) e `ffmpeg` na imagem Docker
+- [x] `ffmpeg` na imagem Docker (duração de áudio/vídeo, voz em OGG/Opus)
+- [ ] Armazenamento de mídia (S3/MinIO)
 - [ ] Testes de contrato automatizados da API

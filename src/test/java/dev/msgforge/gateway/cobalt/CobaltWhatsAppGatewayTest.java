@@ -30,6 +30,9 @@ import org.junit.jupiter.api.Test;
  */
 class CobaltWhatsAppGatewayTest {
 
+    private static final dev.msgforge.gateway.media.AudioTranscoder TRANSCODER =
+            new dev.msgforge.gateway.media.AudioTranscoder(new dev.msgforge.gateway.media.MediaProperties("ffmpeg", 30000, 1 << 24));
+
     private final List<Object> events = new CopyOnWriteArrayList<>();
     private final InMemorySessionStore sessions = new InMemorySessionStore();
     private HttpServer server;
@@ -48,7 +51,7 @@ class CobaltWhatsAppGatewayTest {
                         blockPrivateNetworks),
                 null, "cobalt",
                 new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy()));
-        return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), properties);
+        return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties);
     }
 
     private static Instance instance(String name) {
@@ -118,7 +121,7 @@ class CobaltWhatsAppGatewayTest {
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
                             "http://127.0.0.1:" + proxy.getLocalPort()));
-            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), properties);
+            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties);
             var instance = instance("corrida");
             try {
                 var start = new java.util.concurrent.CountDownLatch(1);
@@ -230,7 +233,7 @@ class CobaltWhatsAppGatewayTest {
         assertThat(reaction.key().chatJid().toString()).isEqualTo(jid);
 
         var voice = (AudioMessage) CobaltWhatsAppGateway.buildMessage(
-                new dev.msgforge.gateway.WhatsAppGateway.VoiceNote(jid, "x", null), "ogg".getBytes());
+                new dev.msgforge.gateway.WhatsAppGateway.VoiceNote(jid, "x", null, false), "ogg".getBytes());
         assertThat(voice.voiceMessage()).isTrue();
         assertThat(voice.mimetype()).contains("audio/ogg; codecs=opus");
     }
@@ -247,6 +250,33 @@ class CobaltWhatsAppGatewayTest {
         var hashOfSim = java.util.HexFormat.of().formatHex(sha.digest("Sim".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         assertThat(single.getSelectableOption(hashOfSim)).isPresent();
         assertThat(single.encryptionKey()).isPresent();
+    }
+
+    @Test
+    void voiceNoteIsSentAsIsWhenEncodingIsOffOrAlreadyOggOpus() {
+        var gateway = gateway(false, 1 << 20);
+        var raw = "qualquer coisa".getBytes();
+        var ogg = new byte[64];
+        System.arraycopy("OggS".getBytes(), 0, ogg, 0, 4);
+        System.arraycopy("OpusHead".getBytes(), 0, ogg, 28, 8);
+
+        assertThat(gateway.voiceAudio(voice(raw, false))).isEqualTo(raw);
+        assertThat(gateway.voiceAudio(voice(ogg, true))).isEqualTo(ogg);
+    }
+
+    @Test
+    void voiceNoteIsConvertedToOggOpusWhenEncoding() {
+        org.junit.jupiter.api.Assumptions.assumeTrue(TRANSCODER.available(), "ffmpeg não instalado");
+        var wav = dev.msgforge.gateway.media.AudioTranscoderTestSupport.wav();
+
+        var converted = gateway(false, 1 << 20).voiceAudio(voice(wav, true));
+
+        assertThat(dev.msgforge.gateway.media.AudioTranscoder.isOggOpus(converted)).isTrue();
+    }
+
+    private static dev.msgforge.gateway.WhatsAppGateway.VoiceNote voice(byte[] audio, boolean encode) {
+        return new dev.msgforge.gateway.WhatsAppGateway.VoiceNote("5561999999999@s.whatsapp.net",
+                Base64.getEncoder().encodeToString(audio), null, encode);
     }
 
     @Test

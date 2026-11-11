@@ -7,6 +7,11 @@ RUN mvn -q -B package -DskipTests
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
+# ffmpeg: duração de áudio/vídeo enviados e conversão de voz para OGG/Opus
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && ffmpeg -hide_banner -version | head -n 1
 RUN useradd -r -u 1001 msgforge
 COPY --from=build /app/target/msgforge-api-*.jar app.jar
 USER msgforge
