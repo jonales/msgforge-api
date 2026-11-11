@@ -18,7 +18,7 @@ public class Instance {
     @Column(nullable = false, unique = true)
     private String name;
 
-    @Column(nullable = false)
+    @Column(nullable = false, unique = true)
     private String token;
 
     @Column(nullable = false)

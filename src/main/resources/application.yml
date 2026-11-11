@@ -41,6 +41,11 @@ msgforge:
   webhook:
     global-url: ${WEBHOOK_GLOBAL_URL:}
     global-enabled: ${WEBHOOK_GLOBAL_ENABLED:false}
+    request-timeout-ms: ${WEBHOOK_REQUEST_TIMEOUT_MS:10000}
+    retry:
+      max-attempts: ${WEBHOOK_RETRY_MAX_ATTEMPTS:5}
+      initial-delay-ms: ${WEBHOOK_RETRY_INITIAL_DELAY_MS:1000}
+      max-delay-ms: ${WEBHOOK_RETRY_MAX_DELAY_MS:30000}
   rabbitmq:
     enabled: ${RABBITMQ_ENABLED:false}
     exchange: ${RABBITMQ_EXCHANGE_NAME:msgforge_exchange}

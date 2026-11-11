@@ -1,12 +1,20 @@
 package dev.msgforge.webhook;
 
+import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import dev.msgforge.common.ApiExceptionHandler.NotFoundException;
+import dev.msgforge.event.EventType;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.instance.InstanceRepository;
 import dev.msgforge.webhook.WebhookDtos.WebhookConfig;
 import dev.msgforge.webhook.WebhookDtos.WebhookResponse;
+import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.type.TypeReference;
@@ -38,13 +46,46 @@ public class WebhookService {
         var webhook = webhooks.findByInstanceId(instance.getId()).orElseGet(() -> new Webhook(instance.getId()));
         var headers = config.headers() == null || config.headers().isEmpty() ? null : json.writeValueAsString(config.headers());
         webhook.update(
-                config.url(),
+                validUrl(config.url()),
                 config.enabled() == null || config.enabled(),
                 Boolean.TRUE.equals(config.byEvents()),
                 Boolean.TRUE.equals(config.base64()),
-                config.events(),
+                validEvents(config.events()),
                 headers);
         return webhooks.save(webhook);
+    }
+
+    private static String validUrl(String url) {
+        if (url == null || url.isBlank()) {
+            throw new BadRequestException("webhook url is required");
+        }
+        try {
+            var uri = URI.create(url.trim());
+            if (("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) && uri.getHost() != null) {
+                return uri.toString();
+            }
+        } catch (IllegalArgumentException ignored) {
+            // cai no erro abaixo
+        }
+        throw new BadRequestException("Invalid webhook url: \"" + url + "\"");
+    }
+
+    /** Aceita os nomes da Evolution (MESSAGES_UPSERT) em qualquer caixa; rejeita os desconhecidos. */
+    private static List<String> validEvents(List<String> events) {
+        if (events == null) {
+            return List.of();
+        }
+        var known = Arrays.stream(EventType.values()).map(Enum::name).collect(Collectors.toSet());
+        var normalized = events.stream()
+                .filter(Objects::nonNull)
+                .map(e -> e.trim().toUpperCase(Locale.ROOT))
+                .distinct()
+                .toList();
+        var unknown = normalized.stream().filter(e -> !known.contains(e)).toList();
+        if (!unknown.isEmpty()) {
+            throw new BadRequestException("Invalid webhook events: " + unknown);
+        }
+        return normalized;
     }
 
     @Transactional(readOnly = true)

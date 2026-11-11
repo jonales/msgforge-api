@@ -2,6 +2,7 @@ package dev.msgforge.event;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.msgforge.config.MsgforgeProperties;
+import dev.msgforge.event.DeliveryTarget.WebhookTarget;
 import dev.msgforge.event.GatewayEvent.ConnectionUpdated;
 import dev.msgforge.event.GatewayEvent.MessageReceived;
 import dev.msgforge.event.GatewayEvent.MessageSent;
@@ -20,12 +21,21 @@ import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Converte {@link GatewayEvent} no envelope da Evolution e entrega em webhook
- * (da instância e global) e RabbitMQ. Cada entrega roda em uma virtual thread.
+ * (da instância e global) e RabbitMQ.
+ *
+ * <p>Dois tempos (ver docs/decisoes/0004):
+ * <ol>
+ *   <li>Síncrono, na thread e na transação de quem publicou: atualiza o estado e copia
+ *       os dados da instância e do webhook para um {@link DeliveryTarget}.</li>
+ *   <li>Assíncrono, numa virtual thread, só <b>depois do commit</b> (ou na hora, se não
+ *       houver transação): entrega usando apenas o snapshot. Em rollback, nada é entregue.</li>
+ * </ol>
  */
 @Component
 public class EventDispatcher {
@@ -37,17 +47,17 @@ public class EventDispatcher {
     private final InstanceRepository instances;
     private final InstanceStateService stateService;
     private final WebhookService webhooks;
-    private final RestClient http;
+    private final WebhookSender sender;
     private final RabbitTemplate rabbit;
     private final JsonMapper json;
 
     public EventDispatcher(MsgforgeProperties properties, InstanceRepository instances, InstanceStateService stateService,
-                           WebhookService webhooks, RestClient webhookRestClient, RabbitTemplate rabbit, JsonMapper json) {
+                           WebhookService webhooks, WebhookSender sender, RabbitTemplate rabbit, JsonMapper json) {
         this.properties = properties;
         this.instances = instances;
         this.stateService = stateService;
         this.webhooks = webhooks;
-        this.http = webhookRestClient;
+        this.sender = sender;
         this.rabbit = rabbit;
         this.json = json;
     }
@@ -74,8 +84,38 @@ public class EventDispatcher {
             case MessageSent _ -> EventType.SEND_MESSAGE;
             case MessageReceived _ -> EventType.MESSAGES_UPSERT;
         };
+        var target = snapshot(event.instanceName());
+        if (target == null) {
+            log.debug("Evento {} ignorado: instância {} não existe", type, event.instanceName());
+            return;
+        }
         var data = dataOf(event);
-        executor.submit(() -> deliver(event.instanceName(), type, data));
+        var dateTime = OffsetDateTime.now().toString();
+        Runnable delivery = () -> executor.submit(() -> deliver(target, type, data, dateTime));
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    delivery.run();
+                }
+            });
+        } else {
+            delivery.run();
+        }
+    }
+
+    /** Lido na transação de quem publicou: enxerga a instância recém-criada e ainda não commitada. */
+    private DeliveryTarget snapshot(String instanceName) {
+        var instance = instances.findByName(instanceName).orElse(null);
+        if (instance == null) {
+            return null;
+        }
+        var webhook = webhooks.findEntity(instance)
+                .map(w -> new WebhookTarget(w.getUrl(), w.isEnabled(), w.isByEvents(), w.getEvents(),
+                        webhooks.headersOf(w)))
+                .orElse(null);
+        return new DeliveryTarget(instance.getName(), instance.getToken(), instance.getOwnerJid(), webhook);
     }
 
     private static Object dataOf(GatewayEvent event) {
@@ -92,51 +132,28 @@ public class EventDispatcher {
         };
     }
 
-    private void deliver(String instanceName, EventType type, Object data) {
-        var instance = instances.findByName(instanceName).orElse(null);
-        if (instance == null) {
-            return;
-        }
-        var webhook = webhooks.findEntity(instance).orElse(null);
-
-        if (webhook != null && webhook.isEnabled() && accepts(webhook.getEvents(), type)) {
-            var url = webhook.isByEvents() ? webhook.getUrl() + type.urlSuffix() : webhook.getUrl();
-            post(url, envelope(instanceName, type, data, url, instance.getOwnerJid(), instance.getToken()),
-                    webhooks.headersOf(webhook));
+    private void deliver(DeliveryTarget target, EventType type, Object data, String dateTime) {
+        var webhook = target.webhook();
+        if (webhook != null && webhook.accepts(type)) {
+            var url = webhook.urlFor(type);
+            sender.send(url, type.payloadName(), envelope(target, type, data, url, dateTime), webhook.headers());
         }
 
         var global = properties.webhook();
         if (global.globalEnabled() && global.globalUrl() != null && !global.globalUrl().isBlank()) {
-            post(global.globalUrl(), envelope(instanceName, type, data, global.globalUrl(), instance.getOwnerJid(),
-                    instance.getToken()), Map.of());
+            sender.send(global.globalUrl(), type.payloadName(),
+                    envelope(target, type, data, global.globalUrl(), dateTime), Map.of());
         }
 
         if (properties.rabbitmq().enabled()) {
-            publishRabbit(instanceName, type, envelope(instanceName, type, data, null, instance.getOwnerJid(),
-                    instance.getToken()));
+            publishRabbit(target.instanceName(), type, envelope(target, type, data, null, dateTime));
         }
     }
 
-    private static boolean accepts(java.util.List<String> events, EventType type) {
-        return events.isEmpty() || events.contains(type.name());
-    }
-
-    private EventEnvelope envelope(String instance, EventType type, Object data, String destination,
-                                   String sender, String apikey) {
-        return new EventEnvelope(type.payloadName(), instance, data, destination,
-                OffsetDateTime.now().toString(), sender, properties.serverUrl(), apikey);
-    }
-
-    private void post(String url, EventEnvelope body, Map<String, String> headers) {
-        try {
-            http.post().uri(url)
-                    .headers(h -> headers.forEach(h::add))
-                    .body(body)
-                    .retrieve()
-                    .toBodilessEntity();
-        } catch (Exception e) {
-            log.warn("Falha ao enviar webhook {} para {}: {}", body.event(), url, e.getMessage());
-        }
+    private EventEnvelope envelope(DeliveryTarget target, EventType type, Object data, String destination,
+                                   String dateTime) {
+        return new EventEnvelope(type.payloadName(), target.instanceName(), data, destination,
+                dateTime, target.ownerJid(), properties.serverUrl(), target.token());
     }
 
     private void publishRabbit(String instance, EventType type, EventEnvelope body) {

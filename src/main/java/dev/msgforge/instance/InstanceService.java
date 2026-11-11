@@ -2,7 +2,9 @@ package dev.msgforge.instance;
 
 import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import dev.msgforge.common.ApiExceptionHandler.NotFoundException;
+import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.gateway.WhatsAppGateway;
+import dev.msgforge.gateway.session.SessionStore;
 import dev.msgforge.instance.InstanceDtos.ConnectionStateResponse;
 import dev.msgforge.instance.InstanceDtos.CreateInstanceRequest;
 import dev.msgforge.instance.InstanceDtos.CreateInstanceResponse;
@@ -22,13 +24,17 @@ public class InstanceService {
     private final InstanceStateService state;
     private final WebhookService webhooks;
     private final WhatsAppGateway gateway;
+    private final MsgforgeProperties properties;
+    private final SessionStore sessions;
 
-    public InstanceService(InstanceRepository instances, InstanceStateService state,
-                           WebhookService webhooks, WhatsAppGateway gateway) {
+    public InstanceService(InstanceRepository instances, InstanceStateService state, WebhookService webhooks,
+                           WhatsAppGateway gateway, MsgforgeProperties properties, SessionStore sessions) {
+        this.sessions = sessions;
         this.instances = instances;
         this.state = state;
         this.webhooks = webhooks;
         this.gateway = gateway;
+        this.properties = properties;
     }
 
     @Transactional
@@ -39,6 +45,9 @@ public class InstanceService {
         var token = request.token() == null || request.token().isBlank()
                 ? UUID.randomUUID().toString().toUpperCase()
                 : request.token();
+        if (token.equals(properties.authentication().apiKey()) || instances.existsByToken(token)) {
+            throw new BadRequestException("This token is already in use.");
+        }
         var instance = instances.save(new Instance(request.instanceName(), token,
                 request.integrationOrDefault(), request.number()));
 
@@ -82,6 +91,7 @@ public class InstanceService {
     public void logout(String instanceName) {
         var instance = get(instanceName);
         gateway.logout(instance);
+        sessions.delete(instance.getId());
         instance.setConnectionState(ConnectionState.CLOSE);
     }
 

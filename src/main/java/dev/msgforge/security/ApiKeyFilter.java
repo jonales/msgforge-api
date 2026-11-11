@@ -7,6 +7,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,8 +22,17 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Component
 public class ApiKeyFilter extends OncePerRequestFilter {
 
+    /**
+     * Preenchido quando a requisição foi autenticada pelo token de uma instância
+     * (e não pela chave global): o nome da instância dona do token.
+     */
+    public static final String SCOPED_INSTANCE = "msgforge.scopedInstance";
+
     private static final Set<String> PUBLIC_PREFIXES =
             Set.of("/docs", "/v3/api-docs", "/swagger-ui", "/actuator/health");
+
+    /** Rotas sem instância no path que o token de instância pode usar (restritas a ela). */
+    private static final Set<String> SCOPED_ROUTES = Set.of("/instance/fetchInstances");
 
     private final MsgforgeProperties properties;
     private final InstanceRepository instances;
@@ -46,20 +57,41 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             unauthorized(response);
             return;
         }
-        if (apiKey.equals(properties.authentication().apiKey())) {
+        if (constantTimeEquals(apiKey, properties.authentication().apiKey())) {
             chain.doFilter(request, response);
             return;
         }
+
+        var uri = request.getRequestURI();
+        if (SCOPED_ROUTES.contains(uri)) {
+            var owner = instances.findByToken(apiKey);
+            if (owner.isPresent()) {
+                request.setAttribute(SCOPED_INSTANCE, owner.get().getName());
+                chain.doFilter(request, response);
+            } else {
+                unauthorized(response);
+            }
+            return;
+        }
+
         // Token de instância: só vale para a instância do path (/{grupo}/{acao}/{instance})
-        var instanceName = instanceFromPath(request.getRequestURI());
+        var instanceName = instanceFromPath(uri);
         var allowed = instanceName != null && instances.findByName(instanceName)
-                .map(i -> i.getToken().equals(apiKey))
+                .map(i -> constantTimeEquals(apiKey, i.getToken()))
                 .orElse(false);
         if (allowed) {
+            request.setAttribute(SCOPED_INSTANCE, instanceName);
             chain.doFilter(request, response);
         } else {
             unauthorized(response);
         }
+    }
+
+    static boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 
     private static String instanceFromPath(String uri) {
