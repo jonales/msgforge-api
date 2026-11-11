@@ -7,7 +7,8 @@ conseguir trocar só a URL. Antes de mudar qualquer contrato, confira `docs/COMP
 ## Comandos
 
 ```bash
-mvn test                                     # testes (precisa de JDK 25)
+mvn test                                     # unitários (*Test), rápido, sem infraestrutura
+mvn verify                                   # + integração (*IT): Testcontainers, ou serviços locais (abaixo)
 mvn spring-boot:run                          # sobe local (Postgres + Redis em localhost)
 docker compose up -d --build                 # stack completa
 scripts/new-migration.sh "descricao"         # nova migration Flyway no padrão
@@ -16,6 +17,12 @@ graphify update .                            # atualiza o grafo de código (sem 
 
 Nas sessões em nuvem, `.claude/hooks/session-start.sh` instala o JDK 25, baixa as dependências
 do Maven e o Graphify, e gera o grafo.
+
+**Testes de integração sem Docker** (caso das sessões em nuvem): suba Postgres 16 e Redis locais
+(`initdb`/`pg_ctl` + `redis-server --daemonize yes`), crie o banco `msgforge_it` (dono `msgforge`)
+e rode `IT_DATABASE_URL=jdbc:postgresql://localhost:5432/msgforge_it mvn verify`. Variáveis em
+`src/test/java/dev/msgforge/support/TestInfrastructure.java`. Sem Docker e sem essa variável,
+os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam Testcontainers.
 
 ## Arquitetura (pacote `dev.msgforge`)
 
@@ -26,6 +33,11 @@ do Maven e o Graphify, e gera o grafo.
 - `event/`: o gateway publica `GatewayEvent` (interface selada) e o `EventDispatcher` converte
   no envelope da Evolution e entrega no webhook da instância, no webhook global e no RabbitMQ.
   Um evento novo exige um `case` novo nos `switch` exaustivos; isso é proposital.
+  **A entrega roda depois do commit e usa só um snapshot (`DeliveryTarget`)**; a thread de
+  entrega nunca lê o banco (ADR 0004). `WebhookSender` cuida de timeout, retry e
+  `Content-Length`.
+- `gateway/session/SessionStore`: blob da sessão do WhatsApp por instância (`session_store`).
+  `SessionRestorer` reconecta no boot quem tem sessão; logout apaga a sessão.
 - `security/ApiKeyFilter`: a chave global libera tudo; o token da instância libera só as rotas
   `/{grupo}/{acao}/{instancia}`.
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
@@ -46,25 +58,14 @@ do Maven e o Graphify, e gera o grafo.
 
 ## Estado atual e backlog
 
-O roadmap está no `README.md`. Estamos entre a Fase 1 (contrato + stub) e a Fase 2 (Cobalt).
+O roadmap está no `README.md`. A Fase 1.5 (estabilização) terminou; o próximo passo é a
+Fase 2 (`CobaltWhatsAppGateway`).
 
-Problemas conhecidos (análise de 2026-11-11), a corrigir na "Fase 1.5":
-1. **Eventos perdidos:** `EventDispatcher.deliver` roda numa virtual thread e lê a instância e o
-   webhook do banco antes do commit. No `instance/create` com `qrcode:true`, o `qrcode.updated` e
-   o `connection.update` se perdem. Correção: `@TransactionalEventListener(AFTER_COMMIT,
-   fallbackExecution = true)` e/ou levar um snapshot (token, ownerJid, webhook) no evento.
-2. `Jids.toJid("abc")` gera `@s.whatsapp.net` e a API responde 201; deveria responder 400.
-3. JSON malformado, `IllegalArgumentException` e erros genéricos saem fora do formato de erro da
-   Evolution.
-4. `webhook.events` aceita valores que não existem em `EventType`.
-5. O token da instância recebe 401 em `/instance/fetchInstances`; na Evolution ele vê a própria
-   instância.
-6. O `RestClient` do webhook não tem timeout nem retry e envia o corpo `chunked`.
-7. A apikey é comparada com `equals`; o certo é `MessageDigest.isEqual`.
-8. A tabela `session_store` não tem entidade; as instâncias `open` não reconectam no boot.
-9. Não há teste de contexto (`@SpringBootTest` + Testcontainers) nem CI.
-
-Ao corrigir um item, tire-o daqui no mesmo PR.
+Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
+1. `mentioned`, `quoted`, `delay` e `webhookBase64` são aceitos e ignorados (dependem do gateway real).
+2. O RabbitMQ usa um exchange tópico; a Evolution usa filas por evento (`docs/COMPATIBILIDADE.md`).
+3. As entregas de webhook ficam só em memória: se o processo cair durante os retries, o evento
+   se perde. Uma fila persistente (outbox) resolveria; ainda não é necessário.
 
 ## Memória entre sessões
 
