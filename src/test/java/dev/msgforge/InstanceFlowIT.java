@@ -7,7 +7,7 @@ import dev.msgforge.support.WebhookReceiver.Received;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
-/** Fluxo da Evolution de ponta a ponta: HTTP → serviço → banco → evento → webhook. */
+/** Fluxo da API de ponta a ponta: HTTP → serviço → banco → evento → webhook. */
 class InstanceFlowIT extends IntegrationTest {
 
     /**
@@ -32,7 +32,7 @@ class InstanceFlowIT extends IntegrationTest {
         return webhooks.received().stream().filter(r -> r.path().startsWith("/" + name + "/")).toList();
     }
 
-    private void assertEvolutionError(Response response, int status) {
+    private void assertErrorFormat(Response response, int status) {
         assertThat(response.status()).isEqualTo(status);
         assertThat(response.body().get("status").asInt()).isEqualTo(status);
         assertThat(response.body().get("error").asString()).isNotBlank();
@@ -133,27 +133,27 @@ class InstanceFlowIT extends IntegrationTest {
         var close = webhooks.await(r -> r.path().equals(hook(name, "/connection-update"))
                 && parse(r.body()).get("data").get("state").asString().equals("close"), Duration.ofSeconds(5));
         assertThat(parse(close.body()).get("data").get("state").asString()).isEqualTo("close");
-        assertEvolutionError(get("/instance/fetchInstances?instanceName=" + name), 404);
+        assertErrorFormat(get("/instance/fetchInstances?instanceName=" + name), 404);
     }
 
     @Test
-    void invalidInputsAnswerInTheEvolutionErrorFormat() {
+    void invalidInputsAnswerInTheContractErrorFormat() {
         var name = uniqueName("erros");
         createWithWebhook(name, false, "");
 
-        assertEvolutionError(post("/message/sendText/" + name, """
+        assertErrorFormat(post("/message/sendText/" + name, """
                 {"number":"abc","text":"oi"}"""), 400);
-        assertEvolutionError(post("/message/sendText/" + name, "{bad"), 400);
-        assertEvolutionError(post("/message/sendText/" + name, """
+        assertErrorFormat(post("/message/sendText/" + name, "{bad"), 400);
+        assertErrorFormat(post("/message/sendText/" + name, """
                 {"number":"5561999999999"}"""), 400);
-        assertEvolutionError(post("/message/sendText/nao-existe", """
+        assertErrorFormat(post("/message/sendText/nao-existe", """
                 {"number":"5561999999999","text":"oi"}"""), 404);
-        assertEvolutionError(post("/webhook/set/" + name, """
+        assertErrorFormat(post("/webhook/set/" + name, """
                 {"webhook":{"url":"http://x.test","events":["FOO"]}}"""), 400);
-        assertEvolutionError(post("/webhook/set/" + name, """
+        assertErrorFormat(post("/webhook/set/" + name, """
                 {"webhook":{"url":"ftp://x.test"}}"""), 400);
-        assertEvolutionError(get("/rota/que/nao/existe"), 404);
-        assertEvolutionError(call("PUT", "/instance/create", API_KEY, "{}"), 405);
+        assertErrorFormat(get("/rota/que/nao/existe"), 404);
+        assertErrorFormat(call("PUT", "/instance/create", API_KEY, "{}"), 405);
     }
 
     @Test
@@ -204,9 +204,9 @@ class InstanceFlowIT extends IntegrationTest {
         post("/instance/create", """
                 {"instanceName":"%s","token":"MESMO-%s"}""".formatted(a, a));
 
-        assertEvolutionError(post("/instance/create", """
+        assertErrorFormat(post("/instance/create", """
                 {"instanceName":"%s","token":"MESMO-%s"}""".formatted(uniqueName("b"), a)), 400);
-        assertEvolutionError(post("/instance/create", """
+        assertErrorFormat(post("/instance/create", """
                 {"instanceName":"%s","token":"%s"}""".formatted(uniqueName("c"), API_KEY)), 400);
     }
 }

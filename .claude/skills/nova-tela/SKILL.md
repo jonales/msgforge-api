@@ -12,7 +12,7 @@ porque os pontos marcados como *proposta* podem ter mudado.
    - Chame os **serviços** (`InstanceService`, `WebhookService`...); nunca repositórios e
      nunca a API REST por HTTP.
    - Use records próprios em `web/` para o modelo da tela. Não reaproveite os DTOs da API:
-     eles são o contrato da Evolution.
+     eles são o contrato público da API.
    - Formulário: POST com token CSRF; em caso de sucesso, redirecione (padrão
      Post/Redirect/Get) e use flash attributes para a mensagem.
 2. **Template** em `src/main/resources/templates/manager/<tela>.html`:

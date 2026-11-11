@@ -26,7 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Converte mensagens do Cobalt para o JSON que a Evolution (formato Baileys) entrega em
+ * Converte mensagens do Cobalt para o JSON do contrato (formato Baileys) entregue em
  * {@code messages.upsert} e {@code messages.update}. Campos ausentes são omitidos, nunca null.
  */
 final class CobaltMessageMapper {
@@ -56,7 +56,7 @@ final class CobaltMessageMapper {
         return Optional.of(data);
     }
 
-    /** messages.update da Evolution v2: identifica a mensagem pela key e traz o novo status. */
+    /** messages.update do contrato: identifica a mensagem pela key e traz o novo status. */
     static Optional<Map<String, Object>> statusUpdate(MessageInfo<?> info, UUID instanceId) {
         if (!(info instanceof ChatMessageInfo chat)) {
             return Optional.empty();
@@ -75,7 +75,7 @@ final class CobaltMessageMapper {
         return Optional.of(data);
     }
 
-    /** Nomes de status da Evolution/Baileys. */
+    /** Nomes de status do contrato (padrão Baileys). */
     static String status(MessageStatus status) {
         if (status == null) {
             return "PENDING";
@@ -107,7 +107,7 @@ final class CobaltMessageMapper {
     private static Content content(Message message, Message.Type type) {
         var fields = new LinkedHashMap<String, Object>();
         return switch (message) {
-            // Texto simples sai como "conversation", que é o que os clientes da Evolution leem primeiro
+            // Texto simples sai como "conversation", que é o campo que os clientes leem primeiro
             case TextMessage text -> new Content("conversation", text.text());
             case ImageMessage image -> {
                 image.caption().ifPresent(v -> fields.put("caption", v));
@@ -176,7 +176,7 @@ final class CobaltMessageMapper {
         return name.append("Message").toString();
     }
 
-    /** Mesma heurística do getDevice() do Baileys, que a Evolution usa no campo "source". */
+    /** Mesma heurística do getDevice() do Baileys, usada no campo "source". */
     static String device(String messageId) {
         if (messageId == null) {
             return "unknown";

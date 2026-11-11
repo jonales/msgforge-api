@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Rotas de /instance no mesmo contrato da Evolution API v2. */
+/** Rotas de /instance (contrato em docs/COMPATIBILIDADE.md). */
 @RestController
 @RequestMapping("/instance")
 public class InstanceController {
@@ -51,7 +51,7 @@ public class InstanceController {
     public List<FetchedInstance> fetchInstances(
             @RequestParam(required = false) String instanceName,
             @RequestAttribute(name = ApiKeyFilter.SCOPED_INSTANCE, required = false) String scopedInstance) {
-        // Com token de instância, a Evolution devolve só a própria instância
+        // Com token de instância, a resposta traz só a própria instância
         if (scopedInstance != null) {
             return instanceName == null || instanceName.equals(scopedInstance)
                     ? service.fetch(scopedInstance)

@@ -4,9 +4,9 @@
 podem mudar na implementação, e quem mudar atualiza este ADR.
 
 ## Contexto
-A Evolution API tem um painel web, o *Evolution Manager*, em `/manager`, para criar instâncias,
-ler o QR code, ver o status e configurar webhooks sem usar curl ou Postman. O Msgforge precisa
-de algo equivalente, sobretudo a partir da Fase 2, quando o QR code passa a ser real.
+O Msgforge precisa de um painel web para criar instâncias, ler o QR code, ver o status e
+configurar webhooks sem usar curl ou Postman, sobretudo a partir da Fase 2, quando o QR code
+passa a ser real.
 
 Restrições: manter um só artefato (um JAR e uma imagem Docker), sem pipeline de Node/npm, e
 reaproveitar a stack e os serviços que já existem.
@@ -14,7 +14,7 @@ reaproveitar a stack e os serviços que já existem.
 ## Decisão
 - **Thymeleaf** (`spring-boot-starter-thymeleaf`), com HTML renderizado no servidor e servido
   pela própria aplicação. Sem SPA e sem build de front.
-- **Rota base `/manager`**, igual à da Evolution.
+- **Rota base `/manager`.**
 - **Interatividade com htmx** *(proposta)*: atualização parcial de trechos da página (status,
   QR code que se renova) sem escrever JavaScript à mão. O arquivo fica vendorizado em
   `src/main/resources/static/manager/vendor/`, sem CDN.
@@ -22,7 +22,7 @@ reaproveitar a stack e os serviços que já existem.
   - Controllers MVC ficam no pacote `dev.msgforge.web` (`@Controller`, não `@RestController`).
   - Eles chamam os **serviços** (`InstanceService`, `WebhookService`...); nunca repositórios e
     nunca a API REST por HTTP.
-  - O formato JSON da Evolution continua sendo responsabilidade só da API.
+  - O formato JSON do contrato continua sendo responsabilidade só da API.
   - Os DTOs de tela são records próprios em `web/`, para que mudar uma tela nunca altere o
     contrato da API.
 - **Autenticação** *(proposta)*:

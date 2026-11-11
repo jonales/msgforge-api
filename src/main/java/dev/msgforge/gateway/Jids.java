@@ -4,7 +4,7 @@ import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-/** Normaliza "number" da Evolution (5561999999999, grupo ou JID completo) para JID. */
+/** Normaliza o campo "number" da API (5561999999999, grupo ou JID completo) para JID. */
 public final class Jids {
 
     private static final Set<String> SERVERS =

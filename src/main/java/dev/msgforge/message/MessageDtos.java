@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Pattern;
 import java.util.List;
 import java.util.Map;
 
-/** Corpos de /message/* no formato da Evolution API v2. */
+/** Corpos de /message/* no formato do contrato da API. */
 public final class MessageDtos {
 
     private MessageDtos() {}

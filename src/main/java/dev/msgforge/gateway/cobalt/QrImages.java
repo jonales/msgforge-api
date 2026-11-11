@@ -7,7 +7,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Base64;
 
-/** QR do WhatsApp como PNG em data URL, o formato do campo "base64" da Evolution. */
+/** QR do WhatsApp como PNG em data URL, o formato do campo "base64" da API. */
 final class QrImages {
 
     private static final int SIZE = 400;

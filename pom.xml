@@ -15,7 +15,7 @@
     <artifactId>msgforge-api</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>Msgforge API</name>
-    <description>API REST de WhatsApp em Java 25, compatível com os endpoints da Evolution API</description>
+    <description>Msgforge API: API REST de WhatsApp em Java 25 + Spring Boot</description>
 
     <properties>
         <java.version>25</java.version>
@@ -53,7 +53,7 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- Persistência (equivalente ao Prisma da Evolution) -->
+        <!-- Persistência -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>

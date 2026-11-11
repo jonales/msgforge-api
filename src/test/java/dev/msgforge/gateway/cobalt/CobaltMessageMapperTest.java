@@ -36,7 +36,7 @@ class CobaltMessageMapperTest {
     }
 
     @Test
-    void privateTextMessageHasTheEvolutionShape() {
+    void privateTextMessageHasTheContractShape() {
         var data = CobaltMessageMapper.upsert(
                 message("5561999999999@s.whatsapp.net", null, false, MessageContainer.of("oi")), INSTANCE).orElseThrow();
 
@@ -81,7 +81,7 @@ class CobaltMessageMapperTest {
     }
 
     @Test
-    void statusUpdatesUseTheEvolutionNames() {
+    void statusUpdatesUseTheContractNames() {
         var data = CobaltMessageMapper.statusUpdate(
                 message("120363000000000000@g.us", "5561988887777@s.whatsapp.net", true, MessageContainer.of("x")),
                 INSTANCE).orElseThrow();

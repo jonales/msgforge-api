@@ -39,7 +39,7 @@ spring:
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
-# Nomes inspirados nas variáveis da Evolution API para facilitar a migração do .env
+# Configuração do Msgforge (variáveis de ambiente documentadas no README e no .env.example)
 msgforge:
   server-url: ${SERVER_URL:http://localhost:8080}
   authentication:

@@ -31,7 +31,7 @@ O ambiente de nuvem não alcança o WhatsApp: o proxy recusa `web.whatsapp.com`.
 **Não verificado (o maior risco):** se o protocolo da 0.0.10 ainda é aceito pelo WhatsApp hoje
 (login, envio, recebimento, reconexão), e com que risco de banimento.
 
-## Mapeamento Evolution → Cobalt (base do gateway)
+## Mapeamento contrato → Cobalt (base do gateway)
 
 | Msgforge (`WhatsAppGateway` / evento) | Cobalt 0.0.10 |
 |---|---|
@@ -53,7 +53,7 @@ O ambiente de nuvem não alcança o WhatsApp: o proxy recusa `web.whatsapp.com`.
 2. **Antes** de escrever o mapeamento completo, rodar o **teste ao vivo** (critérios do README do
    spike) com um número de teste.
 3. Se o teste falhar, as alternativas, em ordem de preferência:
-   - **(B) Sidecar com Baileys**, a mesma biblioteca da Evolution, atrás do `WhatsAppGateway`:
+   - **(B) Sidecar com Baileys**, atrás do `WhatsAppGateway`:
      o payload de `MESSAGES_UPSERT` sai nativamente no formato que os clientes esperam, e a
      biblioteca é mantida e muito usada. Custo: um processo Node a mais (fere o "um artefato" só
      no motor) e um protocolo local (HTTP/WebSocket) entre os dois.
