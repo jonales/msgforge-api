@@ -1,6 +1,9 @@
 package dev.msgforge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 
 import dev.msgforge.event.EventType;
 import dev.msgforge.gateway.Jids;
@@ -24,5 +27,20 @@ class ContractNamingTest {
         assertEquals("120363000000000000@g.us", Jids.toJid("120363000000000000"));
         assertEquals("120363000000000000@g.us", Jids.toJid("120363000000000000@g.us"));
         assertEquals("5561999999999-1612345678@g.us", Jids.toJid("5561999999999-1612345678"));
+    }
+
+    @Test
+    void jidsAcceptKnownServersAndNormalizeCUs() {
+        assertEquals("5561999999999@s.whatsapp.net", Jids.toJid("5561999999999@c.us"));
+        assertEquals("123456789@lid", Jids.toJid("123456789@lid"));
+        assertEquals("status@broadcast", Jids.toJid("status@broadcast"));
+    }
+
+    @Test
+    void invalidNumbersAreRejected() {
+        for (var invalid : new String[] {null, "", "  ", "abc", "55abc61", "1234567", "1234567890123456",
+                "5561999999999@gmail.com", "@s.whatsapp.net"}) {
+            assertThrows(BadRequestException.class, () -> Jids.toJid(invalid), "aceitou: " + invalid);
+        }
     }
 }

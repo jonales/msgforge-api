@@ -9,4 +9,8 @@ public interface InstanceRepository extends JpaRepository<Instance, UUID> {
     Optional<Instance> findByName(String name);
 
     boolean existsByName(String name);
+
+    Optional<Instance> findByToken(String token);
+
+    boolean existsByToken(String token);
 }

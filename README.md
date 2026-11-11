@@ -64,9 +64,25 @@ dev.msgforge
 
 ## Roadmap
 
-- **Fase 1 (atual):** contrato da API, persistência, webhooks, RabbitMQ, gateway stub
+- **Fase 1:** contrato da API, persistência, webhooks, RabbitMQ, gateway stub
+- **Fase 1.5 (concluída):** entrega de eventos após commit, retry de webhook, validações e erros no formato da Evolution, `session_store`, testes de integração e CI
 - **Fase 2:** `CobaltWhatsAppGateway` (QR/pairing, sessão persistida em `session_store`, envio e recebimento)
 - **Fase 3:** grupos, chat (findMessages, markAsRead), perfil, S3/MinIO para mídia
 - **Fase 4:** testes de contrato com a collection Postman da Evolution
+- **Manager (front-end):** painel web em `/manager` com Thymeleaf + htmx (login, instâncias,
+  QR code ao vivo, webhook, mensagem de teste). Desenho em
+  [docs/decisoes/0005](docs/decisoes/0005-front-manager-thymeleaf.md); entra após a Fase 2 ou
+  antes, sobre o stub
+
+Testes: `mvn test` (unitários) e `mvn verify` (com integração, via Testcontainers).
 
 Detalhe de cada rota em [docs/COMPATIBILIDADE.md](docs/COMPATIBILIDADE.md).
+
+## Manutenção
+
+- **Banco:** migrations Flyway no padrão de [docs/MIGRATIONS.md](docs/MIGRATIONS.md); crie com
+  `scripts/new-migration.sh "descricao"`.
+- **Decisões de arquitetura:** [docs/decisoes/](docs/decisoes/).
+- **Memória para agentes (Claude Code):** [CLAUDE.md](CLAUDE.md), skills em `.claude/skills/` e
+  [Graphify](https://github.com/Graphify-Labs/graphify) (`pip install "graphifyy[sql]==0.9.106"`,
+  depois `graphify update .`). As memórias versionadas ficam em `graphify-out/memory/`.
