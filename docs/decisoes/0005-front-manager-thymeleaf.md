@@ -64,6 +64,9 @@ As propostas acima viraram decisão assim:
   serviços em mensagem na tela; o `ApiExceptionHandler` segue só para a API.
 - **Envio:** novo `MessageService`, usado pela API e pelo Manager.
 - **Token:** aparece **uma vez**, logo após criar; nenhuma tela o mostra depois.
+- **Depois da revisão (v1.1):** limite de 10 falhas de login por IP em 15 min; cookie
+  `SameSite=Strict`; com a sessão expirada, o polling do htmx recebe 401 + `HX-Redirect` em vez
+  de encaixar a página de login no trecho; o QR do cache é descartado a cada novo "Conectar".
 - **Telas entregues:** login; lista com estado; criar; detalhe com conectar (QR ou pairing),
   webhook, mensagem de teste, desconectar e excluir.
 

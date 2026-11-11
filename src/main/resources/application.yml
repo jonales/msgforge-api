@@ -1,5 +1,11 @@
 server:
   port: ${SERVER_PORT:8080}
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: strict
+        # Atrás de HTTPS, ligue também: SERVER_SERVLET_SESSION_COOKIE_SECURE=true
 
 spring:
   application:

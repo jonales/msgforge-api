@@ -1,97 +1,171 @@
 # Msgforge API
 
-API REST de WhatsApp em **Java 25 + Spring Boot 4.1**, com os mesmos endpoints, header `apikey`
-e payloads de webhook da Evolution API v2 — para trocar uma pela outra mudando só a URL.
+API REST para WhatsApp em **Java 25 + Spring Boot 4.1**. Você cria instâncias (números), conecta
+por QR code ou código de pareamento, envia e recebe mensagens, e recebe os eventos por webhook
+ou RabbitMQ. Inclui um painel web (**Manager**) para operar tudo pelo navegador.
 
-> Projeto independente, sem afiliação com WhatsApp/Meta nem com a Evolution Foundation.
-> Conexão não oficial (WhatsApp Web) pode levar ao banimento do número; use com responsabilidade.
+> Projeto independente, sem afiliação com o WhatsApp ou a Meta. A conexão é não oficial
+> (protocolo do WhatsApp Web) e pode levar ao banimento do número: use com responsabilidade e
+> faça testes com um número descartável.
 
-## Stack
+## Recursos
 
-| Papel | Evolution API | Msgforge |
-|---|---|---|
-| HTTP | Express (TS) | Spring Boot 4.1 (WebMVC + virtual threads) |
-| Protocolo WhatsApp | Baileys | Cobalt (Fase 2), atrás de `WhatsAppGateway` |
-| Banco | Prisma | Spring Data JPA + Flyway (PostgreSQL) |
-| Cache | Redis | Spring Data Redis |
-| Fila | RabbitMQ | Spring AMQP (exchange tópico) |
-| Docs | Swagger | springdoc em `/docs` |
+- **Instâncias:** criar, conectar (QR code em texto e imagem, ou código de pareamento), consultar
+  o estado, listar, desconectar e excluir. A sessão fica no PostgreSQL: a aplicação reinicia e a
+  instância reconecta sozinha, sem QR.
+- **Mensagens:** texto (com "digitando..." opcional) e mídia (imagem, vídeo, áudio e documento),
+  por URL ou base64.
+- **Eventos:** QR code, conexão, mensagem enviada, mensagem recebida e status de entrega/leitura.
+  Saem por webhook da instância, webhook global e RabbitMQ:
+  - entregues depois que a operação é gravada no banco;
+  - **em ordem** por instância;
+  - com timeout e retry exponencial.
+- **Segurança:**
+  - Chave global ou token por instância (header `apikey`).
+  - Bloqueio opcional de webhooks para a rede interna.
+  - Manager com sessão, CSRF, CSP e limite de tentativas de login.
+- **Manager:** painel em `/manager`, renderizado no servidor (Thymeleaf + htmx), sem build de
+  front-end.
 
-Recursos do Java 25 usados: virtual threads, records, `sealed interface` + pattern matching
-exaustivo nos eventos (`GatewayEvent`), unnamed patterns (`case X _`).
-
-## Rodando
+## Como rodar
 
 ```bash
-cp .env.example .env
-docker compose up -d --build
+cp .env.example .env          # troque AUTHENTICATION_API_KEY
+docker compose up -d --build  # aplicação + PostgreSQL + Redis + RabbitMQ
 curl http://localhost:8080/
 ```
 
-Sem Docker (precisa de JDK 25, Postgres e Redis locais):
+Sem Docker, com JDK 25, PostgreSQL e Redis locais:
 
 ```bash
 mvn spring-boot:run
 ```
 
-Por padrão roda com `MSGFORGE_GATEWAY=stub`: tudo funciona (instâncias, envio, webhooks, RabbitMQ),
-mas nada sai para o WhatsApp de verdade. Serve para validar o contrato contra seus sistemas atuais.
+- **API:** `http://localhost:8080`, com a documentação OpenAPI em `/docs`.
+- **Manager:** `http://localhost:8080/manager`, com login pela `AUTHENTICATION_API_KEY`.
 
-Com `MSGFORGE_GATEWAY=cobalt`, a conexão é real (QR ou pairing code, envio, recebimento, status),
-pelo Cobalt. **Ainda não foi validada ao vivo**: use um número de teste e siga
-[docs/spikes/cobalt](docs/spikes/cobalt/README.md).
+## Motores do WhatsApp
 
-## Manager
+| `MSGFORGE_GATEWAY` | O que faz |
+|---|---|
+| `stub` (padrão) | Simula o WhatsApp: tudo funciona (instâncias, envio, eventos), mas nada sai de verdade. Bom para desenvolver e integrar sistemas. |
+| `cobalt` | Conexão real pelo [Cobalt](https://github.com/Auties00/Cobalt). **Ainda não validado ao vivo:** siga o roteiro em [docs/spikes/cobalt](docs/spikes/cobalt/README.md) com um número de teste. |
 
-Abra `http://localhost:8080/manager` e entre com a `AUTHENTICATION_API_KEY`. Dá para criar
-instâncias, conectar por QR code ou código de pareamento (atualiza sozinho), configurar o
-webhook, mandar uma mensagem de teste, desconectar e excluir.
-
-## Exemplo
+## Exemplos
 
 ```bash
+# Criar uma instância já pedindo o QR code
 curl -X POST http://localhost:8080/instance/create \
   -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
   -d '{"instanceName":"vendas","qrcode":true}'
 
+# Enviar texto
 curl -X POST http://localhost:8080/message/sendText/vendas \
   -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
   -d '{"number":"5561999999999","text":"Olá do Msgforge"}'
+
+# Receber os eventos num webhook (uma URL por evento: /messages-upsert, /connection-update...)
+curl -X POST http://localhost:8080/webhook/set/vendas \
+  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
+  -d '{"webhook":{"url":"https://meu-sistema.exemplo/hook","byEvents":true,"events":["MESSAGES_UPSERT","CONNECTION_UPDATE"]}}'
 ```
 
-## Estrutura
+## Rotas
+
+Todas exigem o header `apikey`: a chave global, ou o token da instância para as rotas dela.
+
+| Método | Rota | Para quê |
+|---|---|---|
+| POST | `/instance/create` | Cria a instância (opcional: `qrcode`, `number`, `token`, `webhook`) |
+| GET | `/instance/connect/{instancia}?number=` | Conecta: devolve o QR code ou, com `number`, o código de pareamento |
+| GET | `/instance/connectionState/{instancia}` | Estado: `open`, `connecting` ou `close` |
+| GET | `/instance/fetchInstances?instanceName=` | Lista as instâncias (com token de instância, só a própria) |
+| DELETE | `/instance/logout/{instancia}` | Desconecta o WhatsApp e apaga a sessão |
+| DELETE | `/instance/delete/{instancia}` | Exclui a instância |
+| POST | `/message/sendText/{instancia}` | Envia texto (`number`, `text`, `delay`) |
+| POST | `/message/sendMedia/{instancia}` | Envia mídia (`mediatype`, `media` em URL ou base64, `caption`, `fileName`) |
+| POST | `/webhook/set/{instancia}` | Configura o webhook da instância |
+| GET | `/webhook/find/{instancia}` | Mostra o webhook configurado |
+
+Os erros seguem um formato único: `{"status": 400, "error": "Bad Request", "response": {"message": [...]}}`.
+
+### Eventos
+
+| Evento | Quando |
+|---|---|
+| `QRCODE_UPDATED` | Novo QR code ou código de pareamento |
+| `CONNECTION_UPDATE` | Mudança de estado; ao conectar, traz o número (`wuid`) e o nome do perfil |
+| `SEND_MESSAGE` | Mensagem enviada pela API |
+| `MESSAGES_UPSERT` | Mensagem recebida (ou enviada por outro aparelho) |
+| `MESSAGES_UPDATE` | Status: `SERVER_ACK`, `DELIVERY_ACK`, `READ`, `PLAYED` |
+
+Cada evento chega num envelope com `event`, `instance`, `data`, `destination`, `date_time`,
+`sender`, `server_url` e `apikey`. No RabbitMQ, a routing key é `{instancia}.{evento}` (ex.:
+`vendas.messages.upsert`), num exchange tópico.
+
+## Configuração
+
+As principais variáveis (todas em [.env.example](.env.example)):
+
+| Variável | Padrão | Para quê |
+|---|---|---|
+| `AUTHENTICATION_API_KEY` | `troque-esta-chave` | Chave global da API e login do Manager |
+| `SERVER_URL` | `http://localhost:8080` | URL pública, enviada nos eventos |
+| `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL local | Banco (migrations Flyway automáticas) |
+| `CACHE_REDIS_HOST`, `CACHE_REDIS_PORT` | `localhost:6379` | Cache do estado das instâncias |
+| `MSGFORGE_GATEWAY` | `stub` | Motor do WhatsApp: `stub` ou `cobalt` |
+| `WEBHOOK_GLOBAL_ENABLED`, `WEBHOOK_GLOBAL_URL` | desligado | Webhook que recebe os eventos de todas as instâncias |
+| `WEBHOOK_REQUEST_TIMEOUT_MS`, `WEBHOOK_RETRY_*` | 10 s, 5 tentativas | Timeout e retry exponencial dos webhooks |
+| `WEBHOOK_MAX_PENDING_PER_INSTANCE` | `1000` | Teto de entregas na fila de cada instância |
+| `WEBHOOK_BLOCK_PRIVATE_NETWORKS` | `false` | Recusa webhooks de instância para IPs internos (SSRF) |
+| `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
+| `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome exibido em "Aparelhos conectados" (Cobalt) |
+| `COBALT_PROXY` | vazio | Proxy para a conexão com o WhatsApp (Cobalt) |
+
+Em produção atrás de HTTPS, ligue também `SERVER_SERVLET_SESSION_COOKIE_SECURE=true` (cookie do
+Manager).
+
+## Arquitetura
 
 ```
 dev.msgforge
-├── instance/   /instance/*  (create, connect, connectionState, fetchInstances, logout, delete)
-├── message/    /message/*   (sendText, sendMedia)
-├── webhook/    /webhook/*   (set, find)
-├── event/      GatewayEvent (selado) → envelope Evolution → webhook / RabbitMQ
-├── gateway/    WhatsAppGateway + StubWhatsAppGateway (Cobalt entra aqui)
-├── security/   filtro do header apikey (global ou token da instância)
-└── config/
+├── instance/   rotas /instance, serviço de instâncias e estado (Redis + banco)
+├── message/    rotas /message e MessageService
+├── webhook/    rotas /webhook e configuração por instância
+├── event/      eventos do motor → envelope → webhook / RabbitMQ (ordenado, com retry)
+├── gateway/    WhatsAppGateway: única fronteira com o protocolo (stub e cobalt/)
+├── security/   header apikey e proteção contra webhooks internos
+├── web/        Manager (Thymeleaf + htmx, Spring Security só em /manager)
+└── common/, config/
 ```
 
-## Roadmap
+Recursos do Java 25 usados: virtual threads, records, `sealed interface` com pattern matching
+exaustivo nos eventos e unnamed patterns. As decisões de arquitetura estão em
+[docs/decisoes/](docs/decisoes/).
 
-- **Fase 1:** contrato da API, persistência, webhooks, RabbitMQ, gateway stub
-- **Fase 1.6 (concluída):** entrega ordenada por instância, erros de constraint/Spring no formato da Evolution, bloqueio opcional de rede privada nos webhooks, testes mais robustos
-- **Fase 1.5 (concluída):** entrega de eventos após commit, retry de webhook, validações e erros no formato da Evolution, `session_store`, testes de integração e CI
-- **Fase 2 (implementada, falta validar ao vivo):** `CobaltWhatsAppGateway` (QR/pairing, sessão em `session_store`, envio de texto e mídia, recebimento, status). [ADR 0007](docs/decisoes/0007-motor-whatsapp-cobalt.md), roteiro de teste em [docs/spikes/cobalt](docs/spikes/cobalt/README.md)
-- **Fase 3:** grupos, chat (findMessages, markAsRead), perfil, S3/MinIO para mídia
-- **Fase 4:** testes de contrato com a collection Postman da Evolution
-- **Manager v1 (concluído):** painel web em `/manager` com Thymeleaf + htmx (login, instâncias,
-  QR code ao vivo, webhook, mensagem de teste). [ADR 0005](docs/decisoes/0005-front-manager-thymeleaf.md)
+## Desenvolvimento
 
-Testes: `mvn test` (unitários) e `mvn verify` (com integração, via Testcontainers).
+```bash
+mvn test                              # testes unitários
+mvn verify                            # + integração (PostgreSQL e Redis via Testcontainers)
+node scripts/e2e/manager.js           # E2E do Manager (com a aplicação rodando no modo stub)
+scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do projeto
+```
 
-Detalhe de cada rota em [docs/COMPATIBILIDADE.md](docs/COMPATIBILIDADE.md).
-
-## Manutenção
-
-- **Banco:** migrations Flyway no padrão de [docs/MIGRATIONS.md](docs/MIGRATIONS.md); crie com
-  `scripts/new-migration.sh "descricao"`.
-- **Decisões de arquitetura:** [docs/decisoes/](docs/decisoes/).
+- **Banco:** só por migration, no padrão de [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
+- **CI:** GitHub Actions (`mvn verify` + build da imagem Docker).
 - **Memória para agentes (Claude Code):** [CLAUDE.md](CLAUDE.md), skills em `.claude/skills/` e
   [Graphify](https://github.com/Graphify-Labs/graphify) (`pip install "graphifyy[sql]==0.9.106"`,
   depois `graphify update .`). As memórias versionadas ficam em `graphify-out/memory/`.
+
+## Roadmap
+
+- [x] API de instâncias, mensagens e webhooks; persistência, RabbitMQ e motor stub
+- [x] Eventos confiáveis: entrega após commit, em ordem, com retry e teto de memória
+- [x] Motor real (Cobalt): QR/pareamento, sessão no banco, envio, recebimento e status
+- [x] Manager v1: login, instâncias, QR ao vivo, webhook, mensagem de teste
+- [ ] Validar o motor Cobalt ao vivo com um número de teste
+- [ ] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
+- [ ] Grupos, histórico de chat (buscar mensagens, marcar como lida), perfil
+- [ ] Armazenamento de mídia (S3/MinIO) e `ffmpeg` na imagem Docker
+- [ ] Testes de contrato automatizados da API

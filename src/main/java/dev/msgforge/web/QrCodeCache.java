@@ -36,6 +36,13 @@ public class QrCodeCache {
         return Optional.ofNullable(latest.get(instanceName));
     }
 
+    /** Grava o código devolvido diretamente pelo connect; ignora se não houver código. */
+    public void remember(String instanceName, String code, String pairingCode, String base64) {
+        if (code != null || pairingCode != null) {
+            latest.put(instanceName, new Entry(code, pairingCode, base64, Instant.now()));
+        }
+    }
+
     public void forget(String instanceName) {
         latest.remove(instanceName);
     }
