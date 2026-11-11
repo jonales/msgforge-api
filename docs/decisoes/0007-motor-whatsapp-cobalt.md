@@ -1,7 +1,9 @@
 # 0007: Motor do WhatsApp: Cobalt 0.0.10, condicionado ao teste ao vivo
 
 **Status:** proposta (2026-11). Vira "aceita" quando o teste ao vivo do
-`docs/spikes/cobalt/README.md` passar nos critérios 1 a 5.
+`docs/spikes/cobalt/README.md` passar nos critérios 1 a 5. O `CobaltWhatsAppGateway` já foi
+construído (por decisão do usuário, sem esperar o teste ao vivo) e está atrás de
+`MSGFORGE_GATEWAY=cobalt`; o padrão continua `stub`.
 
 ## Contexto
 A Fase 2 troca o `StubWhatsAppGateway` por um motor real. O ADR 0001 previu o Cobalt (Java), mas
@@ -18,9 +20,10 @@ O ambiente de nuvem não alcança o WhatsApp: o proxy recusa `web.whatsapp.com`.
 | Persistência | `KeysSpec`/`StoreSpec.encode/decode` ↔ `byte[]`, ida e volta idêntica. Dá para escrever um `ControllerSerializer` sobre o `session_store` (Postgres) |
 | Montagem do cliente | `Whatsapp.webBuilder().serializer(..).newConnection(UUID)` ok; o UUID pode ser o id da instância |
 | Falha de rede | `connect()` falha em menos de 1 s com `IOException`, sem travar (`ErrorHandler` disponível) |
-| **Dependência `aspose-words`** | **Comercial**, fora do Central (repositório da Aspose); o build **quebra** sem ela. Usada só em `Medias.getPagesCount/getDocumentThumbnail`, que capturam `Throwable`. **Excluída**: documento sai com 1 página e sem miniatura |
+| **Dependência `aspose-words`** | **Comercial**, fora do Central (repositório da Aspose); o build **quebra** sem ela. Excluída. **Correção posterior:** o spike concluiu que a ausência só degradava, mas, ao construir o gateway, montar *qualquer* mensagem de mídia falhou com `NoClassDefFoundError: com/aspose/words/SaveOptions`, porque a JVM carrega os tipos referenciados por `Medias` ao verificar a classe. Solução: **shim** em `src/main/java/com/aspose/words` (4 classes vazias, sem código da Aspose). Com ele, documento sai com 1 página e sem miniatura |
 | `slf4j-nop` | Dependência transitiva que silenciaria o log da aplicação. **Excluída** |
-| ffmpeg (`jaffree`) | Duração e miniatura de vídeo/áudio; sem o binário, cai no padrão. A imagem Docker precisará de `ffmpeg` para metadados completos |
+| ffmpeg (`jaffree`) | Duração e miniatura de vídeo/áudio. Sem o binário, duração 0 e montagem em cerca de 5 ms. Com o binário: MP4 real em cerca de 450 ms; **bytes que não são vídeo fazem o `ffprobe` esperar cerca de 10 s** (limitado). A imagem Docker ainda não instala o ffmpeg |
+| Proxy | `OptionsBuilder.proxy(URI)` é respeitado: `COBALT_PROXY`. Os testes usam um proxy numa porta fechada para que o `connect` falhe igual em qualquer lugar, inclusive no CI |
 | Outras | `fastjson2`, `jackson-core` 2.x (coexiste com o Jackson 3 do Boot), zxing, libphonenumber; cerca de 10 MB no total |
 | Qualidade | Bug visto no código: `DocumentMessage` usa `thumbnail != null ? null : ...` (condição invertida) |
 | Manutenção | Upstream ativo até jul/2026, mas numa **reescrita 0.1.0 não publicada** (multi-módulo, nativo, Java 25 + `--enable-preview`). A 0.0.10 tem cerca de 16 meses |
@@ -56,6 +59,22 @@ O ambiente de nuvem não alcança o WhatsApp: o proxy recusa `web.whatsapp.com`.
      no motor) e um protocolo local (HTTP/WebSocket) entre os dois.
    - **(C) Cobalt 0.1.0 compilado do fonte**: obrigaria a aplicação inteira a rodar com
      `--enable-preview`, sem versão publicada e com dependências nativas. Só se (B) for vetado.
+
+## Implementação (Fase 2)
+Pacote `dev.msgforge.gateway.cobalt`:
+- **`CobaltWhatsAppGateway`:** uma conexão por instância. QR em texto e PNG em base64; pairing
+  code com `?number=`; reconexão sem QR quando há sessão; logout; `sendText` (com `delay` =
+  "digitando...") e `sendMedia` (URL ou base64, com teto de tamanho e `PrivateNetworkGuard`).
+- **Eventos:**
+  - `connection.update` com `wuid`/`profileName` ao abrir; ao fechar, os códigos do Baileys
+    (401 logout, 403 banido, 428 fechada).
+  - `messages.upsert` via `CobaltMessageMapper` (formato Baileys).
+  - `messages.update` (status `SERVER_ACK`/`DELIVERY_ACK`/`READ`/`PLAYED`).
+- **`DatabaseSessionSerializer`:** Keys e Store no `session_store`, num blob só
+  (`CobaltSessionCodec`), com lock por instância.
+- **Mudança nas camadas acima:** `InstanceService` não segura transação enquanto fala com o
+  gateway. Os eventos do motor chegam por threads do Cobalt e precisam enxergar a instância
+  commitada (ADR 0004).
 
 ## Consequências
 - O isolamento atrás de `WhatsAppGateway` permite trocar de motor sem tocar na API: (A), (B) e

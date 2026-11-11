@@ -17,7 +17,22 @@ mvn -q compile exec:java -Dexec.mainClass=spike.ConnectFailureProbe
 Resultado esperado: chaves geradas, ida e volta da serialização com `true/true`, cliente montado.
 Sem acesso ao WhatsApp, `connect()` falha em menos de 1 s com `IOException`, sem travar.
 
-## 2. Teste ao vivo (falta rodar; precisa de você)
+## 2. Teste ao vivo pela própria API (recomendado, depois do gateway)
+
+Com o `CobaltWhatsAppGateway` pronto, dá para testar direto na aplicação, sem o `LiveProbe`:
+
+```bash
+MSGFORGE_GATEWAY=cobalt mvn spring-boot:run          # Postgres + Redis locais
+curl -X POST localhost:8080/instance/create -H "apikey: troque-esta-chave" \
+  -H "Content-Type: application/json" -d '{"instanceName":"teste","qrcode":true}'
+```
+
+A resposta traz `qrcode.base64` (data URL). Cole no navegador e escaneie com o número de teste.
+Depois: `GET /instance/connectionState/teste` deve dar `open`, e `POST /message/sendText/teste`
+deve enviar. Reinicie a aplicação: ela deve reconectar sozinha, sem QR, porque a sessão fica no
+Postgres. Os mesmos critérios da tabela abaixo valem.
+
+## 3. Teste ao vivo com o LiveProbe (isolado da aplicação)
 
 > ⚠️ Use um **número de teste**. Conexão não oficial pode levar ao banimento do número.
 
