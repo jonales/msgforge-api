@@ -18,12 +18,18 @@ public record MsgforgeProperties(
      *
      * @param requestTimeoutMs timeout de conexão e de resposta de cada tentativa
      * @param retry            novas tentativas em erro de rede, 408, 429 e 5xx
+     * @param maxPendingPerInstance entregas aguardando por instância; acima disso o evento é
+     *                              descartado (com log), para limitar a memória
+     * @param blockPrivateNetworks recusa webhooks de instância que resolvem para IP privado,
+     *                             loopback ou link-local (proteção contra SSRF)
      */
     public record Webhook(
             String globalUrl,
             boolean globalEnabled,
             @DefaultValue("10000") long requestTimeoutMs,
-            @DefaultValue Retry retry) {}
+            @DefaultValue Retry retry,
+            @DefaultValue("1000") int maxPendingPerInstance,
+            @DefaultValue("false") boolean blockPrivateNetworks) {}
 
     /**
      * @param maxAttempts    total de tentativas (1 = sem retry)

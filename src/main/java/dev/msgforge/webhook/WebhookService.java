@@ -5,6 +5,7 @@ import dev.msgforge.common.ApiExceptionHandler.NotFoundException;
 import dev.msgforge.event.EventType;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.instance.InstanceRepository;
+import dev.msgforge.security.PrivateNetworkGuard;
 import dev.msgforge.webhook.WebhookDtos.WebhookConfig;
 import dev.msgforge.webhook.WebhookDtos.WebhookResponse;
 import java.net.URI;
@@ -28,11 +29,14 @@ public class WebhookService {
     private final WebhookRepository webhooks;
     private final InstanceRepository instances;
     private final JsonMapper json;
+    private final PrivateNetworkGuard guard;
 
-    public WebhookService(WebhookRepository webhooks, InstanceRepository instances, JsonMapper json) {
+    public WebhookService(WebhookRepository webhooks, InstanceRepository instances, JsonMapper json,
+                          PrivateNetworkGuard guard) {
         this.webhooks = webhooks;
         this.instances = instances;
         this.json = json;
+        this.guard = guard;
     }
 
     @Transactional
@@ -55,7 +59,15 @@ public class WebhookService {
         return webhooks.save(webhook);
     }
 
-    private static String validUrl(String url) {
+    private String validUrl(String url) {
+        var normalized = validHttpUrl(url);
+        guard.check(normalized).ifPresent(reason -> {
+            throw new BadRequestException("Webhook url not allowed: " + reason);
+        });
+        return normalized;
+    }
+
+    private static String validHttpUrl(String url) {
         if (url == null || url.isBlank()) {
             throw new BadRequestException("webhook url is required");
         }

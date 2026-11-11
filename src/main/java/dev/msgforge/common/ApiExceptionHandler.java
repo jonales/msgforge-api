@@ -4,9 +4,12 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -77,16 +80,51 @@ public class ApiExceptionHandler {
         return error(HttpStatus.NOT_FOUND, List.of("Cannot " + ex.getHttpMethod() + " /" + ex.getResourcePath()));
     }
 
+    /**
+     * Corrida entre duas requisições: ambas passam pela checagem do serviço e uma esbarra na
+     * constraint do banco. Responde como a checagem responderia (400), sem vazar SQL.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<Map<String, Object>> constraint(DataIntegrityViolationException ex) {
+        var detail = String.valueOf(ex.getMostSpecificCause().getMessage());
+        String message;
+        if (detail.contains("uk_instance_token")) {
+            message = "This token is already in use.";
+        } else if (detail.contains("instance_name_key")) {
+            message = "This instance name is already in use.";
+        } else {
+            log.warn("Violação de integridade não mapeada: {}", detail);
+            message = "The request conflicts with existing data.";
+        }
+        return error(HttpStatus.BAD_REQUEST, List.of(message));
+    }
+
     @ExceptionHandler(Exception.class)
     ResponseEntity<Map<String, Object>> unexpected(Exception ex) {
+        // Exceções do Spring que já trazem status (ResponseStatusException, upload grande demais...)
+        if (ex instanceof ErrorResponse response) {
+            var status = response.getStatusCode();
+            var detail = response.getBody().getDetail();
+            return error(status.value(), reasonOf(status),
+                    List.of(detail != null ? detail : reasonOf(status)));
+        }
         log.error("Erro não tratado", ex);
         return error(HttpStatus.INTERNAL_SERVER_ERROR, List.of("Internal server error"));
     }
 
+    private static String reasonOf(HttpStatusCode status) {
+        var known = HttpStatus.resolve(status.value());
+        return known != null ? known.getReasonPhrase() : "Error";
+    }
+
     private static ResponseEntity<Map<String, Object>> error(HttpStatus status, List<String> messages) {
+        return error(status.value(), status.getReasonPhrase(), messages);
+    }
+
+    private static ResponseEntity<Map<String, Object>> error(int status, String reason, List<String> messages) {
         return ResponseEntity.status(status).body(Map.of(
-                "status", status.value(),
-                "error", status.getReasonPhrase(),
+                "status", status,
+                "error", reason,
                 "response", Map.of("message", messages)));
     }
 
