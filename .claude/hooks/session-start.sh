@@ -27,9 +27,10 @@ mkdir -p "$m2"
 hashes="$m2/.session-start.sha256"
 if ! sha256sum --check --status "$hashes" 2>/dev/null; then
   rm -f "$hashes"
+  scripts/install-cobalt.sh
   mvn -q -B dependency:go-offline
   mvn -q -B -DskipTests test-compile
-  sha256sum .claude/hooks/session-start.sh pom.xml > "$hashes"
+  sha256sum .claude/hooks/session-start.sh pom.xml scripts/install-cobalt.sh > "$hashes"
 fi
 
 # --- Graphify em venv próprio (só quando a versão/este script mudar) --------------

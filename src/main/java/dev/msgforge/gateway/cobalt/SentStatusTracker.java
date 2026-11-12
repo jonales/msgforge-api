@@ -1,6 +1,6 @@
 package dev.msgforge.gateway.cobalt;
 
-import it.auties.whatsapp.model.node.Node;
+import com.github.auties00.cobalt.stanza.model.Stanza;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,9 +11,9 @@ import java.util.function.Consumer;
 /**
  * {@code messages.update} das mensagens que a instância enviou, a partir dos nós do protocolo.
  *
- * <p>No Cobalt 0.0.10 o listener de status não dispara para conversas endereçadas por LID: o recibo
- * chega do LID do destinatário, a mensagem está no chat do número, e o Cobalt não acha uma pela
- * outra. Aqui o status sai pelo id da mensagem, que nós mesmos registramos no envio:
+ * <p>O status sai pelo id da mensagem, que nós mesmos registramos no envio, sem depender de o
+ * Cobalt achar a mensagem pelo chat (o recibo chega do LID do destinatário e a mensagem pode estar
+ * no chat do número):
  * {@code ack} do servidor → SERVER_ACK; {@code receipt} sem tipo → DELIVERY_ACK; {@code read} →
  * READ; {@code played} → PLAYED. Os outros recibos ({@code sender}, {@code retry},
  * {@code inactive}, {@code peer_msg}...) não são status para o contrato.
@@ -53,17 +53,15 @@ final class SentStatusTracker {
     }
 
     /** Nó recebido do servidor. */
-    void received(Node node) {
+    void received(Stanza node) {
         int rank;
         if (node.hasDescription("ack")) {
-            var attributes = node.attributes().toMap();
-            if (!"message".equals(String.valueOf(attributes.get("class"))) || attributes.containsKey("error")) {
+            if (!"message".equals(node.getAttributeAsString("class", null)) || node.getAttribute("error").isPresent()) {
                 return;
             }
             rank = rank("SERVER_ACK");
         } else if (node.hasDescription("receipt")) {
-            var type = node.attributes().toMap().get("type");
-            rank = switch (type == null ? "" : type.toString()) {
+            rank = switch (node.getAttributeAsString("type", "")) {
                 case "" -> rank("DELIVERY_ACK");
                 case "read" -> rank("READ");
                 case "played" -> rank("PLAYED");
@@ -124,16 +122,12 @@ final class SentStatusTracker {
     }
 
     /** O id do nó e, num recibo em lote, os de {@code list/item}. */
-    private static List<String> ids(Node node) {
+    private static List<String> ids(Stanza node) {
         var ids = new ArrayList<String>();
-        var id = node.attributes().toMap().get("id");
-        if (id != null) {
-            ids.add(id.toString());
-        }
-        node.findChild("list").ifPresent(list -> list.streamChildren("item")
-                .map(item -> item.attributes().toMap().get("id"))
-                .filter(java.util.Objects::nonNull)
-                .forEach(itemId -> ids.add(itemId.toString())));
+        node.getAttributeAsString("id").ifPresent(ids::add);
+        node.getChild("list").ifPresent(list -> list.streamChildren("item")
+                .flatMap(item -> item.getAttributeAsString("id").stream())
+                .forEach(ids::add));
         return ids;
     }
 

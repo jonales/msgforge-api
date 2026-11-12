@@ -12,10 +12,20 @@ import dev.msgforge.gateway.WhatsAppGateway.OutgoingText;
 import dev.msgforge.instance.ConnectionState;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.security.PrivateNetworkGuard;
-import it.auties.whatsapp.model.message.standard.AudioMessage;
-import it.auties.whatsapp.model.message.standard.DocumentMessage;
-import it.auties.whatsapp.model.message.standard.ImageMessage;
-import it.auties.whatsapp.model.message.standard.VideoOrGifMessage;
+import com.github.auties00.cobalt.wire.core.jid.Jid;
+import com.github.auties00.cobalt.wire.linked.chat.group.GroupMetadataBuilder;
+import com.github.auties00.cobalt.wire.linked.chat.group.GroupParticipant;
+import com.github.auties00.cobalt.wire.linked.chat.group.GroupParticipantBuilder;
+import com.github.auties00.cobalt.wire.linked.chat.group.GroupPartipantRole;
+import com.github.auties00.cobalt.wire.linked.contact.ContactStatus;
+import com.github.auties00.cobalt.wire.linked.message.contact.ContactMessage;
+import com.github.auties00.cobalt.wire.linked.message.contact.ContactsArrayMessage;
+import com.github.auties00.cobalt.wire.linked.message.location.LocationMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.AudioMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.DocumentMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.ImageMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.VideoMessage;
+import com.github.auties00.cobalt.wire.linked.message.text.ReactionMessage;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.util.Base64;
@@ -36,9 +46,8 @@ class CobaltWhatsAppGatewayTest {
     private final List<Object> events = new CopyOnWriteArrayList<>();
     private final InMemorySessionStore sessions = new InMemorySessionStore();
     private HttpServer server;
-
-    /** Versão fixa: sem ela, o gateway buscaria a versão no sw.js (pelo proxy). */
-    private static final String TEST_WEB_VERSION = "2.3000.1";
+    @org.junit.jupiter.api.io.TempDir
+    java.nio.file.Path sessionDir;
 
     private static String deadProxy() {
         try (var socket = new ServerSocket(0)) {
@@ -53,7 +62,7 @@ class CobaltWhatsAppGatewayTest {
                 new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10,
                         blockPrivateNetworks),
                 null, "cobalt",
-                new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), TEST_WEB_VERSION));
+                new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), sessionDir.toString()));
         return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties);
     }
 
@@ -123,7 +132,7 @@ class CobaltWhatsAppGatewayTest {
                     new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false),
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
-                            "http://127.0.0.1:" + proxy.getLocalPort(), TEST_WEB_VERSION));
+                            "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));
             var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties);
             var instance = instance("corrida");
             try {
@@ -198,15 +207,13 @@ class CobaltWhatsAppGatewayTest {
 
     @Test
     void buildsEachMediaTypeAndRejectsUnknownOnes() {
-        var bytes = "conteudo".getBytes();
-        assertThat(CobaltWhatsAppGateway.buildMedia(media("image"), bytes)).isInstanceOf(ImageMessage.class);
-        // Vídeo real (1 s, 64x64): com bytes inválidos e ffmpeg instalado, o ffprobe do Cobalt espera ~10 s
-        assertThat(CobaltWhatsAppGateway.buildMedia(media("video"), resource("/media/tiny.mp4")))
-                .isInstanceOf(VideoOrGifMessage.class);
-        assertThat(CobaltWhatsAppGateway.buildMedia(media("audio"), bytes)).isInstanceOf(AudioMessage.class);
-        var document = (DocumentMessage) CobaltWhatsAppGateway.buildMedia(media("document"), bytes);
+        // Os bytes vão ao CDN depois (uploadMedia); aqui só o tipo e os metadados da mensagem
+        assertThat(CobaltWhatsAppGateway.buildMedia(media("image"))).isInstanceOf(ImageMessage.class);
+        assertThat(CobaltWhatsAppGateway.buildMedia(media("video"))).isInstanceOf(VideoMessage.class);
+        assertThat(CobaltWhatsAppGateway.buildMedia(media("audio"))).isInstanceOf(AudioMessage.class);
+        var document = (DocumentMessage) CobaltWhatsAppGateway.buildMedia(media("document"));
         assertThat(document.fileName()).contains("a.pdf");
-        assertThatThrownBy(() -> CobaltWhatsAppGateway.buildMedia(media("sticker"), bytes))
+        assertThatThrownBy(() -> CobaltWhatsAppGateway.buildMedia(media("sticker")))
                 .isInstanceOf(BadRequestException.class);
     }
 
@@ -214,45 +221,43 @@ class CobaltWhatsAppGatewayTest {
     void buildsLocationContactsReactionPollAndVoiceMessages() {
         var jid = "5561999999999@s.whatsapp.net";
 
-        var location = (it.auties.whatsapp.model.message.standard.LocationMessage) CobaltWhatsAppGateway.buildMessage(
-                new dev.msgforge.gateway.WhatsAppGateway.Location(jid, -15.79, -47.88, "Esplanada", "Brasília", null), null);
-        assertThat(location.latitude()).isEqualTo(-15.79);
-        assertThat(location.longitude()).isEqualTo(-47.88);
+        var location = (LocationMessage) CobaltWhatsAppGateway.buildMessage(
+                new dev.msgforge.gateway.WhatsAppGateway.Location(jid, -15.79, -47.88, "Esplanada", "Brasília", null));
+        assertThat(location.degreesLatitude()).hasValue(-15.79);
+        assertThat(location.degreesLongitude()).hasValue(-47.88);
         assertThat(location.name()).contains("Esplanada");
 
         var card = new dev.msgforge.gateway.WhatsAppGateway.ContactCard("Ana", "BEGIN:VCARD\nFN:Ana\nEND:VCARD");
         var one = CobaltWhatsAppGateway.buildMessage(
-                new dev.msgforge.gateway.WhatsAppGateway.Contacts(jid, java.util.List.of(card), null), null);
-        assertThat(one).isInstanceOf(it.auties.whatsapp.model.message.standard.ContactMessage.class);
+                new dev.msgforge.gateway.WhatsAppGateway.Contacts(jid, java.util.List.of(card), null));
+        assertThat(one).isInstanceOf(ContactMessage.class);
         var many = CobaltWhatsAppGateway.buildMessage(
-                new dev.msgforge.gateway.WhatsAppGateway.Contacts(jid, java.util.List.of(card, card), null), null);
-        assertThat(many).isInstanceOf(it.auties.whatsapp.model.message.standard.ContactsMessage.class);
+                new dev.msgforge.gateway.WhatsAppGateway.Contacts(jid, java.util.List.of(card, card), null));
+        assertThat(many).isInstanceOf(ContactsArrayMessage.class);
 
-        var reaction = (it.auties.whatsapp.model.message.standard.ReactionMessage) CobaltWhatsAppGateway.buildMessage(
-                new dev.msgforge.gateway.WhatsAppGateway.Reaction(jid, "3EB0ABC", true, "👍"), null);
-        assertThat(reaction.content()).isEqualTo("👍");
-        assertThat(reaction.key().id()).isEqualTo("3EB0ABC");
-        assertThat(reaction.key().fromMe()).isTrue();
-        assertThat(reaction.key().chatJid().toString()).isEqualTo(jid);
+        var reaction = (ReactionMessage) CobaltWhatsAppGateway.buildMessage(
+                new dev.msgforge.gateway.WhatsAppGateway.Reaction(jid, "3EB0ABC", true, "👍"));
+        assertThat(reaction.text()).contains("👍");
+        var key = reaction.key().orElseThrow();
+        assertThat(key.id()).contains("3EB0ABC");
+        assertThat(key.fromMe()).isTrue();
+        assertThat(key.parentJid().orElseThrow().toString()).isEqualTo(jid);
 
         var voice = (AudioMessage) CobaltWhatsAppGateway.buildMessage(
-                new dev.msgforge.gateway.WhatsAppGateway.VoiceNote(jid, "x", null, false), "ogg".getBytes());
-        assertThat(voice.voiceMessage()).isTrue();
+                new dev.msgforge.gateway.WhatsAppGateway.VoiceNote(jid, "x", null, false));
+        assertThat(voice.ptt()).isTrue();
         assertThat(voice.mimetype()).contains("audio/ogg; codecs=opus");
     }
 
     @Test
-    void pollsKeepTheRequestedSelectableCountAndHashTheOptions() throws Exception {
+    void pollsKeepTheRequestedSelectableCount() {
         var single = CobaltWhatsAppGateway.poll(new dev.msgforge.gateway.WhatsAppGateway.Poll(
                 "5561999999999@s.whatsapp.net", "Almoço?", 1, java.util.List.of("Sim", "Não"), null));
 
-        assertThat(single.title()).isEqualTo("Almoço?");
-        assertThat(single.selectableOptionsCount()).isEqualTo(1);   // o simpleBuilder do Cobalt forçaria 2
-        assertThat(single.selectableOptions()).extracting(o -> o.name()).containsExactly("Sim", "Não");
-        var sha = java.security.MessageDigest.getInstance("SHA-256");
-        var hashOfSim = java.util.HexFormat.of().formatHex(sha.digest("Sim".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-        assertThat(single.getSelectableOption(hashOfSim)).isPresent();
-        assertThat(single.encryptionKey()).isPresent();
+        assertThat(single.name()).contains("Almoço?");
+        assertThat(single.selectableOptionsCount()).hasValue(1);
+        assertThat(single.options()).extracting(o -> o.optionName().orElse(null)).containsExactly("Sim", "Não");
+        assertThat(single.encKey()).isPresent();
     }
 
     @Test
@@ -299,29 +304,30 @@ class CobaltWhatsAppGatewayTest {
         }
     }
 
+    private static GroupParticipant participant(Jid jid, GroupPartipantRole role) {
+        return new GroupParticipantBuilder().userJid(jid).rank(role).build();
+    }
+
     @Test
     void groupMetadataBecomesContractGroup() {
-        var founder = it.auties.whatsapp.model.jid.Jid.of("5561911111111@s.whatsapp.net");
-        var admin = it.auties.whatsapp.model.jid.Jid.of("5561922222222@s.whatsapp.net");
-        var member = it.auties.whatsapp.model.jid.Jid.of("5561933333333@s.whatsapp.net");
-        var participants = new java.util.LinkedHashSet<it.auties.whatsapp.model.chat.ChatParticipant>();
-        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(founder, it.auties.whatsapp.model.chat.ChatRole.FOUNDER));
-        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(admin, it.auties.whatsapp.model.chat.ChatRole.ADMIN));
-        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(member, it.auties.whatsapp.model.chat.ChatRole.USER));
-        var metadata = new it.auties.whatsapp.model.chat.ChatMetadataBuilder()
-                .jid(it.auties.whatsapp.model.jid.Jid.of("120363000000000001@g.us"))
+        var founder = Jid.of("5561911111111@s.whatsapp.net");
+        var admin = Jid.of("5561922222222@s.whatsapp.net");
+        var member = Jid.of("5561933333333@s.whatsapp.net");
+        var participants = new java.util.LinkedHashSet<GroupParticipant>();
+        participants.add(participant(founder, GroupPartipantRole.FOUNDER));
+        participants.add(participant(admin, GroupPartipantRole.ADMIN));
+        participants.add(participant(member, GroupPartipantRole.MEMBER));
+        var metadata = new GroupMetadataBuilder()
+                .jid(Jid.of("120363000000000001@g.us"))
                 .subject("Família")
                 .subjectAuthorJid(admin)
-                .subjectTimestampSeconds(1_700_000_100L)
-                .foundationTimestampSeconds(1_700_000_000L)
+                .subjectTimestamp(java.time.Instant.ofEpochSecond(1_700_000_100L))
+                .foundationTimestamp(java.time.Instant.ofEpochSecond(1_700_000_000L))
                 .founderJid(founder)
                 .description("Regras")
-                .settings(java.util.Map.of(
-                        it.auties.whatsapp.model.chat.GroupSetting.SEND_MESSAGES.index(),
-                        it.auties.whatsapp.model.chat.ChatSettingPolicy.ADMINS))
+                .announce(true)
+                .restrict(false)
                 .participants(participants)
-                .pastParticipants(new java.util.LinkedHashSet<>())
-                .communityGroups(new java.util.LinkedHashSet<>())
                 .build();
 
         var group = CobaltWhatsAppGateway.groupInfo(metadata, new LidResolver());
@@ -329,11 +335,12 @@ class CobaltWhatsAppGatewayTest {
         assertThat(group.id()).isEqualTo("120363000000000001@g.us");
         assertThat(group.subject()).isEqualTo("Família");
         assertThat(group.subjectOwner()).isEqualTo("5561922222222@s.whatsapp.net");
+        assertThat(group.subjectTime()).isEqualTo(1_700_000_100L);
         assertThat(group.creation()).isEqualTo(1_700_000_000L);
         assertThat(group.owner()).isEqualTo("5561911111111@s.whatsapp.net");
         assertThat(group.desc()).isEqualTo("Regras");
         assertThat(group.announce()).isTrue();
-        assertThat(group.restrict()).isFalse();   // sem política: qualquer um edita
+        assertThat(group.restrict()).isFalse();
         assertThat(group.participants()).extracting(p -> p.id() + "=" + p.admin()).containsExactly(
                 "5561911111111@s.whatsapp.net=superadmin", "5561922222222@s.whatsapp.net=admin",
                 "5561933333333@s.whatsapp.net=null");
@@ -341,21 +348,18 @@ class CobaltWhatsAppGatewayTest {
 
     @Test
     void groupParticipantsByLidNeverBecomeFakePhones() {
-        var known = it.auties.whatsapp.model.jid.Jid.of("111111111111111_1:16@s.whatsapp.net");
-        var unknown = it.auties.whatsapp.model.jid.Jid.of("222222222222222_1:16@s.whatsapp.net");
-        var participants = new java.util.LinkedHashSet<it.auties.whatsapp.model.chat.ChatParticipant>();
-        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(known, it.auties.whatsapp.model.chat.ChatRole.FOUNDER));
-        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(unknown, it.auties.whatsapp.model.chat.ChatRole.USER));
-        var metadata = new it.auties.whatsapp.model.chat.ChatMetadataBuilder()
-                .jid(it.auties.whatsapp.model.jid.Jid.of("120363000000000001@g.us"))
+        var known = Jid.of("111111111111111@lid");
+        var unknown = Jid.of("222222222222222@lid");
+        var participants = new java.util.LinkedHashSet<GroupParticipant>();
+        participants.add(participant(known, GroupPartipantRole.FOUNDER));
+        participants.add(participant(unknown, GroupPartipantRole.MEMBER));
+        var metadata = new GroupMetadataBuilder()
+                .jid(Jid.of("120363000000000001@g.us"))
                 .subject("G").founderJid(known)
-                .settings(java.util.Map.of())
                 .participants(participants)
-                .pastParticipants(new java.util.LinkedHashSet<>())
-                .communityGroups(new java.util.LinkedHashSet<>())
                 .build();
         var lids = new LidResolver();
-        lids.learn(known, it.auties.whatsapp.model.jid.Jid.of("5561911111111@s.whatsapp.net"));
+        lids.learn(known, Jid.of("5561911111111@s.whatsapp.net"));
 
         var group = CobaltWhatsAppGateway.groupInfo(metadata, lids);
 
@@ -402,9 +406,21 @@ class CobaltWhatsAppGatewayTest {
     @Test
     void pausedPresenceEndsTyping() {
         assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.PAUSED))
-                .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.AVAILABLE);
+                .isEqualTo(ContactStatus.AVAILABLE);
         assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.RECORDING))
-                .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.RECORDING);
+                .isEqualTo(ContactStatus.RECORDING);
+    }
+
+    @Test
+    void wireOutlineShowsAttributesButNeverEncryptedContent() {
+        var node = new com.github.auties00.cobalt.stanza.model.StanzaBuilder().description("message")
+                .attribute("to", "5561999999999@s.whatsapp.net")
+                .content(new com.github.auties00.cobalt.stanza.model.StanzaBuilder().description("enc")
+                        .attribute("type", "pkmsg").attribute("v", "2").content(new byte[] {1, 2, 3}).build())
+                .build();
+
+        assertThat(CobaltWhatsAppGateway.outline(node))
+                .isEqualTo("message{to=5561999999999@s.whatsapp.net} [enc{type=pkmsg, v=2}]");
     }
 
     @Test

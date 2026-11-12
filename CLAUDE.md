@@ -31,52 +31,56 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `gateway/`: `WhatsAppGateway` é a **única** fronteira com o protocolo. Dois motores:
   `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`, padrão) e `gateway/cobalt/CobaltWhatsAppGateway`
   (`MSGFORGE_GATEWAY=cobalt`, ADR 0007). Nada fora de `gateway/cobalt/` pode importar classes do
-  Cobalt (`it.auties.*`).
+  Cobalt (`com.github.auties00.cobalt.*`).
+  - **Motor: Cobalt 0.1.0 do fork `jonales/Cobalt`** (`cobalt-lib`), fora do Maven Central:
+    `scripts/install-cobalt.sh` instala o commit fixado no script (o CI, o Dockerfile e o hook de
+    sessão rodam o script antes da build). Para testar outra versão do motor, troque o commit no
+    script. API bloqueante (sem `CompletableFuture`): o gateway chama o Cobalt por `call(...)`, com
+    o teto `COBALT_SEND_TIMEOUT_MS`.
   - `CobaltMessageMapper`: mensagens do Cobalt → JSON Baileys (`messages.upsert`/`update`).
-  - `DatabaseSessionSerializer`: sessão do Cobalt (Keys + Store) no `session_store`, num blob só
-    (`CobaltSessionCodec`), com lock por instância.
-  - `src/main/java/com/aspose/words/` é um **shim** obrigatório (o `aspose-words` é comercial e
-    foi excluído). Sem ele, montar mídia quebra com `NoClassDefFoundError`. Não apague.
+  - **Sessão em disco**, no formato do Cobalt: uma pasta por instância em `COBALT_SESSION_DIR`
+    (padrão `~/.msgforge/cobalt`; na imagem Docker, o volume `/data/cobalt`). O `session_store`
+    guarda só um marcador (`SESSION_MARKER`), que o `SessionRestorer` e o `InstanceService`
+    consultam. Marcador sem pasta (volume perdido, ou sessão gravada pela 0.0.10) é apagado e a
+    instância pede QR de novo. Logout apaga o marcador e a pasta.
   - Testes do Cobalt nunca falam com o WhatsApp: `COBALT_PROXY` aponta para uma porta fechada
     (`CobaltWhatsAppGatewayTest`, `CobaltGatewayIT`). Para manter um connect **pendente**, use
     um proxy "mudo" (aceita e não responde), como em `concurrentConnectsShareOnePendingConnection`.
   - `connect`/`logout` são serializados por instância (lock): nunca dois clientes do WhatsApp para
     a mesma sessão. Um `connect` com QR já pendente **reaproveita** a conexão e devolve o QR atual;
-    pedir pairing code recomeça.
-  - Armadilhas do Cobalt 0.0.10 achadas no teste ao vivo (não regrida):
-    - `api.isConnected()` vira true logo após o handshake, antes do scan. "Logada" é o
-      `Connection.loggedIn`.
-    - `KeysSpec`/`StoreSpec.decode(byte[])` quebram em qualquer JID no meio do protobuf. Decodifique
-      por `ProtobufInputStream.fromStream` (`DatabaseSessionSerializer`).
-    - O Cobalt não pede a fila offline (`ib/offline_batch`) e não manda ack de mensagens que não
-      decodifica: a instância envia, mas não recebe. Quem cobre é o `OfflineQueueGuard`. O `ib`
-      sai **sem id**, por `RawNodes` (o `sendNode` público acrescenta um id e o servidor ignora).
-    - A versão do WhatsApp Web que o Cobalt busca sumiu da página; com a versão fixa antiga, o
-      login falha com `failure 405`. `WebVersion` lê a revisão do `sw.js` (ou `COBALT_WEB_VERSION`).
-    - O WhatsApp endereça por LID e o Cobalt não traduz: `LidResolver` aprende o número com o
-      `sender_pn`/`participant_pn` dos nós, e `SentStatusTracker` gera os `messages.update` a
-      partir dos `ack`/`receipt` (o listener de status do Cobalt não dispara com LID). Não use
-      `toSimpleJid()` num LID: ele descarta o agente e o LID vira um "telefone" falso.
-    - O cache "tem WhatsApp?" do Cobalt (estático) envenena e descarta envios em silêncio, e um
-      envio que falha conclui com status `ERROR`, sem exceção. Todo envio passa por `resolve`
-      (consulta o número e usa o JID devolvido: no Brasil, o número com o 9 resolve sem ele; sem
-      JID, 400 `{exists: false}`) e por `deliver` (que confere o `ERROR`).
+    pedir pairing code recomeça. O `connect()` do Cobalt bloqueia no handshake e roda numa thread
+    virtual própria; antes do login, um erro de conexão vira `DISCONNECT` no tratador de erros
+    (fecha a instância e libera quem espera o QR).
+  - Regras herdadas do teste ao vivo (valem também para o fork):
+    - "Logada" é o `Connection.loggedIn` (evento de login), nunca o socket aberto.
+    - Todo envio passa por `resolve` (consulta o número e usa o JID devolvido: no Brasil, o número
+      com o 9 resolve sem ele; sem JID, 400 `{exists: false}`).
+    - LID → número: `LidResolver` consulta o Store do Cobalt (`findPhoneByLid`) e aprende com o
+      `sender_pn`/`participant_pn` dos nós; sem tradução, sai `<lid>@lid`, nunca um telefone falso.
+      `SentStatusTracker` gera os `messages.update` a partir dos `ack`/`receipt`.
+    - Mídia: monta a mensagem, envia ao CDN com `uploadMedia` (o Cobalt preenche chaves e URL) e só
+      então `sendMessage`.
+    - O WhatsApp pode pedir a passkey do aparelho numa sessão conectada ("checkpoint"); o link vai
+      para o log (`passkeyCheckpoint`).
+  - Os contornos da 0.0.10 (`WebVersion`, `OfflineQueueGuard`, `RawNodes`, `UsersCache`,
+    `DatabaseSessionSerializer` e o shim do aspose) foram removidos: o fork resolve versão do
+    WhatsApp Web, fila offline e cache de números. Se um desses sintomas voltar, confira o motor
+    antes de recriar o contorno.
   - Diagnóstico do protocolo: `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG` registra os
     nós enviados e recebidos (só nomes e atributos, nunca o conteúdo).
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
-  Enquete no Cobalt usa o builder completo: o `simpleBuilder` ignora o `selectableCount`.
+  Enquete no Cobalt: `PollCreationMessage` com `selectableOptionsCount` e chave aleatória.
 - `/chat/*` (`ChatService`) usa `checkNumbers`, `markRead`, `sendPresence`, `fetchProfile`,
   `profilePictureUrl` e `updateProfile` (`ProfileUpdate` selado). Foto e recado escondidos pela
   privacidade viram null, não erro. `markRead` de mensagem fora do Store do Cobalt marca a conversa
-  inteira. No Cobalt, números passam por `resolve`/`resolveMany` (limpa o `UsersCache` e usa o JID
-  devolvido); grupos traduzem LID pelo `LidResolver` da conexão, e `updateParticipants` devolve os
-  JIDs **pedidos** (o WhatsApp responde pelo resolvido). Ainda não testados ao vivo: `markRead` em
+  inteira. No Cobalt, números passam por `resolve`/`resolveMany` (usam o JID devolvido); grupos
+  traduzem LID pelo `LidResolver` da conexão, e `updateParticipants` devolve os JIDs **pedidos** (o WhatsApp responde pelo resolvido). Ainda não testados ao vivo: `markRead` em
   conversa endereçada por LID e o mapeamento de grupos com LID.
 - `/group/*` (`GroupService` valida `groupJid` e participantes; o gateway recebe JIDs prontos).
   O stub guarda os grupos **em memória** por instância, para o `GroupIT` exercitar o fluxo
-  inteiro. No Cobalt, `fetchAllGroups` parte dos chats do Store (não há consulta "todos os grupos").
+  inteiro. No Cobalt, `fetchAllGroups` usa `queryParticipatingGroups` (uma consulta só).
 - `history/` (ADR 0008): tabela `message` por **SQL direto** (`MessageHistory`, sem entidade JPA).
   O `HistoryRecorder` grava as recebidas (`MessageReceived`), as enviadas (no `created()` do
   `MessageController`) e os status (`MessageStatusUpdated`, que **só avançam**). Repetidas são
@@ -188,7 +192,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt ao vivo, pendências.** (a) O app oficial do destinatário mostra "Não foi possível
+5. **Cobalt ao vivo, pendências** (observadas na 0.0.10). **Próximo passo: rodar
+   `docs/VALIDACAO-COBALT-FORK.md`** (roteiro com o fork 0.1.0, PR #12) e tirar daqui o que ele
+   resolver. (a) O app oficial do destinatário mostra "Não foi possível
    confirmar seu código de segurança" em mensagens vindas do Cobalt. Evidências: a chave de
    identidade é estável entre restarts; **toda** mensagem do Cobalt sai como `pkmsg` (a sessão
    Signal nunca se estabiliza); a cada login o Cobalt reenvia as chaves (`iq encrypt`). Suspeitas:

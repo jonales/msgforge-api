@@ -30,6 +30,9 @@ jobs:
       - name: Instalar ffmpeg
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      - name: Motor Cobalt (fork, fora do Maven Central)
+        run: scripts/install-cobalt.sh
+
       # verify = *Test (surefire) + *IT (failsafe, Postgres e Redis via Testcontainers)
       - name: mvn verify
         run: mvn -B -ntp verify

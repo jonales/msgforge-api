@@ -1,23 +1,22 @@
 package dev.msgforge.gateway.cobalt;
 
-import it.auties.whatsapp.model.jid.Jid;
-import it.auties.whatsapp.model.jid.JidServer;
-import it.auties.whatsapp.model.node.Node;
+import com.github.auties00.cobalt.stanza.model.Stanza;
+import com.github.auties00.cobalt.wire.core.jid.Jid;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
  * Traduz LID → número de telefone nos JIDs que vão para o JSON do contrato.
  *
- * <p>O WhatsApp endereça os contatos por LID (identificador opaco), e o Cobalt 0.0.10 não traduz:
- * um JID de LID chega como {@code 249533976023044_1:16@s.whatsapp.net} (agente 1 = domínio LID).
- * O número vem nos próprios nós: {@code sender_pn} (conversa), {@code participant_pn} (grupo),
- * {@code peer_recipient_pn} (enviada por outro aparelho da conta). O resolver aprende os pares com
- * cada nó recebido, antes de o Cobalt entregar a mensagem decodificada.
+ * <p>O WhatsApp endereça os contatos por LID (identificador opaco, {@code <lid>@lid}). O Cobalt
+ * guarda o mapeamento LID ↔ número no próprio Store ({@code contactStore().findPhoneByLid}); o
+ * resolver consulta o Store e, como reforço, aprende os pares com os nós recebidos, antes de a
+ * mensagem decodificada chegar: {@code sender_pn} (conversa), {@code participant_pn} (grupo),
+ * {@code peer_recipient_pn} (enviada por outro aparelho da conta).
  *
- * <p>Sem tradução conhecida, o LID sai como {@code <lid>@lid}, nunca como um número falso
- * ({@code toSimpleJid()} descarta o agente e faria o LID parecer um telefone).
+ * <p>Sem tradução conhecida, o LID sai como {@code <lid>@lid}, nunca como um número falso.
  */
 final class LidResolver implements Function<Jid, String> {
 
@@ -27,16 +26,25 @@ final class LidResolver implements Function<Jid, String> {
 
     /** usuário do LID → JID do número, sem aparelho. */
     private final Map<String, String> phoneByLid = new ConcurrentHashMap<>();
+    /** Consulta ao Store do Cobalt (LID de usuário → número); vazio quando não conhece. */
+    private final Function<Jid, Optional<Jid>> store;
+
+    LidResolver() {
+        this(lid -> Optional.empty());
+    }
+
+    LidResolver(Function<Jid, Optional<Jid>> store) {
+        this.store = store;
+    }
 
     /** Nó recebido: aprende os pares LID ↔ número que ele traz. */
-    void observe(Node node) {
+    void observe(Stanza node) {
         if (!node.hasDescription("message")) {
             return;
         }
-        var attributes = node.attributes().toMap();
         for (var pair : PAIRS) {
-            var lid = jid(attributes.get(pair[0]));
-            var phone = jid(attributes.get(pair[1]));
+            var lid = node.getAttributeAsString(pair[0]).map(LidResolver::jid).orElse(null);
+            var phone = node.getAttributeAsString(pair[1]).map(LidResolver::jid).orElse(null);
             if (lid != null && phone != null) {
                 learn(lid, phone);
             }
@@ -45,8 +53,8 @@ final class LidResolver implements Function<Jid, String> {
 
     /** Registra um par (por exemplo, o LID e o número da própria conta, do Store). */
     void learn(Jid lid, Jid phone) {
-        if (isLid(lid) && !isLid(phone) && phone.hasServer(JidServer.whatsapp())) {
-            phoneByLid.put(lid.user(), phone.toSimpleJid().toString());
+        if (lid.hasLidServer() && phone.hasUserServer()) {
+            phoneByLid.put(lid.user(), phone.toUserJid().toString());
         }
     }
 
@@ -55,28 +63,24 @@ final class LidResolver implements Function<Jid, String> {
         if (jid == null) {
             return null;
         }
-        if (isLid(jid)) {
+        if (jid.hasLidServer()) {
             var phone = phoneByLid.get(jid.user());
-            return phone != null ? phone : jid.user() + "@" + JidServer.lid();
-        }
-        return jid.hasServer(JidServer.whatsapp()) ? jid.toSimpleJid().toString() : jid.toString();
-    }
-
-    static boolean isLid(Jid jid) {
-        return jid.agent() == 1 || jid.hasServer(JidServer.lid());
-    }
-
-    private static Jid jid(Object value) {
-        return switch (value) {
-            case null -> null;
-            case Jid jid -> jid;
-            default -> {
-                try {
-                    yield Jid.of(value.toString());
-                } catch (RuntimeException e) {
-                    yield null;
-                }
+            if (phone != null) {
+                return phone;
             }
-        };
+            return store.apply(jid.toUserJid())
+                    .filter(Jid::hasUserServer)
+                    .map(found -> found.toUserJid().toString())
+                    .orElseGet(() -> jid.toUserJid().toString());
+        }
+        return jid.hasUserServer() ? jid.toUserJid().toString() : jid.toString();
+    }
+
+    private static Jid jid(String value) {
+        try {
+            return Jid.of(value);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 }
