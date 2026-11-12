@@ -130,7 +130,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - **Identidade:** o projeto se apresenta só como Msgforge. Não cite outros produtos como origem ou
   referência em README, código, comentários, configuração, ADRs ou neste arquivo (decisão do
   usuário, 2026-11). A única exceção é `docs/COMPATIBILIDADE.md`, que documenta de onde vem o
-  contrato. Ao mudar rotas, eventos ou variáveis, atualize também as tabelas do README.
+  contrato. Ao mudar rotas, eventos ou variáveis, atualize também `docs/api.md`, `docs/eventos.md`
+  ou `docs/configuracao.md`. O README é só apresentação e aponta para `docs/`.
 - **Commits:** em português, no estilo Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`).
 - **Decisões de arquitetura:** registre em `docs/decisoes/` (ADR curto, numerado).
 
@@ -174,7 +175,7 @@ ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skil
 
 ## Estado atual e backlog
 
-O roadmap está no `README.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
+O roadmap está em `docs/roadmap.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
 `CobaltWhatsAppGateway` foi **validado ao vivo** em 2026-11-12, com duas instâncias locais
 (Docker) conversando entre si: login por QR, envio, recebimento em tempo real e sessão restaurada
 no boot funcionam. A ADR 0007 continua *proposta* até os status (`messages.update`) funcionarem

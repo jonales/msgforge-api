@@ -39,7 +39,7 @@ spring:
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
-# Configuração do Msgforge (variáveis de ambiente documentadas no README e no .env.example)
+# Configuração do Msgforge (variáveis de ambiente documentadas em docs/configuracao.md e no .env.example)
 msgforge:
   server-url: ${SERVER_URL:http://localhost:8080}
   authentication:
