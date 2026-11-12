@@ -6,11 +6,11 @@ A pergunta principal: **o aviso "Não foi possível confirmar seu código de seg
 
 ## Preparar (uma vez)
 
-Precisa de JDK 25 e Maven. A 0.1.0 não está no Maven Central: instale o fork localmente, a partir
-do branch com os ajustes (PR jonales/Cobalt#1):
+Precisa de JDK 25 e Maven. A 0.1.0 não está no Maven Central: instale o fork localmente (o `master`
+já tem os ajustes do PR jonales/Cobalt#1):
 
 ```bash
-git clone -b claude/charming-lovelace-2ypqo1 https://github.com/jonales/Cobalt.git
+git clone https://github.com/jonales/Cobalt.git
 cd Cobalt
 mvn -DskipTests -Dmaven.javadoc.skip=true install      # ~2 min
 ```
