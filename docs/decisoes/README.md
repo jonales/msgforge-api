@@ -17,15 +17,6 @@ Uma decisão aceita não é editada; se ela mudar, crie um ADR novo que a substi
 | [0004](0004-entrega-de-eventos-apos-commit.md) | Entrega de eventos depois do commit, a partir de um snapshot | aceita |
 | [0005](0005-front-manager-thymeleaf.md) | Front-end (Manager) com Thymeleaf, renderizado no servidor | aceita |
 | [0006](0006-entrega-ordenada-por-instancia.md) | Entrega de eventos ordenada por instância, com limite de pendências | aceita |
-<<<<<<< Updated upstream
 | [0007](0007-motor-whatsapp-cobalt.md) | Motor do WhatsApp: Cobalt (0.0.10, migrando para o fork 0.1.0), condicionado ao teste ao vivo | proposta |
 | [0008](0008-historico-de-mensagens.md) | Histórico de mensagens no PostgreSQL, gravado pelos eventos do motor | aceita |
-=======
-<<<<<<< HEAD
-| [0007](0007-motor-whatsapp-cobalt.md) | Motor do WhatsApp: Cobalt 0.0.10, condicionado ao teste ao vivo | substituída por 0008 |
-| [0008](0008-motor-externo-whatsmeow.md) | Motor do WhatsApp: serviço externo em Go com whatsmeow | aceita |
-=======
-| [0007](0007-motor-whatsapp-cobalt.md) | Motor do WhatsApp: Cobalt (0.0.10, migrando para o fork 0.1.0), condicionado ao teste ao vivo | proposta |
-| [0008](0008-historico-de-mensagens.md) | Histórico de mensagens no PostgreSQL, gravado pelos eventos do motor | aceita |
->>>>>>> 9a07653eabc4438cdf52ba426db64b8efda6d801
->>>>>>> Stashed changes
+| [0009](0009-spike-comparativo-motores.md) | Spike comparativo de motores; este repositório segue com o fork do Cobalt | aceita |

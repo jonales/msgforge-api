@@ -93,21 +93,9 @@ certa, até a janela passar (sem equivalente na Evolution). Número sem
 WhatsApp (Cobalt): 400 com `message: [{"exists": false, "jid", "number"}]`, como na Evolution.
 
 ## Motor
-<<<<<<< Updated upstream
 O padrão é o stub, que não fala com o WhatsApp. `MSGFORGE_GATEWAY=cobalt` usa o Cobalt 0.1.0 do
 fork `jonales/Cobalt` (ADR 0007). A versão anterior (0.0.10) foi validada ao vivo em 2026-11-12; a
 migração para o fork ainda precisa do mesmo roteiro ao vivo (`docs/spikes/cobalt-0.1/README.md`).
-=======
-<<<<<<< HEAD
-O padrão é o stub, que não fala com o WhatsApp. `MSGFORGE_GATEWAY=cobalt` usa o Cobalt 0.0.10
-(ADR 0007), validado ao vivo em 2026-11-12 (envio, recebimento, status e sessão). Ele é
-provisório: o motor definitivo é o `msgforge-engine` (ADR 0008).
-=======
-O padrão é o stub, que não fala com o WhatsApp. `MSGFORGE_GATEWAY=cobalt` usa o Cobalt 0.1.0 do
-fork `jonales/Cobalt` (ADR 0007). A versão anterior (0.0.10) foi validada ao vivo em 2026-11-12; a
-migração para o fork ainda precisa do mesmo roteiro ao vivo (`docs/spikes/cobalt-0.1/README.md`).
->>>>>>> 9a07653eabc4438cdf52ba426db64b8efda6d801
->>>>>>> Stashed changes
 
 ## Diferenças conhecidas
 - Rotas de RabbitMQ: a Evolution usa filas por evento; aqui é um exchange tópico. Ajustar se algum consumidor depender dos nomes das filas.
