@@ -19,6 +19,7 @@ import it.auties.whatsapp.model.contact.ContactStatus;
 import it.auties.whatsapp.model.info.ChatMessageInfo;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
+import it.auties.whatsapp.model.node.Node;
 import it.auties.whatsapp.model.message.model.Message;
 import it.auties.protobuf.model.ProtobufString;
 import it.auties.whatsapp.model.message.model.ChatMessageKeyBuilder;
@@ -48,6 +49,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -75,6 +77,8 @@ import org.springframework.stereotype.Component;
 public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
 
     private static final Logger log = LoggerFactory.getLogger(CobaltWhatsAppGateway.class);
+    /** Diagnóstico do protocolo: LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG. */
+    private static final Logger wire = LoggerFactory.getLogger("dev.msgforge.gateway.cobalt.wire");
 
     /** Códigos de statusReason no padrão do Baileys. */
     static final int REASON_OK = 200;
@@ -85,6 +89,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private static final ConnectResult NO_CODE = new ConnectResult(null, null, null);
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
     private static final long MAX_TYPING_DELAY_MS = 20_000;
+    /** Quanto esperar o ack do próprio Cobalt antes de o OfflineQueueGuard confirmar a mensagem. */
+    private static final long OFFLINE_ACK_DELAY_MS = 15_000;
 
     /** Estado de uma instância conectada (ou conectando). */
     private static final class Connection {
@@ -97,6 +103,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         /** Último QR/pairing code gerado, para quem chamar connect de novo enquanto espera o scan. */
         volatile ConnectResult lastCode;
         volatile boolean closingOnPurpose;
+        /**
+         * Logada no WhatsApp. Não use {@code api.isConnected()}: no Cobalt ele vira true logo após o
+         * handshake do socket, antes do scan do QR.
+         */
+        volatile boolean loggedIn;
 
         Connection(String instanceName, boolean pairing) {
             this.instanceName = instanceName;
@@ -119,6 +130,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private final AudioTranscoder transcoder;
     private final MsgforgeProperties.Cobalt config;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ScheduledExecutorService scheduler =
+            Executors.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("cobalt-offline-guard").factory());
     private final HttpClient http;
 
     public CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
@@ -145,7 +158,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         Connection connection;
         synchronized (lock(id)) {
             var existing = connections.get(id);
-            if (existing != null && existing.api.isConnected()) {
+            if (existing != null && existing.loggedIn) {
                 return NO_CODE;   // já conectada: nada a escanear
             }
             if (existing != null && !wantsPairing && !existing.pairing) {
@@ -234,19 +247,71 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             // Antes de o servidor informar o nome do perfil, o Store guarda o nome do aparelho
             var profileName = profile == null || profile.equals(config.deviceName()) ? null : profile;
             log.info("[cobalt] {}: conectada como {}", name, wuid);
+            // Antes do evento: quem reage ao connection.update "open" já pode enviar
+            connection.loggedIn = true;
+            connection.lastCode = null;   // conectada: não há mais QR para mostrar
             events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.OPEN, REASON_OK,
                     wuid, profileName));
-            connection.lastCode = null;   // conectada: não há mais QR para mostrar
             connection.firstCode.complete(NO_CODE);
         });
         api.addDisconnectedListener(reason -> onDisconnected(id, connection, reason));
-        api.addNewChatMessageListener((ChatMessageInfo message) -> CobaltMessageMapper.upsert(message, id)
-                .ifPresent(data -> events.publishEvent(new GatewayEvent.MessageReceived(name, data))));
-        api.addMessageStatusListener((MessageInfo<?> info) -> CobaltMessageMapper.statusUpdate(info, id)
-                .ifPresent(data -> events.publishEvent(new GatewayEvent.MessageStatusUpdated(name, data))));
+        api.addNewChatMessageListener((ChatMessageInfo message) -> {
+            try {
+                var data = CobaltMessageMapper.upsert(message, id);
+                wire.debug("{}: nova mensagem id={} chat={} sender={} tipo={} -> {}", name, message.id(),
+                        message.chatJid(), message.senderJid(), message.message().unbox().type(),
+                        data.isPresent() ? "messages.upsert" : "ignorada");
+                data.ifPresent(d -> events.publishEvent(new GatewayEvent.MessageReceived(name, d)));
+            } catch (RuntimeException e) {
+                log.warn("[cobalt] {}: falha ao converter a mensagem {}: {}", name, message.id(), e.toString());
+            }
+        });
+        api.addMessageStatusListener((MessageInfo<?> info) -> {
+            try {
+                var data = CobaltMessageMapper.statusUpdate(info, id);
+                wire.debug("{}: status id={} tipo={} -> {}", name, info.id(), info.getClass().getSimpleName(),
+                        data.isPresent() ? "messages.update" : "ignorado");
+                data.ifPresent(d -> events.publishEvent(new GatewayEvent.MessageStatusUpdated(name, d)));
+            } catch (RuntimeException e) {
+                log.warn("[cobalt] {}: falha ao converter o status {}: {}", name, info.id(), e.toString());
+            }
+        });
+        var offlineGuard = new OfflineQueueGuard(name, scheduler, OFFLINE_ACK_DELAY_MS,
+                node -> RawNodes.send(api, node));
+        api.addNodeReceivedListener(offlineGuard::received);
+        api.addNodeSentListener(offlineGuard::sent);
+        if (wire.isDebugEnabled()) {
+            // Só atributos (de, para, id, tipo); o conteúdo vem cifrado e não é registrado
+            api.addNodeReceivedListener(node -> wire.debug("{}: <- {}", name, outline(node)));
+            api.addNodeSentListener(node -> wire.debug("{}: -> {}", name, outline(node)));
+        }
+    }
+
+    /** Nó em árvore, só nomes e atributos (nunca o conteúdo, que pode ser cifrado ou pessoal). */
+    private static String outline(Node node) {
+        var out = new StringBuilder();
+        outline(node, out, 0);
+        return out.toString();
+    }
+
+    private static void outline(Node node, StringBuilder out, int depth) {
+        out.append(node.description()).append(node.attributes().toMap());
+        var children = node.children();
+        if (children.isEmpty() || depth >= 6) {
+            return;
+        }
+        out.append(" [");
+        for (int i = 0; i < children.size(); i++) {
+            if (i > 0) {
+                out.append(", ");
+            }
+            outline(children.get(i), out, depth + 1);
+        }
+        out.append(']');
     }
 
     private void onDisconnected(UUID id, Connection connection, DisconnectReason reason) {
+        connection.loggedIn = false;
         if (connection.closingOnPurpose) {
             return;   // logout/close pedido por nós: o evento já foi publicado lá
         }
@@ -312,6 +377,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     public void destroy() {
         connections.forEach(this::close);
         executor.shutdown();
+        scheduler.shutdownNow();
     }
 
     // ---------------------------------------------------------------- envio
@@ -322,7 +388,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var jid = Jid.of(text.jid());
         typing(connection, jid, text.delayMs());
         var sent = await(connection.api.sendMessage(jid, text.text()), "envio de texto");
-        return sentMessage(sent, text.jid());
+        return sentMessage(instance, sent, text.jid());
     }
 
     @Override
@@ -335,7 +401,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var jid = Jid.of(media.jid());
         typing(connection, jid, media.delayMs());
         var sent = await(connection.api.sendMessage(jid, buildMedia(media, bytes)), "envio de mídia");
-        return sentMessage(sent, media.jid());
+        return sentMessage(instance, sent, media.jid());
     }
 
     @Override
@@ -345,7 +411,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var jid = Jid.of(message.jid());
         typing(connection, jid, message.delayMs());
         var sent = await(connection.api.sendMessage(jid, buildMessage(message, audio)), "envio");
-        return sentMessage(sent, message.jid());
+        return sentMessage(instance, sent, message.jid());
     }
 
     /** Carrega o áudio e, se pedido e necessário, converte para OGG/Opus. */
@@ -496,15 +562,18 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
 
     private Connection requireConnected(Instance instance) {
         var connection = connections.get(instance.getId());
-        if (connection == null || !connection.api.isConnected()) {
+        if (connection == null || !connection.loggedIn) {
             throw new BadRequestException("The \"" + instance.getName() + "\" instance is not connected");
         }
         return connection;
     }
 
-    private SentMessage sentMessage(MessageInfo<?> sent, String remoteJid) {
+    /** Monta a resposta do envio e publica o send.message, como o stub. */
+    private SentMessage sentMessage(Instance instance, MessageInfo<?> sent, String remoteJid) {
         var timestamp = sent.timestampSeconds().orElse(Instant.now().getEpochSecond());
-        return new SentMessage(sent.id(), remoteJid, timestamp);
+        var message = new SentMessage(sent.id(), remoteJid, timestamp);
+        events.publishEvent(new GatewayEvent.MessageSent(instance.getName(), message));
+        return message;
     }
 
     private <T> T await(CompletableFuture<T> future, String what) {
