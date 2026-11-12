@@ -51,6 +51,16 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     - O Cobalt não pede a fila offline (`ib/offline_batch`) e não manda ack de mensagens que não
       decodifica: a instância envia, mas não recebe. Quem cobre é o `OfflineQueueGuard`. O `ib`
       sai **sem id**, por `RawNodes` (o `sendNode` público acrescenta um id e o servidor ignora).
+    - A versão do WhatsApp Web que o Cobalt busca sumiu da página; com a versão fixa antiga, o
+      login falha com `failure 405`. `WebVersion` lê a revisão do `sw.js` (ou `COBALT_WEB_VERSION`).
+    - O WhatsApp endereça por LID e o Cobalt não traduz: `LidResolver` aprende o número com o
+      `sender_pn`/`participant_pn` dos nós, e `SentStatusTracker` gera os `messages.update` a
+      partir dos `ack`/`receipt` (o listener de status do Cobalt não dispara com LID). Não use
+      `toSimpleJid()` num LID: ele descarta o agente e o LID vira um "telefone" falso.
+    - O cache "tem WhatsApp?" do Cobalt (estático) envenena e descarta envios em silêncio, e um
+      envio que falha conclui com status `ERROR`, sem exceção. Todo envio passa por `resolve`
+      (consulta o número e usa o JID devolvido: no Brasil, o número com o 9 resolve sem ele; sem
+      JID, 400 `{exists: false}`) e por `deliver` (que confere o `ERROR`).
   - Diagnóstico do protocolo: `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG` registra os
     nós enviados e recebidos (só nomes e atributos, nunca o conteúdo).
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
@@ -156,14 +166,15 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt ao vivo: falta traduzir LID → número.** O WhatsApp endereça os contatos por LID, e o
-   Cobalt não traduz: o `remoteJid` recebido sai como `<lid>_1:<aparelho>@s.whatsapp.net` (deveria
-   ser `<número>@s.whatsapp.net`), e os recibos de entrega, que chegam do LID, não viram
-   `messages.update` (o Cobalt não acha a mensagem, guardada no chat do número). Também: o
-   `pushName` enviado é o nome do aparelho; após restaurar a sessão o `profileName` vem nulo; o
-   login (novo ou restaurado) só conclui ~60 s depois, após um iq `w`/`props` sem resposta; a API
-   aceita número inexistente sem avisar (no DF, o JID não tem o 9: `556188887777`, não
-   `5561988887777`). Ainda não observados: texto recebido como `extendedTextMessage` e o
+5. **Cobalt ao vivo, pendências.** (a) O app oficial do destinatário mostra "Não foi possível
+   confirmar seu código de segurança" em mensagens vindas do Cobalt. Evidências: a chave de
+   identidade é estável entre restarts; **toda** mensagem do Cobalt sai como `pkmsg` (a sessão
+   Signal nunca se estabiliza); a cada login o Cobalt reenvia as chaves (`iq encrypt`). Suspeitas:
+   sessões que não se fixam, ou a verificação automática de chaves do WhatsApp não aceita o
+   aparelho. (b) O `pushName` enviado é o nome do aparelho, e após restaurar a sessão o
+   `profileName` vem nulo. (c) O login (novo ou restaurado) só conclui ~60 s depois, após um iq
+   `w`/`props` sem resposta. (d) O Cobalt não atende `receipt type=retry` (aparelho que não
+   decifrou pede reenvio). Ainda não observados: texto recebido como `extendedTextMessage` e o
    timestamp da reação.
 6. A **API** não limita tentativas de chave errada; o Manager sim.
 

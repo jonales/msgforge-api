@@ -106,3 +106,12 @@ publicado; o decode da sessão por `byte[]` quebra em JIDs (bug do Cobalt); e a 
 travava (o Cobalt não pede `offline_batch` nem manda ack do que não decodifica), o que impedia
 receber. Pendente para "aceita": traduzir LID → número (remetente e status). Detalhes no
 CLAUDE.md, "Problemas conhecidos".
+
+### Segunda rodada (2026-11-12, noite)
+O critério 4 passou: os `messages.update` (SERVER_ACK, DELIVERY_ACK, READ) saem a partir dos nós
+do protocolo, e o `remoteJid` vem com o número (tradução de LID). A rodada achou mais três
+defeitos do Cobalt, contornados em `gateway/cobalt/`: a versão do WhatsApp Web que ele busca sumiu
+da página (login recusado com 405); o cache "tem WhatsApp?" descartava envios em silêncio a partir
+do segundo; e envios que falham concluem com status ERROR, sem exceção. Ainda aberto, e decisivo
+para "aceita": o aviso "Não foi possível confirmar seu código de segurança" no app do
+destinatário (CLAUDE.md, problemas conhecidos, item 5).

@@ -55,15 +55,18 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 ## Erros
 Todos no formato `{ "status", "error", "response": { "message": [...] } }`: validação, JSON
 inválido, número inválido (400), instância ou rota inexistente (404), método não suportado (405)
-e erro inesperado (500). O 401 mantém `message` como string, igual à Evolution.
+e erro inesperado (500). O 401 mantém `message` como string, igual à Evolution. Número sem
+WhatsApp (Cobalt): 400 com `message: [{"exists": false, "jid", "number"}]`, como na Evolution.
 
 ## Motor
 O padrão é o stub, que não fala com o WhatsApp. `MSGFORGE_GATEWAY=cobalt` usa o Cobalt 0.0.10
-(ADR 0007), **ainda sem validação ao vivo**.
+(ADR 0007), validado ao vivo em 2026-11-12 (envio, recebimento, status e sessão; pendências no
+ADR).
 
 ## Diferenças conhecidas
 - Rotas de RabbitMQ: a Evolution usa filas por evento; aqui é um exchange tópico. Ajustar se algum consumidor depender dos nomes das filas.
 - O payload de `MESSAGES_UPSERT` real depende do mapeamento Cobalt → formato Baileys (Fase 2).
-- Número inválido: a Evolution consulta o WhatsApp (`onWhatsApp`) e responde 400 com `exists:false`;
-  aqui a validação é só de formato (8 a 15 dígitos, grupo ou JID conhecido) até a Fase 2.
+- Número sem WhatsApp: com o Cobalt, o número é consultado antes do envio (400 `exists:false`) e
+  a mensagem vai para o JID devolvido pelo WhatsApp (no Brasil, o número com o 9 extra resolve sem
+  ele; o `remoteJid` da resposta já vem resolvido). O stub só valida o formato.
 - O token da instância precisa ser único (constraint `uk_instance_token`).
