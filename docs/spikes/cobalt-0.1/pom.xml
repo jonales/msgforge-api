@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Teste isolado do motor Cobalt 0.1.0 (fork jonales/Cobalt). Fora da build do Msgforge. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>dev.msgforge.spike</groupId>
+    <artifactId>cobalt-0.1-teste</artifactId>
+    <version>1</version>
+
+    <properties>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- Instalada localmente a partir do fork: (cd ../Cobalt && mvn -DskipTests install) -->
+        <dependency>
+            <groupId>com.github.auties00</groupId>
+            <artifactId>cobalt-lib</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <configuration>
+                    <mainClass>dev.msgforge.spike.TesteCobalt</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

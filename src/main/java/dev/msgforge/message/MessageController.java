@@ -1,6 +1,7 @@
 package dev.msgforge.message;
 
 import dev.msgforge.gateway.WhatsAppGateway.SentMessage;
+import dev.msgforge.history.HistoryRecorder;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.message.MessageDtos.MessageResponse;
 import dev.msgforge.message.MessageDtos.SendContactRequest;
@@ -26,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class MessageController {
 
     private final MessageService messages;
+    private final HistoryRecorder history;
 
-    public MessageController(MessageService messages) {
+    public MessageController(MessageService messages, HistoryRecorder history) {
         this.messages = messages;
+        this.history = history;
     }
 
     @PostMapping("/sendText/{instance}")
@@ -107,8 +110,10 @@ public class MessageController {
                 Map.of("name", body.name(), "options", options, "selectableOptionsCount", count)));
     }
 
-    private static ResponseEntity<MessageResponse> created(Instance instance, SentMessage sent, String type,
-                                                           Map<String, Object> message) {
+    /** Resposta do envio; a mesma mensagem vai para o histórico. */
+    private ResponseEntity<MessageResponse> created(Instance instance, SentMessage sent, String type,
+                                                    Map<String, Object> message) {
+        history.recordSent(instance, sent, type, message);
         var response = new MessageResponse(
                 new MessageResponse.Key(sent.remoteJid(), true, sent.id()),
                 null, "PENDING", message, type, sent.timestamp(), instance.getId().toString(), "msgforge");

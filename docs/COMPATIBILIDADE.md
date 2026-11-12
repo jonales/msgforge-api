@@ -49,8 +49,40 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 |---|---|
 | `/manager`: equivalente ao Evolution Manager, em Thymeleaf (ADR 0005) | ✅ v1 (login, instâncias, QR/pairing ao vivo, webhook, mensagem de teste, desconectar/excluir) |
 
-## Chat, Group, Profile, Settings, Integrações (Typebot, Chatwoot etc.)
-⬜ Fora do escopo inicial — o foco é só a API do WhatsApp.
+## Chat e Profile
+| Método | Rota | Status |
+|---|---|---|
+| POST | `/chat/whatsappNumbers/{instance}` | ✅ `[{exists, jid, number}]`, um por número pedido (repetidos também), na ordem; `jid` é o que o WhatsApp conhece (celular brasileiro pode vir sem o nono dígito); número sem formato de telefone (ou grupo) volta `exists:false, jid:null` sem consultar o WhatsApp; até 100 por chamada |
+| POST | `/chat/markMessageAsRead/{instance}` | 🟡 Cobalt: mensagem conhecida na sessão é lida uma a uma; desconhecida marca a conversa inteira; `fromMe:true` é ignorada |
+| POST | `/chat/sendPresence/{instance}` | 🟡 `{number, presence, delay}` → 201 `{presence}`; `composing`/`recording` com `delay` voltam ao normal depois (teto 20 s); `paused` = `available` no Cobalt |
+| POST | `/chat/fetchProfilePictureUrl/{instance}` | ✅ `{wuid, profilePictureUrl}` (null se não houver ou a privacidade esconder) |
+| POST | `/chat/fetchProfile/{instance}` | 🟡 `{wuid, name, numberExists, picture, status}`; sem `number`, a própria conta; `name` só de contatos da sessão; sem dados de conta comercial |
+| POST | `/chat/updateProfileName`, `updateProfileStatus`, `updateProfilePicture` | ✅ `{update: "success"}`; foto só JPEG/PNG |
+| POST | `/chat/findMessages/{instance}` | 🟡 `{messages: {total, pages, currentPage, records}}`; filtro só por `where.key` (`remoteJid`, `fromMe`, `id`); `offset` = tamanho da página (padrão 50, até 500); mais novas primeiro. Só o que chegou depois que a instância passou a receber eventos (ADR 0008) |
+| POST | `/chat/findChats/{instance}` | 🟡 `[{remoteJid, pushName, updatedAt, lastMessage}]` montado do histórico; sem `unreadCount` nem foto |
+| | `findContacts`, `findStatusMessage`, `archiveChat`, `deleteMessage`, `removeProfilePicture`, privacidade | ⬜ |
+
+## Group
+`groupJid` vai na query string e precisa ser um grupo (`...@g.us` ou o ID numérico); senão 400.
+Grupo inexistente no stub dá 404; no Cobalt, o erro do WhatsApp vira 500.
+
+| Método | Rota | Status |
+|---|---|---|
+| POST | `/group/create/{instance}` | ✅ 201 com o grupo; participantes repetidos contam uma vez |
+| GET | `/group/findGroupInfos/{instance}` | ✅ `{id, subject, subjectOwner, subjectTime, pictureUrl, size, creation, owner, desc, restrict, announce, participants}` |
+| GET | `/group/fetchAllGroups/{instance}` | 🟡 `getParticipants` opcional (padrão false). Cobalt: grupos do Store da sessão, consultados em paralelo; `pictureUrl` sempre null na lista |
+| GET | `/group/participants/{instance}` | ✅ `{participants: [{id, admin}]}` |
+| POST | `/group/updateParticipant/{instance}` | 🟡 `{updateParticipants: [{jid, status}]}` com status `"200"` ou `"400"` (sem o motivo) |
+| POST | `/group/updateSetting/{instance}` | ✅ announcement / not_announcement / locked / unlocked → `{update: "success"}` |
+| POST | `/group/updateGroupSubject`, `updateGroupDescription`, `updateGroupPicture` | ✅ `{update: "success"}`; foto só JPEG/PNG |
+| GET | `/group/inviteCode/{instance}` | ✅ `{inviteUrl, inviteCode}` |
+| POST | `/group/revokeInviteCode/{instance}` | ✅ `{revoked: true, inviteCode}` |
+| GET | `/group/acceptInviteCode/{instance}?inviteCode=` | ✅ `{accepted: true, groupJid}`; aceita o código ou o link |
+| DELETE | `/group/leaveGroup/{instance}` | ✅ `{groupJid, leave: true}` |
+| | `inviteInfo`, `sendInvite`, `toggleEphemeral`, eventos `GROUPS_*` | ⬜ |
+
+## Settings, Integrações (Typebot, Chatwoot etc.)
+⬜ Fora do escopo: o foco é a API do WhatsApp.
 
 ## Erros
 Todos no formato `{ "status", "error", "response": { "message": [...] } }`: validação, JSON

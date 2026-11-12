@@ -27,7 +27,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 
 ## Arquitetura (pacote `dev.msgforge`)
 
-- `instance/`, `message/`, `webhook/`: controllers e DTOs (records) no formato JSON do contrato.
+- `instance/`, `message/`, `chat/`, `group/`, `webhook/`: controllers e DTOs (records) no formato JSON do contrato.
 - `gateway/`: `WhatsAppGateway` é a **única** fronteira com o protocolo. Dois motores:
   `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`, padrão) e `gateway/cobalt/CobaltWhatsAppGateway`
   (`MSGFORGE_GATEWAY=cobalt`, ADR 0007). Nada fora de `gateway/cobalt/` pode importar classes do
@@ -67,6 +67,20 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
   Enquete no Cobalt usa o builder completo: o `simpleBuilder` ignora o `selectableCount`.
+- `/chat/*` (`ChatService`) usa `checkNumbers`, `markRead`, `sendPresence`, `fetchProfile`,
+  `profilePictureUrl` e `updateProfile` (`ProfileUpdate` selado). Foto e recado escondidos pela
+  privacidade viram null, não erro. `markRead` de mensagem fora do Store do Cobalt marca a conversa
+  inteira. No Cobalt, números passam por `resolve`/`resolveMany` (limpa o `UsersCache` e usa o JID
+  devolvido); grupos traduzem LID pelo `LidResolver` da conexão, e `updateParticipants` devolve os
+  JIDs **pedidos** (o WhatsApp responde pelo resolvido). Ainda não testados ao vivo: `markRead` em
+  conversa endereçada por LID e o mapeamento de grupos com LID.
+- `/group/*` (`GroupService` valida `groupJid` e participantes; o gateway recebe JIDs prontos).
+  O stub guarda os grupos **em memória** por instância, para o `GroupIT` exercitar o fluxo
+  inteiro. No Cobalt, `fetchAllGroups` parte dos chats do Store (não há consulta "todos os grupos").
+- `history/` (ADR 0008): tabela `message` por **SQL direto** (`MessageHistory`, sem entidade JPA).
+  O `HistoryRecorder` grava as recebidas (`MessageReceived`), as enviadas (no `created()` do
+  `MessageController`) e os status (`MessageStatusUpdated`, que **só avançam**). Repetidas são
+  ignoradas (`ON CONFLICT`). Falha ao gravar só vai para o log.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log).
@@ -177,6 +191,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    decifrou pede reenvio). Ainda não observados: texto recebido como `extendedTextMessage` e o
    timestamp da reação.
 6. A **API** não limita tentativas de chave errada; o Manager sim.
+7. Histórico (ADR 0008): sem retenção (a tabela `message` só cresce); o que chegou antes de a
+   instância receber eventos não aparece; a mensagem de teste do Manager não é gravada (passa
+   pelo `MessageService`, não pelo `MessageController`).
 
 ## Memória entre sessões
 

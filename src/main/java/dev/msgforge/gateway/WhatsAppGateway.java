@@ -21,6 +21,96 @@ public interface WhatsAppGateway {
     /** Demais tipos de mensagem (áudio de voz, localização, contatos, reação, enquete). */
     SentMessage send(Instance instance, Outgoing message);
 
+    /**
+     * Quais JIDs têm WhatsApp. Para cada JID consultado, o JID que o WhatsApp conhece (pode
+     * diferir no nono dígito de celulares brasileiros) ou null se não tem WhatsApp.
+     */
+    java.util.Map<String, String> checkNumbers(Instance instance, java.util.List<String> jids);
+
+    /** Marca mensagens recebidas como lidas (tique azul). */
+    void markRead(Instance instance, java.util.List<MessageKey> keys);
+
+    /** Mostra a presença na conversa; com {@code delayMs}, mantém por esse tempo e volta ao normal. */
+    void sendPresence(Instance instance, String jid, Presence presence, Integer delayMs);
+
+    /** Perfil de um contato (ou da própria conta, com o JID dela). */
+    Profile fetchProfile(Instance instance, String jid);
+
+    /** URL da foto de perfil, ou null se não houver (ou se a privacidade esconder). */
+    String profilePictureUrl(Instance instance, String jid);
+
+    /** Altera o perfil da própria conta. */
+    void updateProfile(Instance instance, ProfileUpdate update);
+
+    /** Cria o grupo com os participantes (JIDs). A descrição é opcional. */
+    GroupInfo createGroup(Instance instance, String subject, String description, java.util.List<String> participants);
+
+    GroupInfo groupInfo(Instance instance, String groupJid);
+
+    /** Grupos de que a conta participa. */
+    java.util.List<GroupInfo> groups(Instance instance);
+
+    /** Código do convite (o link é https://chat.whatsapp.com/{código}). */
+    String groupInviteCode(Instance instance, String groupJid);
+
+    /** Invalida o convite atual e devolve o novo código. */
+    String revokeGroupInvite(Instance instance, String groupJid);
+
+    /** Entra no grupo pelo código do convite; devolve o JID do grupo. */
+    String acceptGroupInvite(Instance instance, String inviteCode);
+
+    /** Devolve os JIDs em que a ação deu certo. */
+    java.util.List<String> updateParticipants(Instance instance, String groupJid, ParticipantAction action,
+                                              java.util.List<String> participants);
+
+    void updateGroup(Instance instance, String groupJid, GroupUpdate update);
+
+    void leaveGroup(Instance instance, String groupJid);
+
+    enum ParticipantAction { ADD, REMOVE, PROMOTE, DEMOTE }
+
+    /** {@code admin}: null, "admin" ou "superadmin" (o criador). */
+    record GroupParticipant(String id, String admin) {}
+
+    /**
+     * {@code announce}: só admins mandam mensagem. {@code restrict}: só admins editam os dados.
+     * Horários em segundos (epoch); 0 quando o WhatsApp não informa.
+     */
+    record GroupInfo(String id, String subject, String subjectOwner, long subjectTime, long creation,
+                     String owner, String desc, boolean announce, boolean restrict,
+                     java.util.List<GroupParticipant> participants) {}
+
+    /** Selado: cada motor trata todos os tipos de alteração (switch exaustivo). */
+    sealed interface GroupUpdate {}
+
+    record GroupSubject(String subject) implements GroupUpdate {}
+
+    record GroupDescription(String description) implements GroupUpdate {}
+
+    /** {@code image}: URL http(s) ou base64 de um JPEG ou PNG. */
+    record GroupPicture(String image) implements GroupUpdate {}
+
+    /** {@code adminsOnly}: true restringe aos admins. */
+    record GroupSetting(Setting setting, boolean adminsOnly) implements GroupUpdate {}
+
+    enum Setting { SEND_MESSAGES, EDIT_INFO }
+
+    record MessageKey(String remoteJid, String id, boolean fromMe) {}
+
+    enum Presence { AVAILABLE, UNAVAILABLE, COMPOSING, RECORDING, PAUSED }
+
+    record Profile(String jid, boolean exists, String name, String pictureUrl, String status) {}
+
+    /** Selado: cada motor trata todos os tipos de alteração (switch exaustivo). */
+    sealed interface ProfileUpdate {}
+
+    record ProfileName(String name) implements ProfileUpdate {}
+
+    record ProfileStatus(String status) implements ProfileUpdate {}
+
+    /** {@code picture}: URL http(s) ou base64, como em OutgoingMedia. */
+    record ProfilePicture(String picture) implements ProfileUpdate {}
+
     record ConnectResult(String pairingCode, String qrCode, String qrBase64) {}
 
     record OutgoingText(String jid, String text, Integer delayMs, Boolean linkPreview) {}

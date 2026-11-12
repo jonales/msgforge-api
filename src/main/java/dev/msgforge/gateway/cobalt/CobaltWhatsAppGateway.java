@@ -4,6 +4,7 @@ import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import dev.msgforge.common.ApiExceptionHandler.NumberNotOnWhatsAppException;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.GatewayEvent;
+import dev.msgforge.gateway.Jids;
 import dev.msgforge.gateway.WhatsAppGateway;
 import dev.msgforge.gateway.media.AudioTranscoder;
 import dev.msgforge.gateway.media.MediaSignatures;
@@ -18,6 +19,8 @@ import it.auties.whatsapp.api.QrHandler;
 import it.auties.whatsapp.api.Whatsapp;
 import it.auties.whatsapp.model.contact.ContactStatus;
 import it.auties.whatsapp.model.info.ChatMessageInfo;
+import it.auties.whatsapp.model.chat.ChatMetadata;
+import it.auties.whatsapp.model.chat.ChatSettingPolicy;
 import it.auties.whatsapp.model.info.MessageInfo;
 import it.auties.whatsapp.model.jid.Jid;
 import it.auties.whatsapp.model.jid.JidProvider;
@@ -47,6 +50,10 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -522,6 +529,306 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                     .title(media.caption()).mimeType(media.mimeType()).build();
             default -> throw new BadRequestException("Unsupported mediatype: " + media.mediaType());
         };
+    }
+
+    @Override
+    public Map<String, String> checkNumbers(Instance instance, List<String> jids) {
+        return resolveMany(requireConnected(instance), jids);
+    }
+
+    /**
+     * Versão em lote do {@link #resolve}: para cada JID, o que o WhatsApp conhece ou null. Grupos e
+     * outros servidores passam como estão. Limpa o cache envenenado antes (ver UsersCache).
+     */
+    private Map<String, String> resolveMany(Connection connection, List<String> jids) {
+        var numbers = jids.stream().filter(jid -> Jid.of(jid).hasServer(JidServer.whatsapp())).distinct().toList();
+        var exists = new HashMap<String, Boolean>();
+        if (!numbers.isEmpty()) {
+            var query = numbers.stream().map(Jid::of).toArray(Jid[]::new);
+            for (var jid : query) {
+                UsersCache.forget(jid);
+            }
+            var found = await(connection.api.hasWhatsapp(query), "consulta de números");
+            found.forEach((jid, has) -> exists.put(connection.lids.apply(jid), has));
+        }
+        var resolved = resolveNumbers(numbers, exists);
+        var result = new LinkedHashMap<String, String>();
+        jids.forEach(jid -> result.put(jid, Jid.of(jid).hasServer(JidServer.whatsapp()) ? resolved.get(jid) : jid));
+        return result;
+    }
+
+    /** Participantes de grupo: o JID que o WhatsApp conhece, ou o pedido (o WhatsApp recusa sozinho). */
+    private Jid[] participants(Connection connection, List<String> jids) {
+        var known = resolveMany(connection, jids);
+        return jids.stream().map(jid -> Jid.of(known.get(jid) != null ? known.get(jid) : jid)).toArray(Jid[]::new);
+    }
+
+    /**
+     * O Cobalt chaveia a resposta pelo JID que o WhatsApp devolve, que pode ser o celular
+     * brasileiro sem (ou com) o nono dígito. Sem o JID consultado na resposta, vale a forma
+     * alternativa.
+     */
+    static Map<String, String> resolveNumbers(List<String> queried, Map<String, Boolean> found) {
+        var result = new LinkedHashMap<String, String>();
+        for (var jid : queried) {
+            String known = null;
+            if (Boolean.TRUE.equals(found.get(jid))) {
+                known = jid;
+            } else {
+                known = Jids.brazilianMobileAlternative(jid).filter(alt -> Boolean.TRUE.equals(found.get(alt)))
+                        .orElse(null);
+            }
+            result.put(jid, known);
+        }
+        return result;
+    }
+
+    /**
+     * Mensagem conhecida no Store: lida uma a uma. Desconhecida (chegou antes desta sessão, por
+     * exemplo): a conversa inteira é marcada como lida. As enviadas por nós são ignoradas.
+     */
+    @Override
+    public void markRead(Instance instance, List<MessageKey> keys) {
+        var connection = requireConnected(instance);
+        var wholeChats = new LinkedHashSet<String>();
+        for (var key : keys) {
+            if (key.fromMe()) {
+                continue;
+            }
+            var message = connection.api.store().findMessageById(Jid.of(key.remoteJid()), key.id());
+            if (message.isPresent() && message.get() instanceof ChatMessageInfo info) {
+                await(connection.api.markMessageRead(info), "leitura");
+            } else {
+                wholeChats.add(key.remoteJid());
+            }
+        }
+        for (var chat : wholeChats) {
+            await(connection.api.markChatRead(Jid.of(chat)), "leitura");
+        }
+    }
+
+    @Override
+    public void sendPresence(Instance instance, String jid, Presence presence, Integer delayMs) {
+        var connection = requireConnected(instance);
+        var target = resolve(connection, jid);
+        await(connection.api.changePresence(target, contactStatus(presence)), "presença");
+        var temporary = presence == Presence.COMPOSING || presence == Presence.RECORDING;
+        if (temporary && delayMs != null && delayMs > 0) {
+            try {
+                Thread.sleep(Math.min(delayMs, MAX_TYPING_DELAY_MS));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            await(connection.api.changePresence(target, ContactStatus.AVAILABLE), "presença");
+        }
+    }
+
+    /** O Cobalt não tem "paused": voltar a AVAILABLE encerra o "digitando...". */
+    static ContactStatus contactStatus(Presence presence) {
+        return switch (presence) {
+            case AVAILABLE, PAUSED -> ContactStatus.AVAILABLE;
+            case UNAVAILABLE -> ContactStatus.UNAVAILABLE;
+            case COMPOSING -> ContactStatus.COMPOSING;
+            case RECORDING -> ContactStatus.RECORDING;
+        };
+    }
+
+    @Override
+    public Profile fetchProfile(Instance instance, String jid) {
+        var connection = requireConnected(instance);
+        var resolved = resolveOrNull(connection, jid);
+        if (resolved == null) {
+            return new Profile(jid, false, null, null, null);
+        }
+        var target = resolved;
+        jid = connection.lids.apply(resolved);
+        var self = connection.api.store().jid().map(connection.lids::apply).orElse(null);
+        var name = jid.equals(self)
+                ? connection.api.store().name()
+                : connection.api.store().findContactByJid(target)
+                        .flatMap(contact -> contact.chosenName().or(contact::fullName))
+                        .orElse(null);
+        var status = optional(connection, connection.api.queryAbout(target))
+                .flatMap(about -> about).flatMap(about -> about.about()).orElse(null);
+        return new Profile(jid, true, name, profilePictureUrl(connection, target), status);
+    }
+
+    @Override
+    public String profilePictureUrl(Instance instance, String jid) {
+        var connection = requireConnected(instance);
+        var resolved = resolveOrNull(connection, jid);
+        return resolved == null ? null : profilePictureUrl(connection, resolved);
+    }
+
+    /** {@link #resolve}, mas "não tem WhatsApp" vira null em vez de 400. */
+    private Jid resolveOrNull(Connection connection, String jid) {
+        try {
+            return resolve(connection, jid);
+        } catch (dev.msgforge.common.ApiExceptionHandler.NumberNotOnWhatsAppException e) {
+            return null;
+        }
+    }
+
+    private String profilePictureUrl(Connection connection, Jid jid) {
+        return optional(connection, connection.api.queryPicture(jid))
+                .flatMap(uri -> uri).map(URI::toString).orElse(null);
+    }
+
+    /** Foto e recado podem ser escondidos pela privacidade: a falha vira "sem valor", não erro. */
+    private <T> Optional<T> optional(Connection connection, CompletableFuture<T> future) {
+        try {
+            return Optional.ofNullable(await(future, "consulta de perfil"));
+        } catch (GatewayException e) {
+            log.debug("[cobalt] {}: {}", connection.instanceName, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public void updateProfile(Instance instance, ProfileUpdate update) {
+        var connection = requireConnected(instance);
+        switch (update) {
+            case ProfileName name -> await(connection.api.changeName(name.name()), "alteração do nome");
+            case ProfileStatus status -> await(connection.api.changeAbout(status.status()), "alteração do recado");
+            case ProfilePicture picture -> {
+                var bytes = loadMedia(picture.picture());
+                if (!MediaSignatures.isImage(bytes)) {
+                    throw new BadRequestException("picture must be a JPEG or PNG image");
+                }
+                await(connection.api.changeProfilePicture(bytes), "alteração da foto");
+            }
+        }
+    }
+
+    // ---- Grupos
+
+    @Override
+    public GroupInfo createGroup(Instance instance, String subject, String description, List<String> participants) {
+        var connection = requireConnected(instance);
+        var members = participants(connection, participants);
+        var created = await(connection.api.createGroup(subject, members), "criação do grupo")
+                .orElseThrow(() -> new GatewayException("O WhatsApp não devolveu o grupo criado", null));
+        if (description != null && !description.isBlank()) {
+            await(connection.api.changeGroupDescription(created.jid(), description), "descrição do grupo");
+            return groupInfo(connection, created.jid());
+        }
+        return groupInfo(created, connection.lids);
+    }
+
+    @Override
+    public GroupInfo groupInfo(Instance instance, String groupJid) {
+        return groupInfo(requireConnected(instance), Jid.of(groupJid));
+    }
+
+    private GroupInfo groupInfo(Connection connection, Jid groupJid) {
+        return groupInfo(await(connection.api.queryGroupMetadata(groupJid), "consulta do grupo"), connection.lids);
+    }
+
+    /** Consulta os grupos do Store em paralelo; os que falharem (a conta saiu, por exemplo) ficam de fora. */
+    @Override
+    public List<GroupInfo> groups(Instance instance) {
+        var connection = requireConnected(instance);
+        var queries = connection.api.store().chats().stream()
+                .filter(chat -> chat.isGroup())
+                .map(chat -> connection.api.queryGroupMetadata(chat.jid())
+                        .handle((metadata, error) -> error == null ? metadata : null))
+                .toList();
+        await(CompletableFuture.allOf(queries.toArray(CompletableFuture[]::new)), "consulta dos grupos");
+        return queries.stream().map(CompletableFuture::join).filter(java.util.Objects::nonNull)
+                .map(metadata -> groupInfo(metadata, connection.lids)).toList();
+    }
+
+    /** {@code names}: LID → número ({@link LidResolver}); nunca {@code toSimpleJid()} num LID. */
+    static GroupInfo groupInfo(ChatMetadata metadata, java.util.function.Function<Jid, String> names) {
+        var participants = metadata.participants().stream()
+                .map(p -> new GroupParticipant(names.apply(p.jid()), switch (p.role()) {
+                    case FOUNDER -> "superadmin";
+                    case ADMIN -> "admin";
+                    case USER -> null;
+                }))
+                .toList();
+        return new GroupInfo(metadata.jid().toString(), metadata.subject(),
+                metadata.subjectAuthorJid().map(names).orElse(null),
+                metadata.subjectTimestampSeconds(), metadata.foundationTimestampSeconds(),
+                metadata.founder().map(names).orElse(null),
+                metadata.description().orElse(null),
+                metadata.getPolicy(it.auties.whatsapp.model.chat.GroupSetting.SEND_MESSAGES)
+                        .orElse(ChatSettingPolicy.ANYONE) == ChatSettingPolicy.ADMINS,
+                metadata.getPolicy(it.auties.whatsapp.model.chat.GroupSetting.EDIT_GROUP_INFO)
+                        .orElse(ChatSettingPolicy.ANYONE) == ChatSettingPolicy.ADMINS,
+                participants);
+    }
+
+    @Override
+    public String groupInviteCode(Instance instance, String groupJid) {
+        return await(requireConnected(instance).api.queryGroupInviteCode(Jid.of(groupJid)), "convite do grupo");
+    }
+
+    @Override
+    public String revokeGroupInvite(Instance instance, String groupJid) {
+        var connection = requireConnected(instance);
+        await(connection.api.revokeGroupInvite(Jid.of(groupJid)), "revogação do convite");
+        return await(connection.api.queryGroupInviteCode(Jid.of(groupJid)), "convite do grupo");
+    }
+
+    @Override
+    public String acceptGroupInvite(Instance instance, String inviteCode) {
+        var chat = await(requireConnected(instance).api.acceptGroupInvite(inviteCode), "entrada no grupo")
+                .orElseThrow(() -> new BadRequestException("Invalid invite code"));
+        return chat.jid().toString();
+    }
+
+    @Override
+    public List<String> updateParticipants(Instance instance, String groupJid, ParticipantAction action,
+                                           List<String> participants) {
+        var connection = requireConnected(instance);
+        var group = Jid.of(groupJid);
+        var members = participants(connection, participants);
+        var future = switch (action) {
+            case ADD -> connection.api.addGroupParticipants(group, members);
+            case REMOVE -> connection.api.removeGroupParticipants(group, members);
+            case PROMOTE -> connection.api.promoteGroupParticipants(group, members);
+            case DEMOTE -> connection.api.demoteGroupParticipants(group, members);
+        };
+        var done = await(future, "participantes do grupo").stream().map(connection.lids::apply)
+                .collect(java.util.stream.Collectors.toSet());
+        // Devolve nos JIDs pedidos: o WhatsApp responde pelo JID resolvido (sem o 9, ou LID)
+        var result = new java.util.ArrayList<String>();
+        for (var i = 0; i < participants.size(); i++) {
+            if (done.contains(connection.lids.apply(members[i]))) {
+                result.add(participants.get(i));
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public void updateGroup(Instance instance, String groupJid, GroupUpdate update) {
+        var connection = requireConnected(instance);
+        var group = Jid.of(groupJid);
+        switch (update) {
+            case GroupSubject subject -> await(connection.api.changeGroupSubject(group, subject.subject()), "assunto do grupo");
+            case GroupDescription description ->
+                    await(connection.api.changeGroupDescription(group, description.description()), "descrição do grupo");
+            case GroupPicture picture -> {
+                var bytes = loadMedia(picture.image());
+                if (!MediaSignatures.isImage(bytes)) {
+                    throw new BadRequestException("image must be a JPEG or PNG image");
+                }
+                await(connection.api.changeGroupPicture(group, bytes), "foto do grupo");
+            }
+            case GroupSetting setting -> await(connection.api.changeGroupSetting(group,
+                    setting.setting() == Setting.SEND_MESSAGES
+                            ? it.auties.whatsapp.model.chat.GroupSetting.SEND_MESSAGES
+                            : it.auties.whatsapp.model.chat.GroupSetting.EDIT_GROUP_INFO,
+                    setting.adminsOnly() ? ChatSettingPolicy.ADMINS : ChatSettingPolicy.ANYONE), "configuração do grupo");
+        }
+    }
+
+    @Override
+    public void leaveGroup(Instance instance, String groupJid) {
+        await(requireConnected(instance).api.leaveGroup(Jid.of(groupJid)), "saída do grupo");
     }
 
     /** {@code delay} da API: mostra "digitando..." por esse tempo antes de enviar. */

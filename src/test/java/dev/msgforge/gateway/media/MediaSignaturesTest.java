@@ -23,4 +23,12 @@ class MediaSignaturesTest {
         assertThat(MediaSignatures.isVideo(new byte[5])).isFalse();
         assertThat(MediaSignatures.isVideo(null)).isFalse();
     }
+
+    @Test
+    void recognizesJpegAndPng() {
+        assertThat(MediaSignatures.isImage(HexFormat.of().parseHex("ffd8ffe000104a464946"))).isTrue();
+        assertThat(MediaSignatures.isImage(HexFormat.of().parseHex("89504e470d0a1a0a0000000d"))).isTrue();
+        assertThat(MediaSignatures.isImage(HexFormat.of().parseHex("474946383961"))).isFalse(); // GIF
+        assertThat(MediaSignatures.isImage(null)).isFalse();
+    }
 }

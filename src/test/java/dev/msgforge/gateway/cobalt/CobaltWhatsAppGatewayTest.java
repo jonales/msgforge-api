@@ -283,6 +283,131 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void chatAndProfileOperationsNeedAConnectedInstance() {
+        var gateway = gateway(false, 1 << 20);
+        var instance = instance("desconectada");
+        var jid = "5561999999999@s.whatsapp.net";
+        List<org.assertj.core.api.ThrowableAssert.ThrowingCallable> calls = List.of(
+                () -> gateway.checkNumbers(instance, List.of(jid)),
+                () -> gateway.markRead(instance, List.of(new dev.msgforge.gateway.WhatsAppGateway.MessageKey(jid, "X", false))),
+                () -> gateway.sendPresence(instance, jid, dev.msgforge.gateway.WhatsAppGateway.Presence.COMPOSING, null),
+                () -> gateway.fetchProfile(instance, jid),
+                () -> gateway.profilePictureUrl(instance, jid),
+                () -> gateway.updateProfile(instance, new dev.msgforge.gateway.WhatsAppGateway.ProfileName("Ana")));
+        for (var call : calls) {
+            assertThatThrownBy(call).isInstanceOf(BadRequestException.class).hasMessageContaining("not connected");
+        }
+    }
+
+    @Test
+    void groupMetadataBecomesContractGroup() {
+        var founder = it.auties.whatsapp.model.jid.Jid.of("5561911111111@s.whatsapp.net");
+        var admin = it.auties.whatsapp.model.jid.Jid.of("5561922222222@s.whatsapp.net");
+        var member = it.auties.whatsapp.model.jid.Jid.of("5561933333333@s.whatsapp.net");
+        var participants = new java.util.LinkedHashSet<it.auties.whatsapp.model.chat.ChatParticipant>();
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(founder, it.auties.whatsapp.model.chat.ChatRole.FOUNDER));
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(admin, it.auties.whatsapp.model.chat.ChatRole.ADMIN));
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(member, it.auties.whatsapp.model.chat.ChatRole.USER));
+        var metadata = new it.auties.whatsapp.model.chat.ChatMetadataBuilder()
+                .jid(it.auties.whatsapp.model.jid.Jid.of("120363000000000001@g.us"))
+                .subject("Família")
+                .subjectAuthorJid(admin)
+                .subjectTimestampSeconds(1_700_000_100L)
+                .foundationTimestampSeconds(1_700_000_000L)
+                .founderJid(founder)
+                .description("Regras")
+                .settings(java.util.Map.of(
+                        it.auties.whatsapp.model.chat.GroupSetting.SEND_MESSAGES.index(),
+                        it.auties.whatsapp.model.chat.ChatSettingPolicy.ADMINS))
+                .participants(participants)
+                .pastParticipants(new java.util.LinkedHashSet<>())
+                .communityGroups(new java.util.LinkedHashSet<>())
+                .build();
+
+        var group = CobaltWhatsAppGateway.groupInfo(metadata, new LidResolver());
+
+        assertThat(group.id()).isEqualTo("120363000000000001@g.us");
+        assertThat(group.subject()).isEqualTo("Família");
+        assertThat(group.subjectOwner()).isEqualTo("5561922222222@s.whatsapp.net");
+        assertThat(group.creation()).isEqualTo(1_700_000_000L);
+        assertThat(group.owner()).isEqualTo("5561911111111@s.whatsapp.net");
+        assertThat(group.desc()).isEqualTo("Regras");
+        assertThat(group.announce()).isTrue();
+        assertThat(group.restrict()).isFalse();   // sem política: qualquer um edita
+        assertThat(group.participants()).extracting(p -> p.id() + "=" + p.admin()).containsExactly(
+                "5561911111111@s.whatsapp.net=superadmin", "5561922222222@s.whatsapp.net=admin",
+                "5561933333333@s.whatsapp.net=null");
+    }
+
+    @Test
+    void groupParticipantsByLidNeverBecomeFakePhones() {
+        var known = it.auties.whatsapp.model.jid.Jid.of("111111111111111_1:16@s.whatsapp.net");
+        var unknown = it.auties.whatsapp.model.jid.Jid.of("222222222222222_1:16@s.whatsapp.net");
+        var participants = new java.util.LinkedHashSet<it.auties.whatsapp.model.chat.ChatParticipant>();
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(known, it.auties.whatsapp.model.chat.ChatRole.FOUNDER));
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(unknown, it.auties.whatsapp.model.chat.ChatRole.USER));
+        var metadata = new it.auties.whatsapp.model.chat.ChatMetadataBuilder()
+                .jid(it.auties.whatsapp.model.jid.Jid.of("120363000000000001@g.us"))
+                .subject("G").founderJid(known)
+                .settings(java.util.Map.of())
+                .participants(participants)
+                .pastParticipants(new java.util.LinkedHashSet<>())
+                .communityGroups(new java.util.LinkedHashSet<>())
+                .build();
+        var lids = new LidResolver();
+        lids.learn(known, it.auties.whatsapp.model.jid.Jid.of("5561911111111@s.whatsapp.net"));
+
+        var group = CobaltWhatsAppGateway.groupInfo(metadata, lids);
+
+        assertThat(group.owner()).isEqualTo("5561911111111@s.whatsapp.net");
+        assertThat(group.participants()).extracting(p -> p.id())
+                .containsExactly("5561911111111@s.whatsapp.net", "222222222222222@lid");
+    }
+
+    @Test
+    void groupOperationsNeedAConnectedInstance() {
+        var gateway = gateway(false, 1 << 20);
+        var instance = instance("desconectada");
+        var group = "120363000000000001@g.us";
+        List<org.assertj.core.api.ThrowableAssert.ThrowingCallable> calls = List.of(
+                () -> gateway.createGroup(instance, "G", null, List.of("5561999999999@s.whatsapp.net")),
+                () -> gateway.groupInfo(instance, group),
+                () -> gateway.groups(instance),
+                () -> gateway.groupInviteCode(instance, group),
+                () -> gateway.revokeGroupInvite(instance, group),
+                () -> gateway.acceptGroupInvite(instance, "ABCDEFGHIJ"),
+                () -> gateway.updateParticipants(instance, group,
+                        dev.msgforge.gateway.WhatsAppGateway.ParticipantAction.ADD, List.of("5561999999999@s.whatsapp.net")),
+                () -> gateway.updateGroup(instance, group, new dev.msgforge.gateway.WhatsAppGateway.GroupSubject("x")),
+                () -> gateway.leaveGroup(instance, group));
+        for (var call : calls) {
+            assertThatThrownBy(call).isInstanceOf(BadRequestException.class).hasMessageContaining("not connected");
+        }
+    }
+
+    @Test
+    void numbersAnsweredWithoutTheNinthDigitStillExist() {
+        var withNine = "5561999998888@s.whatsapp.net";
+        var answered = "556199998888@s.whatsapp.net";   // a conta antiga, registrada sem o 9
+        var missing = "5561977776666@s.whatsapp.net";
+
+        var result = CobaltWhatsAppGateway.resolveNumbers(List.of(withNine, missing),
+                java.util.Map.of(answered, true, missing, false));
+
+        assertThat(result).containsEntry(withNine, answered);
+        assertThat(result).containsEntry(missing, null);
+        assertThat(result.keySet()).containsExactly(withNine, missing);
+    }
+
+    @Test
+    void pausedPresenceEndsTyping() {
+        assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.PAUSED))
+                .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.AVAILABLE);
+        assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.RECORDING))
+                .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.RECORDING);
+    }
+
+    @Test
     void pairingNumbersAreDigitsOnly() {
         assertThat(CobaltWhatsAppGateway.pairingNumber("+55 (61) 99999-9999")).isEqualTo(5561999999999L);
         assertThatThrownBy(() -> CobaltWhatsAppGateway.pairingNumber("123")).isInstanceOf(BadRequestException.class);
