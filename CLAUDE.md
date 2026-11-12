@@ -192,8 +192,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt ao vivo, pendências** (observadas na 0.0.10; refazer o roteiro com o fork 0.1.0 e
-   tirar daqui o que ele resolver). (a) O app oficial do destinatário mostra "Não foi possível
+5. **Cobalt ao vivo, pendências** (observadas na 0.0.10). **Próximo passo: rodar
+   `docs/VALIDACAO-COBALT-FORK.md`** (roteiro com o fork 0.1.0, PR #12) e tirar daqui o que ele
+   resolver. (a) O app oficial do destinatário mostra "Não foi possível
    confirmar seu código de segurança" em mensagens vindas do Cobalt. Evidências: a chave de
    identidade é estável entre restarts; **toda** mensagem do Cobalt sai como `pkmsg` (a sessão
    Signal nunca se estabiliza); a cada login o Cobalt reenvia as chaves (`iq encrypt`). Suspeitas:

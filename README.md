@@ -75,6 +75,9 @@ curl -X POST http://localhost:8080/webhook/set/vendas \
   -d '{"webhook":{"url":"https://meu-sistema.exemplo/hook","byEvents":true,"events":["MESSAGES_UPSERT","CONNECTION_UPDATE"]}}'
 ```
 
+> **Motor Cobalt 0.1.0 (fork):** antes de usar `MSGFORGE_GATEWAY=cobalt` em produção, rode o roteiro
+> de validação ao vivo em [docs/VALIDACAO-COBALT-FORK.md](docs/VALIDACAO-COBALT-FORK.md).
+
 ## Rotas
 
 Todas exigem o header `apikey`: a chave global, ou o token da instância para as rotas dela.
