@@ -30,6 +30,21 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `instance/`, `message/`, `chat/`, `group/`, `webhook/`: controllers e DTOs (records) no formato JSON do contrato.
 - `gateway/`: `WhatsAppGateway` é a **única** fronteira com o protocolo. Dois motores:
   `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`, padrão) e `gateway/cobalt/CobaltWhatsAppGateway`
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+  (`MSGFORGE_GATEWAY=cobalt`, ADR 0007, **provisório**). Nada fora de `gateway/cobalt/` pode
+  importar classes do Cobalt (`it.auties.*`). **Decidido (ADR 0008):** o motor definitivo é o
+  `msgforge-engine`, um serviço em Go sobre o whatsmeow, ao lado da API; o Java fala com ele por
+  gRPC (`EngineWhatsAppGateway`, a construir) e continua dono do contrato e do mapeamento JSON.
+  Não invista em contornos novos no Cobalt além do necessário para mantê-lo de pé até a troca.
+  - `CobaltMessageMapper`: mensagens do Cobalt → JSON do contrato (`messages.upsert`/`update`).
+  - `DatabaseSessionSerializer`: sessão do Cobalt (Keys + Store) no `session_store`, num blob só
+    (`CobaltSessionCodec`), com lock por instância.
+  - `src/main/java/com/aspose/words/` é um **shim** obrigatório (o `aspose-words` é comercial e
+    foi excluído). Sem ele, montar mídia quebra com `NoClassDefFoundError`. Não apague.
+=======
+>>>>>>> Stashed changes
   (`MSGFORGE_GATEWAY=cobalt`, ADR 0007). Nada fora de `gateway/cobalt/` pode importar classes do
   Cobalt (`com.github.auties00.cobalt.*`).
   - **Motor: Cobalt 0.1.0 do fork `jonales/Cobalt`** (`cobalt-lib`), fora do Maven Central:
@@ -43,6 +58,10 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     guarda só um marcador (`SESSION_MARKER`), que o `SessionRestorer` e o `InstanceService`
     consultam. Marcador sem pasta (volume perdido, ou sessão gravada pela 0.0.10) é apagado e a
     instância pede QR de novo. Logout apaga o marcador e a pasta.
+<<<<<<< Updated upstream
+=======
+>>>>>>> 9a07653eabc4438cdf52ba426db64b8efda6d801
+>>>>>>> Stashed changes
   - Testes do Cobalt nunca falam com o WhatsApp: `COBALT_PROXY` aponta para uma porta fechada
     (`CobaltWhatsAppGatewayTest`, `CobaltGatewayIT`). Para manter um connect **pendente**, use
     um proxy "mudo" (aceita e não responde), como em `concurrentConnectsShareOnePendingConnection`.
@@ -129,9 +148,16 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   costuma ser um starter faltando (o `spring-boot-starter-restclient`, por exemplo).
 - **Identidade:** o projeto se apresenta só como Msgforge. Não cite outros produtos como origem ou
   referência em README, código, comentários, configuração, ADRs ou neste arquivo (decisão do
+<<<<<<< Updated upstream
   usuário, 2026-11). A única exceção é `docs/COMPATIBILIDADE.md`, que documenta de onde vem o
   contrato. Ao mudar rotas, eventos ou variáveis, atualize também `docs/api.md`, `docs/eventos.md`
   ou `docs/configuracao.md`. O README é só apresentação e aponta para `docs/`.
+=======
+  usuário, 2026-11). Exceções: `docs/COMPATIBILIDADE.md`, que documenta de onde vem o contrato, e
+  `THIRD-PARTY-NOTICES.md`, com os avisos que as licenças das bibliotecas distribuídas exigem
+  (liberado pelo usuário em 2026-11-12). Citar a biblioteca usada como motor (Cobalt, whatsmeow) na
+  documentação técnica e nas ADRs é permitido; citar outras APIs/produtos como referência, não. Ao mudar rotas, eventos ou variáveis, atualize também as tabelas do README.
+>>>>>>> Stashed changes
 - **Commits:** em português, no estilo Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`).
 - **Decisões de arquitetura:** registre em `docs/decisoes/` (ADR curto, numerado).
 
@@ -175,6 +201,7 @@ ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skil
 
 ## Estado atual e backlog
 
+<<<<<<< Updated upstream
 O roadmap está em `docs/roadmap.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
 `CobaltWhatsAppGateway` foi **validado ao vivo** em 2026-11-12, com duas instâncias locais
 (Docker) conversando entre si: login por QR, envio, recebimento em tempo real e sessão restaurada
@@ -182,6 +209,16 @@ no boot funcionam. A ADR 0007 continua *proposta* até os status (`messages.upda
 (item 5). O roteiro está em `docs/spikes/cobalt/README.md`. Na nuvem não dá para testar ao vivo
 (o proxy bloqueia `web.whatsapp.com`). Se o Cobalt travar de vez, a alternativa preferida é um
 sidecar com Baileys (só troca `gateway/`).
+=======
+O roadmap está no `README.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
+`CobaltWhatsAppGateway` foi validado ao vivo em 2026-11-12 (duas instâncias locais conversando
+entre si), com contornos para nove defeitos do motor. Um spike comparativo no mesmo dia (README,
+"Análise do motor") levou à **ADR 0008: o motor passa a ser o `msgforge-engine` (Go +
+whatsmeow)**, o único que não gera o aviso "Não foi possível confirmar seu código de segurança"
+no WhatsApp Web e que decifra mensagens de aparelhos vinculados. **Próximo trabalho:** construir o
+`msgforge-engine` e o `EngineWhatsAppGateway` com paridade do gateway atual; depois, retirar o
+Cobalt. Na nuvem não dá para testar ao vivo (o proxy bloqueia `web.whatsapp.com`).
+>>>>>>> Stashed changes
 
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
@@ -193,6 +230,16 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+5. **Motor Cobalt (provisório):** o app do destinatário mostra "Não foi possível confirmar seu
+   código de segurança"; mensagens de aparelhos vinculados podem pedir reenvio (o Cobalt não
+   atende `retry`); o `pushName` enviado é o nome do aparelho; o login leva ~60 s. Não serão
+   corrigidos: saem com a troca pelo `msgforge-engine` (ADR 0008).
+6. A **API** não limita tentativas de chave errada; o Manager sim.
+=======
+>>>>>>> Stashed changes
 5. **Cobalt ao vivo, pendências** (observadas na 0.0.10). **Próximo passo: rodar
    `docs/VALIDACAO-COBALT-FORK.md`** (roteiro com o fork 0.1.0, PR #12) e tirar daqui o que ele
    resolver. (a) O app oficial do destinatário mostra "Não foi possível
@@ -207,6 +254,10 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    timestamp da reação.
 6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
+<<<<<<< Updated upstream
+=======
+>>>>>>> 9a07653eabc4438cdf52ba426db64b8efda6d801
+>>>>>>> Stashed changes
 
 ## Memória entre sessões
 

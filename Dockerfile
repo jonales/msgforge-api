@@ -22,6 +22,8 @@ RUN useradd -r -u 1001 msgforge \
 VOLUME /data/cobalt
 ENV COBALT_SESSION_DIR=/data/cobalt
 COPY --from=build /app/target/msgforge-api-*.jar app.jar
+# Avisos de licença dos componentes de terceiros distribuídos na imagem
+COPY THIRD-PARTY-NOTICES.md /app/
 USER msgforge
 EXPOSE 8080
 ENTRYPOINT ["java", "-XX:+UseZGC", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

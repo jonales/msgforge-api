@@ -1,9 +1,9 @@
 # 0007: Motor do WhatsApp: Cobalt 0.0.10, condicionado ao teste ao vivo
 
-**Status:** proposta (2026-11). Vira "aceita" quando o teste ao vivo do
-`docs/spikes/cobalt/README.md` passar nos critérios 1 a 5. O `CobaltWhatsAppGateway` já foi
-construído (por decisão do usuário, sem esperar o teste ao vivo) e está atrás de
-`MSGFORGE_GATEWAY=cobalt`; o padrão continua `stub`.
+**Status:** substituída pela [0008](0008-motor-externo-whatsmeow.md) (2026-11-12). O teste ao vivo
+(abaixo) mostrou defeitos de protocolo que não dá para contornar por fora. O
+`CobaltWhatsAppGateway` continua atrás de `MSGFORGE_GATEWAY=cobalt` até o motor novo ser
+validado.
 
 ## Contexto
 A Fase 2 troca o `StubWhatsAppGateway` por um motor real. O ADR 0001 previu o Cobalt (Java), mas
