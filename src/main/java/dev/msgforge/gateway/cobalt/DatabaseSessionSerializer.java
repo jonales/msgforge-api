@@ -2,6 +2,7 @@ package dev.msgforge.gateway.cobalt;
 
 import dev.msgforge.gateway.cobalt.CobaltSessionCodec.Parts;
 import dev.msgforge.gateway.session.SessionStore;
+import it.auties.protobuf.stream.ProtobufInputStream;
 import it.auties.whatsapp.api.ClientType;
 import it.auties.whatsapp.controller.Controller;
 import it.auties.whatsapp.controller.ControllerSerializer;
@@ -10,6 +11,7 @@ import it.auties.whatsapp.controller.KeysSpec;
 import it.auties.whatsapp.controller.Store;
 import it.auties.whatsapp.controller.StoreSpec;
 import it.auties.whatsapp.model.mobile.PhoneNumber;
+import java.io.ByteArrayInputStream;
 import java.util.LinkedList;
 import java.util.Optional;
 import java.util.UUID;
@@ -65,9 +67,20 @@ final class DatabaseSessionSerializer implements ControllerSerializer {
         return run(async, () -> update(store.uuid(), parts -> parts.withStore(bytes)));
     }
 
+    /*
+     * Decodifica por InputStream, nunca por byte[]: no Cobalt 0.0.10, Jid.of(ProtobufString) lê
+     * o JID direto do buffer e calcula o tamanho do servidor misturando o offset absoluto com o
+     * tamanho relativo da string. Só funciona com offset 0, ou seja, quebra (Range [...] out of
+     * bounds) em qualquer JID no meio da sessão. Lendo de um stream, cada string ganha um array
+     * próprio, que começa em 0.
+     */
+    private static ProtobufInputStream stream(byte[] bytes) {
+        return ProtobufInputStream.fromStream(new ByteArrayInputStream(bytes));
+    }
+
     @Override
     public Optional<Keys> deserializeKeys(ClientType type, UUID id) {
-        return read(id).keysOptional().map(KeysSpec::decode);
+        return read(id).keysOptional().map(bytes -> KeysSpec.decode(stream(bytes)));
     }
 
     @Override
@@ -82,7 +95,7 @@ final class DatabaseSessionSerializer implements ControllerSerializer {
 
     @Override
     public Optional<Store> deserializeStore(ClientType type, UUID id) {
-        return read(id).storeOptional().map(StoreSpec::decode);
+        return read(id).storeOptional().map(bytes -> StoreSpec.decode(stream(bytes)));
     }
 
     @Override
