@@ -9,6 +9,8 @@ services:
       DATABASE_URL: jdbc:postgresql://postgres:5432/msgforge
       CACHE_REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq
+    volumes:
+      - cobalt_sessions:/data/cobalt
     depends_on:
       postgres:
         condition: service_healthy
@@ -45,5 +47,6 @@ services:
       retries: 10
 
 volumes:
+  cobalt_sessions:
   pg_data:
   redis_data:

@@ -1,28 +1,31 @@
 package dev.msgforge.gateway.cobalt;
 
-import it.auties.whatsapp.model.info.ChatMessageInfo;
-import it.auties.whatsapp.model.info.MessageInfo;
-import it.auties.whatsapp.model.jid.Jid;
-import it.auties.whatsapp.model.jid.JidServer;
-import it.auties.whatsapp.model.message.model.ChatMessageKey;
-import it.auties.whatsapp.model.message.model.Message;
-import it.auties.whatsapp.model.message.model.MessageStatus;
-import it.auties.whatsapp.model.message.standard.AudioMessage;
-import it.auties.whatsapp.model.message.standard.ContactMessage;
-import it.auties.whatsapp.model.message.standard.DocumentMessage;
-import it.auties.whatsapp.model.message.standard.ImageMessage;
-import it.auties.whatsapp.model.message.standard.LocationMessage;
-import it.auties.whatsapp.model.message.standard.ReactionMessage;
-import it.auties.whatsapp.model.message.standard.StickerMessage;
-import it.auties.whatsapp.model.message.standard.TextMessage;
-import it.auties.whatsapp.model.message.standard.VideoOrGifMessage;
+import com.github.auties00.cobalt.wire.core.jid.Jid;
+import com.github.auties00.cobalt.wire.core.message.MessageInfo;
+import com.github.auties00.cobalt.wire.core.message.MessageKey;
+import com.github.auties00.cobalt.wire.core.message.MessageStatus;
+import com.github.auties00.cobalt.wire.linked.chat.ChatMessageInfo;
+import com.github.auties00.cobalt.wire.linked.message.EmptyMessage;
+import com.github.auties00.cobalt.wire.linked.message.Message;
+import com.github.auties00.cobalt.wire.linked.message.contact.ContactMessage;
+import com.github.auties00.cobalt.wire.linked.message.group.SenderKeyDistributionMessage;
+import com.github.auties00.cobalt.wire.linked.message.location.LocationMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.AudioMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.DocumentMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.ImageMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.StickerMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.VideoMessage;
+import com.github.auties00.cobalt.wire.linked.message.system.DeviceSentMessage;
+import com.github.auties00.cobalt.wire.linked.message.system.KeepInChatMessage;
+import com.github.auties00.cobalt.wire.linked.message.system.ProtocolMessage;
+import com.github.auties00.cobalt.wire.linked.message.system.StickerSyncRMRMessage;
+import com.github.auties00.cobalt.wire.linked.message.text.ExtendedTextMessage;
+import com.github.auties00.cobalt.wire.linked.message.text.ReactionMessage;
 import java.time.Instant;
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
@@ -32,59 +35,65 @@ import java.util.function.Function;
  */
 final class CobaltMessageMapper {
 
-    /** Mensagens de controle do protocolo: não viram messages.upsert. */
-    private static final Set<Message.Type> IGNORED = Set.of(
-            Message.Type.EMPTY, Message.Type.PROTOCOL, Message.Type.SENDER_KEY_DISTRIBUTION,
-            Message.Type.DEVICE_SYNC, Message.Type.KEEP_IN_CHAT, Message.Type.STICKER_SYNC);
-
     private CobaltMessageMapper() {}
 
-    /** Como os JIDs saem no JSON: o padrão é o texto do Cobalt; ao vivo, o {@link LidResolver}. */
+    /** Como os JIDs saem no JSON sem tradução de LID: o JID de usuário, sem aparelho. */
     static final Function<Jid, String> PLAIN =
-            jid -> jid.hasServer(JidServer.whatsapp()) ? jid.toSimpleJid().toString() : jid.toString();
+            jid -> jid.hasUserServer() ? jid.toUserJid().toString() : jid.toString();
 
     static Optional<Map<String, Object>> upsert(ChatMessageInfo info, UUID instanceId) {
         return upsert(info, instanceId, PLAIN);
     }
 
     static Optional<Map<String, Object>> upsert(ChatMessageInfo info, UUID instanceId, Function<Jid, String> names) {
-        var container = info.message().unbox();
-        if (IGNORED.contains(container.type())) {
+        var message = info.message().content();
+        if (ignored(message)) {
             return Optional.empty();
         }
-        var content = content(container.content(), container.type(), names);
+        var content = content(message, names);
         var data = new LinkedHashMap<String, Object>();
-        data.put("key", key(info.key(), info.senderJid(), names));
+        data.put("key", key(info.key(), info.senderJid().orElse(null), names));
         info.pushName().ifPresent(name -> data.put("pushName", name));
-        data.put("status", status(info.status()));
+        data.put("status", status(info.status().orElse(null)));
         data.put("message", Map.of(content.type(), content.value()));
         data.put("messageType", content.type());
-        data.put("messageTimestamp", info.timestampSeconds().orElse(Instant.now().getEpochSecond()));
+        data.put("messageTimestamp", info.timestamp().map(Instant::getEpochSecond)
+                .orElse(Instant.now().getEpochSecond()));
         data.put("instanceId", instanceId.toString());
-        data.put("source", device(info.id()));
+        data.put("source", device(info.key().id().orElse(null)));
         return Optional.of(data);
     }
 
+    /** Mensagens de controle do protocolo: não viram messages.upsert. */
+    static boolean ignored(Message message) {
+        return switch (message) {
+            case EmptyMessage _, ProtocolMessage _, SenderKeyDistributionMessage _, DeviceSentMessage _,
+                 KeepInChatMessage _, StickerSyncRMRMessage _ -> true;
+            default -> false;
+        };
+    }
+
     /** messages.update do contrato: identifica a mensagem pela key e traz o novo status. */
-    static Optional<Map<String, Object>> statusUpdate(MessageInfo<?> info, UUID instanceId) {
+    static Optional<Map<String, Object>> statusUpdate(MessageInfo info, UUID instanceId) {
         return statusUpdate(info, instanceId, PLAIN);
     }
 
-    static Optional<Map<String, Object>> statusUpdate(MessageInfo<?> info, UUID instanceId,
+    static Optional<Map<String, Object>> statusUpdate(MessageInfo info, UUID instanceId,
                                                       Function<Jid, String> names) {
         if (!(info instanceof ChatMessageInfo chat)) {
             return Optional.empty();
         }
-        var key = key(chat.key(), chat.senderJid(), names);
+        var key = key(chat.key(), chat.senderJid().orElse(null), names);
+        var id = chat.key().id().orElse(null);
         var data = new LinkedHashMap<String, Object>();
-        data.put("messageId", chat.id());
-        data.put("keyId", chat.id());
+        data.put("messageId", id);
+        data.put("keyId", id);
         data.put("remoteJid", key.get("remoteJid"));
         data.put("fromMe", key.get("fromMe"));
         if (key.containsKey("participant")) {
             data.put("participant", key.get("participant"));
         }
-        data.put("status", status(chat.status()));
+        data.put("status", status(chat.status().orElse(null)));
         data.put("instanceId", instanceId.toString());
         return Optional.of(data);
     }
@@ -104,14 +113,15 @@ final class CobaltMessageMapper {
         };
     }
 
-    private static Map<String, Object> key(ChatMessageKey key, Jid sender, Function<Jid, String> names) {
+    private static Map<String, Object> key(MessageKey key, Jid sender, Function<Jid, String> names) {
         var map = new LinkedHashMap<String, Object>();
-        map.put("remoteJid", names.apply(key.chatJid()));
+        var chat = key.parentJid().orElse(null);
+        map.put("remoteJid", chat == null ? null : names.apply(chat));
         map.put("fromMe", key.fromMe());
-        map.put("id", key.id());
-        if (key.chatJid().hasServer(JidServer.groupOrCommunity()) && sender != null) {
-            // Sem toSimpleJid() aqui: ele descarta o agente, e o resolver não reconheceria o LID
-            map.put("participant", names.apply(sender));
+        map.put("id", key.id().orElse(null));
+        var participant = sender != null ? sender : key.senderJid().orElse(null);
+        if (chat != null && chat.hasGroupOrCommunityServer() && participant != null) {
+            map.put("participant", names.apply(participant));
         }
         return map;
     }
@@ -119,21 +129,21 @@ final class CobaltMessageMapper {
     /** {@code value}: um objeto com os campos, ou uma string no caso de "conversation" (como no Baileys). */
     private record Content(String type, Object value) {}
 
-    private static Content content(Message message, Message.Type type, Function<Jid, String> names) {
+    private static Content content(Message message, Function<Jid, String> names) {
         var fields = new LinkedHashMap<String, Object>();
         return switch (message) {
-            // Texto simples sai como "conversation", que é o campo que os clientes leem primeiro
-            case TextMessage text -> new Content("conversation", text.text());
+            // Texto sai como "conversation", que é o campo que os clientes leem primeiro
+            case ExtendedTextMessage text -> new Content("conversation", text.text().orElse(""));
             case ImageMessage image -> {
                 image.caption().ifPresent(v -> fields.put("caption", v));
                 image.mimetype().ifPresent(v -> fields.put("mimetype", v));
                 image.mediaUrl().ifPresent(v -> fields.put("url", v));
                 yield new Content("imageMessage", fields);
             }
-            case VideoOrGifMessage video -> {
+            case VideoMessage video -> {
                 video.caption().ifPresent(v -> fields.put("caption", v));
                 video.mimetype().ifPresent(v -> fields.put("mimetype", v));
-                seconds(video.duration(), fields);
+                seconds(video.seconds(), fields);
                 if (video.gifPlayback()) {
                     fields.put("gifPlayback", true);
                 }
@@ -141,8 +151,8 @@ final class CobaltMessageMapper {
             }
             case AudioMessage audio -> {
                 audio.mimetype().ifPresent(v -> fields.put("mimetype", v));
-                seconds(audio.duration(), fields);
-                fields.put("ptt", audio.voiceMessage());
+                seconds(audio.seconds(), fields);
+                fields.put("ptt", audio.ptt());
                 yield new Content("audioMessage", fields);
             }
             case DocumentMessage document -> {
@@ -154,26 +164,26 @@ final class CobaltMessageMapper {
             }
             case StickerMessage sticker -> {
                 sticker.mimetype().ifPresent(v -> fields.put("mimetype", v));
-                fields.put("isAnimated", sticker.animated());
+                fields.put("isAnimated", sticker.isAnimated());
                 yield new Content("stickerMessage", fields);
             }
             case LocationMessage location -> {
-                fields.put("degreesLatitude", location.latitude());
-                fields.put("degreesLongitude", location.longitude());
+                location.degreesLatitude().ifPresent(v -> fields.put("degreesLatitude", v));
+                location.degreesLongitude().ifPresent(v -> fields.put("degreesLongitude", v));
                 location.name().ifPresent(v -> fields.put("name", v));
                 location.address().ifPresent(v -> fields.put("address", v));
                 yield new Content("locationMessage", fields);
             }
             case ReactionMessage reaction -> {
-                fields.put("text", reaction.content());
-                fields.put("key", key(reaction.key(), reaction.key().senderJid().orElse(null), names));
+                fields.put("text", reaction.text().orElse(""));
+                reaction.key().ifPresent(key -> fields.put("key", key(key, null, names)));
                 yield new Content("reactionMessage", fields);
             }
             case ContactMessage contact -> {
-                fields.put("displayName", contact.name());
+                contact.displayName().ifPresent(v -> fields.put("displayName", v));
                 yield new Content("contactMessage", fields);
             }
-            default -> new Content(genericName(type), fields);
+            default -> new Content(genericName(message), fields);
         };
     }
 
@@ -181,14 +191,10 @@ final class CobaltMessageMapper {
         duration.ifPresent(v -> fields.put("seconds", v));
     }
 
-    /** POLL_CREATION → pollCreationMessage, como no protobuf do WhatsApp. */
-    static String genericName(Message.Type type) {
-        var parts = type.name().toLowerCase(Locale.ROOT).split("_");
-        var name = new StringBuilder(parts[0]);
-        for (int i = 1; i < parts.length; i++) {
-            name.append(Character.toUpperCase(parts[i].charAt(0))).append(parts[i].substring(1));
-        }
-        return name.append("Message").toString();
+    /** PollCreationMessage → pollCreationMessage, como no protobuf do WhatsApp. */
+    static String genericName(Message message) {
+        var name = message.getClass().getSimpleName();
+        return Character.toLowerCase(name.charAt(0)) + name.substring(1);
     }
 
     /** Mesma heurística do getDevice() do Baileys, usada no campo "source". */

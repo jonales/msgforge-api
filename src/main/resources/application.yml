@@ -71,7 +71,7 @@ msgforge:
     send-timeout-ms: ${COBALT_SEND_TIMEOUT_MS:30000}
     media-max-bytes: ${COBALT_MEDIA_MAX_BYTES:67108864}
     proxy: ${COBALT_PROXY:}
-    web-version: ${COBALT_WEB_VERSION:}
+    session-dir: ${COBALT_SESSION_DIR:${user.home}/.msgforge/cobalt}
 
 management:
   health:

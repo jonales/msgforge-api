@@ -20,7 +20,8 @@
     <properties>
         <java.version>25</java.version>
         <springdoc.version>3.0.0</springdoc.version>
-        <cobalt.version>0.0.10</cobalt.version>
+        <cobalt.version>0.1.0</cobalt.version>
+        <zxing.version>3.5.3</zxing.version>
     </properties>
 
     <dependencies>
@@ -90,27 +91,20 @@
         </dependency>
 
         <!--
-            Motor do WhatsApp (Fase 2, ADR 0007): Cobalt. Só o pacote dev.msgforge.gateway.cobalt usa.
-            Exclusões obrigatórias:
-            - aspose-words: comercial e fora do Maven Central. Substituída pelo shim em
-              src/main/java/com/aspose/words (sem ele, montar qualquer mensagem de mídia quebra
-              com NoClassDefFoundError).
-            - slf4j-nop: silenciaria o log da aplicação inteira.
+            Motor do WhatsApp (Fase 2, ADR 0007): Cobalt 0.1.0 do fork jonales/Cobalt. Só o pacote
+            dev.msgforge.gateway.cobalt usa. Não está no Maven Central: instale antes da build com
+            scripts/install-cobalt.sh (commit fixado no script).
         -->
         <dependency>
             <groupId>com.github.auties00</groupId>
-            <artifactId>cobalt</artifactId>
+            <artifactId>cobalt-lib</artifactId>
             <version>${cobalt.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.aspose</groupId>
-                    <artifactId>aspose-words</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-nop</artifactId>
-                </exclusion>
-            </exclusions>
+        </dependency>
+        <!-- QR do login como PNG (campo "base64" da API) -->
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+            <version>${zxing.version}</version>
         </dependency>
 
         <dependency>

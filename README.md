@@ -155,7 +155,7 @@ As principais variáveis (todas em [.env.example](.env.example)):
 | `COBALT_PROXY` | vazio | Proxy para a conexão com o WhatsApp (Cobalt) |
 | `DATABASE_SAVE_DATA_NEW_MESSAGE` | `true` | Grava as mensagens no banco (histórico de `/chat/findMessages`) |
 | `HISTORY_RETENTION_DAYS` | `0` | Apaga do histórico as mensagens mais velhas que isso, de hora em hora (0 guarda para sempre) |
-| `COBALT_WEB_VERSION` | vazio | Versão do WhatsApp Web anunciada no login (vazio = lida do `sw.js`) |
+| `COBALT_SESSION_DIR` | `~/.msgforge/cobalt` (`/data/cobalt` na imagem) | Pasta das sessões do Cobalt, uma subpasta por instância; monte um volume |
 | `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE` | desligado | `DEBUG` registra os nós do protocolo do Cobalt (só atributos), para diagnóstico |
 | `FFMPEG_PATH` | `ffmpeg` | Binário do ffmpeg (já vem na imagem Docker); sem ele, a voz vai sem conversão |
 | `MEDIA_TRANSCODE_TIMEOUT_MS` | `60000` | Limite de uma conversão de áudio |

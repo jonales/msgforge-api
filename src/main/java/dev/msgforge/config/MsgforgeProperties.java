@@ -63,6 +63,6 @@ public record MsgforgeProperties(
             @DefaultValue("30000") long sendTimeoutMs,
             @DefaultValue("67108864") long mediaMaxBytes,
             String proxy,
-            /** Versão do WhatsApp Web fixa (ex.: 2.3000.1054172749); vazio = busca no sw.js. */
-            String webVersion) {}
+            /** Pasta das sessões do Cobalt: uma subpasta por instância (o id da instância). */
+            @DefaultValue("${user.home}/.msgforge/cobalt") String sessionDir) {}
 }

@@ -115,3 +115,24 @@ da página (login recusado com 405); o cache "tem WhatsApp?" descartava envios e
 do segundo; e envios que falham concluem com status ERROR, sem exceção. Ainda aberto, e decisivo
 para "aceita": o aviso "Não foi possível confirmar seu código de segurança" no app do
 destinatário (CLAUDE.md, problemas conhecidos, item 5).
+
+## Migração para o fork (0.1.0, 2026-11-12)
+Motivo: com a 0.0.10, o celular do destinatário mostrava "Não foi possível confirmar seu código de
+segurança" em toda mensagem, e o login levava ~60 s; a 0.0.10 não recebe mais correções. O fork
+`jonales/Cobalt` (a reescrita 0.1.0 do upstream, já sem `--enable-preview`) traz o ICDC
+(`deviceListMetadata`) no envio, LID ↔ número no Store, fila offline e versão do WhatsApp Web
+resolvidas, e correções próprias (PR jonales/Cobalt#2: lista de aparelhos refeita quando o servidor
+reporta phash divergente; bootstrap de login em paralelo).
+
+- **Dependência:** `com.github.auties00:cobalt-lib:0.1.0`, instalada por
+  `scripts/install-cobalt.sh` num commit fixo (CI, Dockerfile e hook de sessão).
+- **Sessão:** em disco, no formato do Cobalt (`COBALT_SESSION_DIR/<instância>`; volume
+  `/data/cobalt` na imagem). O `session_store` guarda só um marcador. Sessões da 0.0.10 não são
+  aproveitadas: a instância pede QR de novo. Guardar a sessão no Postgres exigiria uma
+  `LinkedWhatsAppStoreFactory` própria (a interface é `non-sealed`); fica para depois do teste ao vivo.
+- **Removidos:** `WebVersion`, `OfflineQueueGuard`, `RawNodes`, `UsersCache`,
+  `DatabaseSessionSerializer`, `CobaltSessionCodec` e o shim do `aspose-words`.
+- **Aceite:** o roteiro de `docs/spikes/cobalt-0.1/README.md` com a API inteira (Docker), em
+  especial o aviso de código de segurança, o tempo de login, os status e a mídia (o
+  `uploadMedia` do fork transcodifica a mídia; ainda não exercitado na imagem Docker).
+
