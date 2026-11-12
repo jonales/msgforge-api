@@ -10,6 +10,8 @@ import com.github.auties00.cobalt.client.linked.LinkedWhatsAppClientVerification
 import com.github.auties00.cobalt.client.linked.WhatsAppLinkedClientErrorResult;
 import com.github.auties00.cobalt.exception.linked.WhatsAppConnectionException;
 import com.github.auties00.cobalt.stanza.model.SizedInputStream;
+import com.github.auties00.cobalt.stanza.model.Stanza;
+import com.github.auties00.cobalt.stanza.model.StanzaAttribute;
 import com.github.auties00.cobalt.store.linked.LinkedWhatsAppStoreFactory;
 import com.github.auties00.cobalt.wire.core.jid.Jid;
 import com.github.auties00.cobalt.wire.core.jid.JidProvider;
@@ -399,12 +401,48 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             }
         });
         if (wire.isDebugEnabled()) {
-            // Só nome e atributos; o conteúdo vem cifrado e não é registrado
-            api.addNodeReceivedListener((whatsapp, node) -> wire.debug("{}: <- {}{}", name, node.description(),
-                    node.attributes().keySet()));
-            api.addNodeSentListener((whatsapp, node) -> wire.debug("{}: -> {}{}", name, node.description(),
-                    node.attributes().keySet()));
+            // Árvore de nomes e atributos (ex.: enc{type=pkmsg}); o conteúdo cifrado nunca é registrado
+            api.addNodeReceivedListener((whatsapp, node) -> wire.debug("{}: <- {}", name, outline(node)));
+            api.addNodeSentListener((whatsapp, node) -> wire.debug("{}: -> {}", name, outline(node)));
         }
+    }
+
+    /** Nó em árvore, só nomes e atributos de texto ou JID (bytes viram {@code <bytes>}). */
+    static String outline(Stanza node) {
+        var out = new StringBuilder();
+        outline(node, out, 0);
+        return out.toString();
+    }
+
+    private static void outline(Stanza node, StringBuilder out, int depth) {
+        out.append(node.description()).append('{');
+        var first = true;
+        for (var entry : node.attributes().entrySet()) {
+            if (!first) {
+                out.append(", ");
+            }
+            first = false;
+            out.append(entry.getKey()).append('=').append(switch (entry.getValue()) {
+                case StanzaAttribute.TextAttribute text -> text.value();
+                case StanzaAttribute.JidAttribute jid -> jid.value().toString();
+                default -> "<bytes>";
+            });
+        }
+        out.append('}');
+        var children = node.children();
+        if (children.isEmpty() || depth >= 6) {
+            return;
+        }
+        out.append(" [");
+        var firstChild = true;
+        for (var child : children) {
+            if (!firstChild) {
+                out.append(", ");
+            }
+            firstChild = false;
+            outline(child, out, depth + 1);
+        }
+        out.append(']');
     }
 
     private void onDisconnected(UUID id, Connection connection, WhatsAppClientDisconnectReason reason) {

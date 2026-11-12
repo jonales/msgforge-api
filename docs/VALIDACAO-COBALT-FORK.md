@@ -64,6 +64,12 @@ Repita mais duas vezes (`teste 2`, `teste 3`). No celular **B**, abra a conversa
 Esperado: as 3 mensagens chegam e **não aparece** "Não foi possível confirmar seu código de
 segurança". Se aparecer, anote em qual mensagem (a 1ª ou todas) e guarde o log desse trecho.
 
+**Sessão Signal (a pista da 0.0.10):** no log, cada envio aparece como
+`-> message{...} [participants{} [to{jid=...} [enc{type=pkmsg, ...}]] ...]`. Depois que **B
+responder** (teste 4), envie mais um texto: o `enc` para o aparelho de B deve passar a
+`type=msg`. Se continuar `pkmsg` em todo envio, a sessão não está se fixando (era o sintoma da
+0.0.10); anote e guarde o log.
+
 ## 4. Receber e status
 
 1. Responda do celular **B**.
@@ -114,6 +120,7 @@ Atenção: `docker compose down -v` apaga o volume `cobalt_sessions` e obriga a 
 | 2 | Login após o scan | bem menos de 60 s | ___ s |
 | 3 | Aviso de código de segurança no B | não aparece | |
 | 3 | 3 textos seguidos chegam | sim | |
+| 4 | Envio depois da resposta do B sai como `enc type=msg` | sim (não `pkmsg`) | |
 | 4 | Resposta do B aparece com o número (não LID) | sim | |
 | 4 | Status entregue / lida | avançam | |
 | 5 | Imagem com legenda chega | sim | |

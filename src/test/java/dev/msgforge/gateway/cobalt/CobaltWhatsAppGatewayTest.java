@@ -412,6 +412,18 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void wireOutlineShowsAttributesButNeverEncryptedContent() {
+        var node = new com.github.auties00.cobalt.stanza.model.StanzaBuilder().description("message")
+                .attribute("to", "5561999999999@s.whatsapp.net")
+                .content(new com.github.auties00.cobalt.stanza.model.StanzaBuilder().description("enc")
+                        .attribute("type", "pkmsg").attribute("v", "2").content(new byte[] {1, 2, 3}).build())
+                .build();
+
+        assertThat(CobaltWhatsAppGateway.outline(node))
+                .isEqualTo("message{to=5561999999999@s.whatsapp.net} [enc{type=pkmsg, v=2}]");
+    }
+
+    @Test
     void pairingNumbersAreDigitsOnly() {
         assertThat(CobaltWhatsAppGateway.pairingNumber("+55 (61) 99999-9999")).isEqualTo(5561999999999L);
         assertThatThrownBy(() -> CobaltWhatsAppGateway.pairingNumber("123")).isInstanceOf(BadRequestException.class);
