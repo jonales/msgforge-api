@@ -12,7 +12,11 @@ public record MsgforgeProperties(
         String gateway,
         @DefaultValue Cobalt cobalt) {
 
-    public record Authentication(String apiKey) {}
+    /**
+     * @param apiKey      chave global (acesso total)
+     * @param maxFailures erros de chave por IP em 15 min antes do 429 (0 desliga)
+     */
+    public record Authentication(String apiKey, @DefaultValue("30") int maxFailures) {}
 
     /**
      * Webhooks: global (opcional) + política de entrega usada por todos os webhooks.

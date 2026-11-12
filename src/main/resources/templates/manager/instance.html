@@ -12,6 +12,7 @@
     <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
 
     <h1 th:text="${instance.name}">vendas</h1>
+    <p><a class="button" th:href="@{/manager/instances/{n}/messages(n=${instance.name})}" th:text="#{manager.messages.open}">Mensagens</a></p>
     <p class="muted">
         <span th:text="#{manager.col.number}">Número</span>: <span th:text="${instance.number} ?: '—'"></span>
         · <span th:text="#{manager.col.profile}">Perfil</span>: <span th:text="${instance.profileName} ?: '—'"></span>

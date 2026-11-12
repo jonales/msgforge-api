@@ -37,10 +37,12 @@ public class ApiKeyFilter extends OncePerRequestFilter {
 
     private final MsgforgeProperties properties;
     private final InstanceRepository instances;
+    private final ApiKeyAttemptLimiter limiter;
 
-    public ApiKeyFilter(MsgforgeProperties properties, InstanceRepository instances) {
+    public ApiKeyFilter(MsgforgeProperties properties, InstanceRepository instances, ApiKeyAttemptLimiter limiter) {
         this.properties = properties;
         this.instances = instances;
+        this.limiter = limiter;
     }
 
     @Override
@@ -53,26 +55,34 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        var apiKey = request.getHeader("apikey");
-        if (apiKey == null || apiKey.isBlank()) {
+        var ip = request.getRemoteAddr();
+        if (limiter.blocked(ip)) {
+            tooManyAttempts(response, limiter.retryAfterSeconds(ip));
+            return;
+        }
+        if (!authenticate(request)) {
+            limiter.failed(ip);
             unauthorized(response);
             return;
         }
+        chain.doFilter(request, response);
+    }
+
+    /** Confere a chave e, para token de instância, marca a instância dona ({@link #SCOPED_INSTANCE}). */
+    private boolean authenticate(HttpServletRequest request) {
+        var apiKey = request.getHeader("apikey");
+        if (apiKey == null || apiKey.isBlank()) {
+            return false;
+        }
         if (constantTimeEquals(apiKey, properties.authentication().apiKey())) {
-            chain.doFilter(request, response);
-            return;
+            return true;
         }
 
         var uri = request.getRequestURI();
         if (SCOPED_ROUTES.contains(uri)) {
             var owner = instances.findByToken(apiKey);
-            if (owner.isPresent()) {
-                request.setAttribute(SCOPED_INSTANCE, owner.get().getName());
-                chain.doFilter(request, response);
-            } else {
-                unauthorized(response);
-            }
-            return;
+            owner.ifPresent(instance -> request.setAttribute(SCOPED_INSTANCE, instance.getName()));
+            return owner.isPresent();
         }
 
         // Token de instância: só vale para a instância do path (/{grupo}/{acao}/{instance})
@@ -82,10 +92,8 @@ public class ApiKeyFilter extends OncePerRequestFilter {
                 .orElse(false);
         if (allowed) {
             request.setAttribute(SCOPED_INSTANCE, instanceName);
-            chain.doFilter(request, response);
-        } else {
-            unauthorized(response);
         }
+        return allowed;
     }
 
     static boolean constantTimeEquals(String a, String b) {
@@ -98,6 +106,15 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     private static String instanceFromPath(String uri) {
         var parts = uri.split("/");
         return parts.length >= 4 ? parts[3] : null;
+    }
+
+    /** 429 no formato de erro do contrato, com Retry-After. */
+    private static void tooManyAttempts(HttpServletResponse response, long retryAfterSeconds) throws IOException {
+        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        response.setHeader("Retry-After", Long.toString(retryAfterSeconds));
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write("{\"status\":429,\"error\":\"Too Many Requests\",\"response\":{\"message\":"
+                + "[\"Too many invalid api keys from this address; try again later\"]}}");
     }
 
     private static void unauthorized(HttpServletResponse response) throws IOException {

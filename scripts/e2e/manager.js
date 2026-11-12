@@ -48,6 +48,15 @@ const { chromium } = require('playwright');
   await page.waitForTimeout(3500);   // pelo menos um ciclo do htmx no trecho "live"
   await page.screenshot({ path: shots + '/2-instancia.png', fullPage: true });
 
+  // Mensagens: envio pela API (o stub nunca conecta, e o botão da tela exige conexão), depois a tela
+  const sent = await page.request.post(base + '/message/sendText/' + name, {
+    headers: { apikey: key }, data: { number: '5561911111111', text: 'olá pelo e2e' } });
+  if (sent.status() !== 201) throw new Error('envio pela API: ' + sent.status());
+  await page.click('a.button[href$="/messages"]'); await page.waitForURL('**/manager/instances/' + name + '/messages');
+  await page.click('.chat-list .chat'); await page.waitForSelector('.bubble.mine >> text=olá pelo e2e');
+  step('mensagens: conversa aberta mostra o envio');
+  await page.screenshot({ path: shots + '/2b-mensagens.png', fullPage: true });
+
   await page.goto(base + '/manager');
   await page.waitForSelector('text=' + name);
   await page.screenshot({ path: shots + '/3-lista.png' });

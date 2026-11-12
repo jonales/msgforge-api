@@ -84,6 +84,22 @@ class HistoryIT extends IntegrationTest {
     }
 
     @Test
+    void messagesWithoutStatusAreStillRecorded() {
+        // Nem todo motor manda o status na mensagem recebida
+        events.publishEvent(new MessageReceived(name, Map.of(
+                "key", Map.of("remoteJid", ANA, "fromMe", false, "id", "SEM-STATUS"),
+                "message", Map.of("conversation", "sem status"),
+                "messageType", "conversation",
+                "messageTimestamp", 1_700_000_000L)));
+        events.publishEvent(new MessageStatusUpdated(name, Map.of(
+                "keyId", "SEM-STATUS", "remoteJid", ANA, "fromMe", false)));   // status ausente: ignorado
+
+        var record = find("""
+                {"where":{"key":{"id":"SEM-STATUS"}}}""").body().get("messages").get("records").get(0);
+        assertThat(record.get("status").asString()).isEqualTo("PENDING");
+    }
+
+    @Test
     void statusOnlyMovesForward() {
         receive(ANA, "IN-9", "lê aí", 1_700_000_000L);
         for (var status : new String[] {"READ", "DELIVERY_ACK"}) {   // o DELIVERY_ACK chega atrasado
@@ -111,6 +127,30 @@ class HistoryIT extends IntegrationTest {
         assertThat(ana.get("pushName").asString()).isEqualTo("Contato IN-1");   // da última recebida
         assertThat(ana.get("lastMessage").get("message").get("conversation").asString()).isEqualTo("tudo bem?");
         assertThat(chats.body().get(1).get("updatedAt").asString()).isEqualTo("2020-09-13T12:26:40Z");
+    }
+
+    @Autowired
+    private dev.msgforge.history.MessageHistory history;
+
+    @Test
+    void retentionDeletesOnlyMessagesOlderThanThePeriod() {
+        var now = java.time.Instant.parse("2026-11-12T12:00:00Z");
+        receive(ANA, "VELHA-1", "de 2023", 1_700_000_000L);
+        receive(ANA, "VELHA-2", "de 2020", 1_600_000_000L);
+        receive(ANA, "NOVA", "de hoje", now.minusSeconds(3600).getEpochSecond());
+        var clock = java.time.Clock.fixed(now, java.time.ZoneOffset.UTC);
+
+        var keepForever = new dev.msgforge.history.HistoryRetention(history,
+                new dev.msgforge.history.HistoryProperties(true, 0), clock);
+        assertThat(keepForever.purge()).isZero();
+
+        var oneDay = new dev.msgforge.history.HistoryRetention(history,
+                new dev.msgforge.history.HistoryProperties(true, 1), clock);
+        assertThat(oneDay.purge()).isGreaterThanOrEqualTo(2);   // outras classes de IT também têm mensagens antigas
+
+        var left = find("{}").body().get("messages");
+        assertThat(left.get("total").asLong()).isEqualTo(1);
+        assertThat(left.get("records").get(0).get("key").get("id").asString()).isEqualTo("NOVA");
     }
 
     @Test

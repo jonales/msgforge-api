@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(#{manager.messages.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container">
+    <p class="breadcrumb">
+        <a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a> ·
+        <a th:href="@{/manager/instances/{n}(n=${instanceName})}" th:text="${instanceName}">vendas</a>
+    </p>
+    <h1 th:text="#{manager.messages.title}">Mensagens</h1>
+    <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>
+
+    <div class="messages-layout">
+        <!-- Conversas: atualizam sozinhas a cada 15 s -->
+        <section class="card chats" th:fragment="chats" id="chats"
+                 th:attr="hx-get=@{/manager/instances/{n}/messages/chats(n=${instanceName})}"
+                 hx-trigger="every 15s" hx-swap="outerHTML">
+            <h2 th:text="#{manager.messages.chats}">Conversas</h2>
+            <p class="muted" th:if="${#lists.isEmpty(chats)}" th:text="#{manager.messages.empty}">Nada ainda.</p>
+            <ul class="chat-list" th:unless="${#lists.isEmpty(chats)}">
+                <li th:each="chat : ${chats}">
+                    <button type="button" class="chat"
+                            th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${chat.jid})}"
+                            hx-target="#conversation" hx-swap="outerHTML">
+                        <strong th:text="${chat.label()}">Ana</strong>
+                        <span class="muted small" th:text="${chat.time}">12/11 10:00</span>
+                        <span class="preview">
+                            <span th:if="${chat.fromMe}" th:text="#{manager.messages.you}">Você:</span>
+                            <span th:text="${chat.preview}">oi</span>
+                        </span>
+                    </button>
+                </li>
+            </ul>
+        </section>
+
+        <!-- Conversa aberta: a página mais recente se atualiza a cada 10 s -->
+        <section class="card conversation" id="conversation" th:fragment="conversation">
+            <th:block th:if="${conversation == null}">
+                <p class="muted" th:text="#{manager.messages.pick}">Escolha uma conversa.</p>
+            </th:block>
+            <th:block th:if="${conversation != null}">
+                <div th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid})},
+                              hx-trigger=(${conversation.page == 1} ? 'every 10s' : 'none')"
+                     hx-target="#conversation" hx-swap="outerHTML"></div>
+                <h2><code th:text="${conversation.jid}">5561...@s.whatsapp.net</code></h2>
+                <p th:if="${conversation.hasOlder()}">
+                    <button type="button"
+                            th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid},page=${conversation.olderPage()})}"
+                            hx-target="#conversation" hx-swap="outerHTML" th:text="#{manager.messages.older}">Mais antigas</button>
+                </p>
+                <p class="muted" th:if="${#lists.isEmpty(conversation.rows)}" th:text="#{manager.messages.noMessages}">Sem mensagens.</p>
+                <ol class="bubbles">
+                    <li th:each="m : ${conversation.rows}" th:class="${m.fromMe} ? 'bubble mine' : 'bubble'">
+                        <span class="author small" th:unless="${m.fromMe}" th:text="${m.author} ?: ''">Ana</span>
+                        <span class="text" th:text="${m.preview}">oi</span>
+                        <span class="meta small muted">
+                            <span th:text="${m.time}">12/11 10:00</span>
+                            <span th:if="${m.fromMe}" th:text="#{'manager.messages.status.' + ${m.status}}">enviada</span>
+                        </span>
+                    </li>
+                </ol>
+                <p th:if="${conversation.page > 1}">
+                    <button type="button"
+                            th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid})}"
+                            hx-target="#conversation" hx-swap="outerHTML" th:text="#{manager.messages.newest}">Mais recentes</button>
+                </p>
+            </th:block>
+        </section>
+    </div>
+</main>
+</body>
+</html>

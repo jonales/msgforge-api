@@ -30,7 +30,7 @@ ou RabbitMQ. Inclui um painel web (**Manager**) para operar tudo pelo navegador.
   - Bloqueio opcional de webhooks para a rede interna.
   - Manager com sessão, CSRF, CSP e limite de tentativas de login.
 - **Manager:** painel em `/manager`, renderizado no servidor (Thymeleaf + htmx), sem build de
-  front-end.
+  front-end: instâncias, QR ao vivo, webhook, mensagem de teste e as conversas de cada instância.
 
 ## Como rodar
 
@@ -141,6 +141,7 @@ As principais variáveis (todas em [.env.example](.env.example)):
 | Variável | Padrão | Para quê |
 |---|---|---|
 | `AUTHENTICATION_API_KEY` | `troque-esta-chave` | Chave global da API e login do Manager |
+| `AUTHENTICATION_MAX_FAILURES` | `30` | Erros de chave da API por IP em 15 min antes do 429 (0 desliga) |
 | `SERVER_URL` | `http://localhost:8080` | URL pública, enviada nos eventos |
 | `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL local | Banco (migrations Flyway automáticas) |
 | `CACHE_REDIS_HOST`, `CACHE_REDIS_PORT` | `localhost:6379` | Cache do estado das instâncias |
@@ -153,6 +154,7 @@ As principais variáveis (todas em [.env.example](.env.example)):
 | `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome exibido em "Aparelhos conectados" (Cobalt) |
 | `COBALT_PROXY` | vazio | Proxy para a conexão com o WhatsApp (Cobalt) |
 | `DATABASE_SAVE_DATA_NEW_MESSAGE` | `true` | Grava as mensagens no banco (histórico de `/chat/findMessages`) |
+| `HISTORY_RETENTION_DAYS` | `0` | Apaga do histórico as mensagens mais velhas que isso, de hora em hora (0 guarda para sempre) |
 | `COBALT_WEB_VERSION` | vazio | Versão do WhatsApp Web anunciada no login (vazio = lida do `sw.js`) |
 | `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE` | desligado | `DEBUG` registra os nós do protocolo do Cobalt (só atributos), para diagnóstico |
 | `FFMPEG_PATH` | `ffmpeg` | Binário do ffmpeg (já vem na imagem Docker); sem ele, a voz vai sem conversão |
@@ -203,6 +205,7 @@ scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do proj
 - [x] Eventos confiáveis: entrega após commit, em ordem, com retry e teto de memória
 - [x] Motor real (Cobalt): QR/pareamento, sessão no banco, envio, recebimento e status
 - [x] Manager v1: login, instâncias, QR ao vivo, webhook, mensagem de teste
+- [x] Manager: conversas e mensagens de cada instância (lidas do histórico)
 - [ ] Validar o motor Cobalt ao vivo com um número de teste
 - [x] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
 - [ ] Figurinha (sticker), botões e listas

@@ -44,6 +44,7 @@ msgforge:
   server-url: ${SERVER_URL:http://localhost:8080}
   authentication:
     api-key: ${AUTHENTICATION_API_KEY:troque-esta-chave}
+    max-failures: ${AUTHENTICATION_MAX_FAILURES:30}
   webhook:
     global-url: ${WEBHOOK_GLOBAL_URL:}
     global-enabled: ${WEBHOOK_GLOBAL_ENABLED:false}
@@ -60,6 +61,7 @@ msgforge:
   gateway: ${MSGFORGE_GATEWAY:stub}
   history:
     enabled: ${DATABASE_SAVE_DATA_NEW_MESSAGE:true}
+    retention-days: ${HISTORY_RETENTION_DAYS:0}
   media:
     ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
     transcode-timeout-ms: ${MEDIA_TRANSCODE_TIMEOUT_MS:60000}

@@ -200,4 +200,42 @@ class ManagerIT extends IntegrationTest {
                         .contentType("application/json").content("{\"instanceName\":\"" + uniqueName("api") + "\"}"))
                 .andExpect(status().isCreated());
     }
+
+    @Autowired
+    org.springframework.context.ApplicationEventPublisher events;
+
+    @Test
+    void messagesScreenShowsChatsAndTheConversation() throws Exception {
+        var name = createInstance();
+        // Envio pela tela de teste: também vai para o histórico
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/send")).with(csrf())
+                        .param("number", "5561911111111").param("text", "olá do manager"))
+                .andExpect(status().is3xxRedirection());
+        events.publishEvent(new dev.msgforge.event.GatewayEvent.MessageReceived(name, java.util.Map.of(
+                "key", java.util.Map.of("remoteJid", "5561911111111@s.whatsapp.net", "fromMe", false, "id", "IN-1"),
+                "pushName", "Ana <b>",
+                "message", java.util.Map.of("conversation", "oi, tudo bem?"),
+                "messageType", "conversation",
+                "messageTimestamp", java.time.Instant.now().getEpochSecond() + 60)));
+
+        mvc.perform(GET("/manager/instances/" + name + "/messages")).andExpect(status().is3xxRedirection());
+
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("manager/messages"))
+                .andExpect(model().attribute("chats", Matchers.hasSize(1)))
+                .andExpect(content().string(Matchers.containsString("oi, tudo bem?")))
+                .andExpect(content().string(Matchers.containsString("Ana &lt;b&gt;")));   // escapado
+
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat"))
+                        .param("jid", "5561911111111@s.whatsapp.net"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("olá do manager")))
+                .andExpect(content().string(Matchers.containsString("oi, tudo bem?")))
+                .andExpect(content().string(Matchers.not(Matchers.containsString("<html"))));   // só o fragmento
+
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chats")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("id=\"chats\"")));
+    }
 }

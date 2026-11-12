@@ -1,10 +1,8 @@
 package dev.msgforge.web;
 
+import dev.msgforge.security.FailureWindow;
 import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 /**
@@ -19,48 +17,25 @@ public class LoginAttemptLimiter {
     static final int MAX_FAILURES = 10;
     static final Duration WINDOW = Duration.ofMinutes(15);
 
-    private final ConcurrentHashMap<String, ArrayDeque<Instant>> failures = new ConcurrentHashMap<>();
-    private final Clock clock;
+    private final FailureWindow failures;
 
     public LoginAttemptLimiter() {
         this(Clock.systemUTC());
     }
 
     LoginAttemptLimiter(Clock clock) {
-        this.clock = clock;
+        this.failures = new FailureWindow(MAX_FAILURES, WINDOW, clock);
     }
 
     public boolean blocked(String ip) {
-        var recent = failures.get(key(ip));
-        if (recent == null) {
-            return false;
-        }
-        synchronized (recent) {
-            prune(recent);
-            return recent.size() >= MAX_FAILURES;
-        }
+        return failures.blocked(ip);
     }
 
     public void failed(String ip) {
-        var recent = failures.computeIfAbsent(key(ip), k -> new ArrayDeque<>());
-        synchronized (recent) {
-            prune(recent);
-            recent.addLast(clock.instant());
-        }
+        failures.failed(ip);
     }
 
     public void succeeded(String ip) {
-        failures.remove(key(ip));
-    }
-
-    private void prune(ArrayDeque<Instant> recent) {
-        var limit = clock.instant().minus(WINDOW);
-        while (!recent.isEmpty() && recent.peekFirst().isBefore(limit)) {
-            recent.pollFirst();
-        }
-    }
-
-    private static String key(String ip) {
-        return ip == null ? "?" : ip;
+        failures.succeeded(ip);
     }
 }
