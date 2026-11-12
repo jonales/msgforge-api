@@ -87,7 +87,9 @@ Grupo inexistente no stub dá 404; no Cobalt, o erro do WhatsApp vira 500.
 ## Erros
 Todos no formato `{ "status", "error", "response": { "message": [...] } }`: validação, JSON
 inválido, número inválido (400), instância ou rota inexistente (404), método não suportado (405)
-e erro inesperado (500). O 401 mantém `message` como string, igual à Evolution. Número sem
+e erro inesperado (500). O 401 mantém `message` como string, igual à Evolution. Chave errada repetida
+(`AUTHENTICATION_MAX_FAILURES` por IP em 15 min) vira 429 com `Retry-After`, mesmo com a chave
+certa, até a janela passar (sem equivalente na Evolution). Número sem
 WhatsApp (Cobalt): 400 com `message: [{"exists": false, "jid", "number"}]`, como na Evolution.
 
 ## Motor

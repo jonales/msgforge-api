@@ -82,6 +82,17 @@ public class MessageHistory {
                 """, params) == 1;
     }
 
+    /**
+     * Apaga até {@code batch} mensagens anteriores a {@code cutoff} (epoch em segundos); devolve
+     * quantas apagou. Em lotes, para não segurar um lock grande numa tabela movimentada.
+     */
+    public int deleteOlderThan(long cutoff, int batch) {
+        return jdbc.update("""
+                DELETE FROM message WHERE id IN (
+                    SELECT id FROM message WHERE message_timestamp < :cutoff LIMIT :batch)
+                """, new MapSqlParameterSource().addValue("cutoff", cutoff).addValue("batch", batch));
+    }
+
     /** Filtros opcionais (null = qualquer); mais novas primeiro. {@code page} começa em 1. */
     public List<Stored> find(UUID instanceId, String remoteJid, Boolean fromMe, String keyId, int page, int size) {
         var params = filters(instanceId, remoteJid, fromMe, keyId)

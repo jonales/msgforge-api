@@ -80,7 +80,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `history/` (ADR 0008): tabela `message` por **SQL direto** (`MessageHistory`, sem entidade JPA).
   O `HistoryRecorder` grava as recebidas (`MessageReceived`), as enviadas (no `created()` do
   `MessageController`) e os status (`MessageStatusUpdated`, que **só avançam**). Repetidas são
-  ignoradas (`ON CONFLICT`). Falha ao gravar só vai para o log.
+  ignoradas (`ON CONFLICT`). Falha ao gravar só vai para o log. `HistoryRetention` (`@Scheduled`, de
+  hora em hora) apaga em lotes o que passou de `HISTORY_RETENTION_DAYS`.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log).
@@ -99,7 +100,11 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `gateway/session/SessionStore`: blob da sessão do WhatsApp por instância (`session_store`).
   `SessionRestorer` reconecta no boot quem tem sessão; logout apaga a sessão.
 - `security/ApiKeyFilter`: a chave global libera tudo; o token da instância libera só as rotas
-  `/{grupo}/{acao}/{instancia}`.
+  `/{grupo}/{acao}/{instancia}`. Erros de chave contam por IP (`ApiKeyAttemptLimiter`, sobre a
+  mesma `FailureWindow` do login do Manager): passou de `AUTHENTICATION_MAX_FAILURES` em 15 min,
+  429 em tudo, **inclusive com a chave certa** (senão o 200 entregaria a chave). Num IT que esgota
+  o limite, use contexto próprio (`@TestPropertySource`), como o `ApiKeyLimitIT`: todos os ITs
+  chamam de 127.0.0.1.
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
   Violação de constraint vira 400 (pelo nome da constraint); exceções do Spring com status
   (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.
@@ -190,10 +195,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    `w`/`props` sem resposta. (d) O Cobalt não atende `receipt type=retry` (aparelho que não
    decifrou pede reenvio). Ainda não observados: texto recebido como `extendedTextMessage` e o
    timestamp da reação.
-6. A **API** não limita tentativas de chave errada; o Manager sim.
-7. Histórico (ADR 0008): sem retenção (a tabela `message` só cresce); o que chegou antes de a
-   instância receber eventos não aparece; a mensagem de teste do Manager não é gravada (passa
-   pelo `MessageService`, não pelo `MessageController`).
+6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece; a
+   mensagem de teste do Manager não é gravada (passa pelo `MessageService`, não pelo
+   `MessageController`). A retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 
 ## Memória entre sessões
 

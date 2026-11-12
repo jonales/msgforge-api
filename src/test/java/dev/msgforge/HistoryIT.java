@@ -113,6 +113,30 @@ class HistoryIT extends IntegrationTest {
         assertThat(chats.body().get(1).get("updatedAt").asString()).isEqualTo("2020-09-13T12:26:40Z");
     }
 
+    @Autowired
+    private dev.msgforge.history.MessageHistory history;
+
+    @Test
+    void retentionDeletesOnlyMessagesOlderThanThePeriod() {
+        var now = java.time.Instant.parse("2026-11-12T12:00:00Z");
+        receive(ANA, "VELHA-1", "de 2023", 1_700_000_000L);
+        receive(ANA, "VELHA-2", "de 2020", 1_600_000_000L);
+        receive(ANA, "NOVA", "de hoje", now.minusSeconds(3600).getEpochSecond());
+        var clock = java.time.Clock.fixed(now, java.time.ZoneOffset.UTC);
+
+        var keepForever = new dev.msgforge.history.HistoryRetention(history,
+                new dev.msgforge.history.HistoryProperties(true, 0), clock);
+        assertThat(keepForever.purge()).isZero();
+
+        var oneDay = new dev.msgforge.history.HistoryRetention(history,
+                new dev.msgforge.history.HistoryProperties(true, 1), clock);
+        assertThat(oneDay.purge()).isGreaterThanOrEqualTo(2);   // outras classes de IT também têm mensagens antigas
+
+        var left = find("{}").body().get("messages");
+        assertThat(left.get("total").asLong()).isEqualTo(1);
+        assertThat(left.get("records").get(0).get("key").get("id").asString()).isEqualTo("NOVA");
+    }
+
     @Test
     void historyIsPerInstanceAndGoesAwayWithIt() {
         receive(ANA, "IN-1", "oi", 1_700_000_000L);
