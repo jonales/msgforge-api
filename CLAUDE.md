@@ -81,7 +81,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   O `HistoryRecorder` grava as recebidas (`MessageReceived`), as enviadas (no `created()` do
   `MessageController`) e os status (`MessageStatusUpdated`, que **só avançam**). Repetidas são
   ignoradas (`ON CONFLICT`). Falha ao gravar só vai para o log. `HistoryRetention` (`@Scheduled`, de
-  hora em hora) apaga em lotes o que passou de `HISTORY_RETENTION_DAYS`.
+  hora em hora) apaga em lotes o que passou de `HISTORY_RETENTION_DAYS`. Mensagem sem `status`
+  (ou status desconhecido) entra como `PENDING`: `List.of(...).contains(null)` lança NPE.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log).
@@ -163,7 +164,9 @@ ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skil
   - [x] webhook
   - [x] mensagem de teste
   - [x] logout e exclusão
-- Próximas ideias (não planejadas): webhook global, envio de mídia, ver as últimas mensagens.
+  - [x] mensagens: conversas e conversa aberta, lidas do histórico (`/manager/instances/{n}/messages`,
+    atualiza por htmx; o envio de teste do Manager também vai para o histórico)
+- Próximas ideias (não planejadas): webhook global, envio de mídia.
 
 ## Estado atual e backlog
 
@@ -195,9 +198,8 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    `w`/`props` sem resposta. (d) O Cobalt não atende `receipt type=retry` (aparelho que não
    decifrou pede reenvio). Ainda não observados: texto recebido como `extendedTextMessage` e o
    timestamp da reação.
-6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece; a
-   mensagem de teste do Manager não é gravada (passa pelo `MessageService`, não pelo
-   `MessageController`). A retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
+6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
+   retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 
 ## Memória entre sessões
 

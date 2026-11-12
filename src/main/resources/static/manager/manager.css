@@ -89,3 +89,23 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .login-card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--border);
               border-radius: var(--radius); padding: 24px; }
 .login-card button { width: 100%; margin-top: 4px; }
+
+/* Mensagens (histórico) */
+.messages-layout { display: grid; grid-template-columns: minmax(240px, 1fr) 2fr; gap: var(--gap); align-items: start; }
+@media (max-width: 720px) { .messages-layout { grid-template-columns: 1fr; } }
+.chat-list { list-style: none; margin: 0; padding: 0; }
+.chat-list li + li { border-top: 1px solid var(--border); }
+.chat { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; width: 100%; text-align: left;
+        background: none; border: 0; padding: 10px 4px; cursor: pointer; color: inherit; }
+.chat:hover { background: var(--border); }
+.chat .preview { grid-column: 1 / -1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.bubbles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.bubble { max-width: 80%; padding: 8px 12px; border-radius: var(--radius); border: 1px solid var(--border);
+          display: flex; flex-direction: column; gap: 2px; align-self: flex-start; }
+.bubble.mine { align-self: flex-end; border-color: var(--accent); }
+.bubble .text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble .author { font-weight: 600; }
+.bubble .meta { align-self: flex-end; }
+a.button { display: inline-block; padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+           text-decoration: none; color: inherit; }
+a.button:hover { border-color: var(--accent); }

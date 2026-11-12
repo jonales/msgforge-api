@@ -65,4 +65,60 @@ public final class ManagerViews {
         }
         return instance.getNumber();
     }
+
+    // ---- Mensagens (histórico, ADR 0008)
+
+    private static final java.time.format.DateTimeFormatter TIME =
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm").withZone(java.time.ZoneId.systemDefault());
+
+    /** Uma conversa na lista: o contato, a última mensagem e quando ela chegou. */
+    public record ChatRow(String jid, String name, String preview, String time, boolean fromMe) {
+
+        /** O nome do contato; sem nome, o telefone (+55...) ou o JID (grupos e outros). */
+        public String label() {
+            if (name != null && !name.isBlank()) {
+                return name;
+            }
+            return jid.endsWith("@s.whatsapp.net") ? "+" + jid.substring(0, jid.indexOf('@')) : jid;
+        }
+    }
+
+    /** Uma mensagem da conversa aberta. {@code author}: o nome de quem mandou (nas recebidas). */
+    public record MessageRow(String id, boolean fromMe, String author, String preview, String time, String status) {}
+
+    /** Página da conversa, da mais antiga para a mais nova; {@code page} 1 é a mais recente. */
+    public record Conversation(String jid, List<MessageRow> rows, int page, long pages) {
+
+        public boolean hasOlder() {
+            return page < pages;
+        }
+
+        public int olderPage() {
+            return page + 1;
+        }
+    }
+
+    public static String time(long epochSeconds) {
+        return TIME.format(Instant.ofEpochSecond(epochSeconds));
+    }
+
+    /** Texto curto para a tela: o texto da mensagem, a legenda da mídia ou o tipo entre colchetes. */
+    public static String preview(String type, java.util.Map<String, Object> message) {
+        var content = message == null ? null : message.get(type);
+        if (content instanceof String text) {
+            return text;   // conversation
+        }
+        if (content instanceof java.util.Map<?, ?> fields) {
+            for (var key : List.of("text", "caption", "name", "displayName", "fileName")) {
+                if (fields.get(key) instanceof String value && !value.isBlank()) {
+                    return "[" + label(type) + "] " + value;
+                }
+            }
+        }
+        return "[" + label(type) + "]";
+    }
+
+    private static String label(String type) {
+        return type == null ? "?" : type.endsWith("Message") ? type.substring(0, type.length() - "Message".length()) : type;
+    }
 }

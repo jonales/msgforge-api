@@ -50,7 +50,7 @@ public class MessageHistory {
                 .addValue("pushName", pushName)
                 .addValue("type", messageType)
                 .addValue("message", json.writeValueAsString(message))
-                .addValue("status", STATUS_ORDER.contains(status) ? status : "PENDING")
+                .addValue("status", status != null && STATUS_ORDER.contains(status) ? status : "PENDING")
                 .addValue("ts", timestamp);
         return jdbc.update("""
                 INSERT INTO message (id, instance_id, key_id, remote_jid, from_me, participant, push_name,
@@ -63,7 +63,7 @@ public class MessageHistory {
 
     /** Só avança o status (ver {@link #STATUS_ORDER}); devolve false se nada mudou. */
     public boolean updateStatus(UUID instanceId, String remoteJid, String keyId, boolean fromMe, String status) {
-        var rank = STATUS_ORDER.indexOf(status);
+        var rank = status == null ? -1 : STATUS_ORDER.indexOf(status);   // List.of não aceita null
         if (rank < 0) {
             return false;
         }

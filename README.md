@@ -30,7 +30,7 @@ ou RabbitMQ. Inclui um painel web (**Manager**) para operar tudo pelo navegador.
   - Bloqueio opcional de webhooks para a rede interna.
   - Manager com sessão, CSRF, CSP e limite de tentativas de login.
 - **Manager:** painel em `/manager`, renderizado no servidor (Thymeleaf + htmx), sem build de
-  front-end.
+  front-end: instâncias, QR ao vivo, webhook, mensagem de teste e as conversas de cada instância.
 
 ## Como rodar
 
@@ -205,6 +205,7 @@ scripts/new-migration.sh "descricao"  # nova migration Flyway no padrão do proj
 - [x] Eventos confiáveis: entrega após commit, em ordem, com retry e teto de memória
 - [x] Motor real (Cobalt): QR/pareamento, sessão no banco, envio, recebimento e status
 - [x] Manager v1: login, instâncias, QR ao vivo, webhook, mensagem de teste
+- [x] Manager: conversas e mensagens de cada instância (lidas do histórico)
 - [ ] Validar o motor Cobalt ao vivo com um número de teste
 - [x] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
 - [ ] Figurinha (sticker), botões e listas

@@ -32,17 +32,24 @@ public class ManagerController {
 
     static final List<String> EVENT_NAMES = Arrays.stream(EventType.values()).map(Enum::name).toList();
 
+    static final int CONVERSATION_PAGE_SIZE = 30;
+
     private final InstanceService instances;
     private final WebhookService webhooks;
     private final MessageService messages;
     private final QrCodeCache qrCodes;
+    private final dev.msgforge.chat.ChatService chats;
+    private final dev.msgforge.history.HistoryRecorder history;
 
     public ManagerController(InstanceService instances, WebhookService webhooks, MessageService messages,
-                             QrCodeCache qrCodes) {
+                             QrCodeCache qrCodes, dev.msgforge.chat.ChatService chats,
+                             dev.msgforge.history.HistoryRecorder history) {
         this.instances = instances;
         this.webhooks = webhooks;
         this.messages = messages;
         this.qrCodes = qrCodes;
+        this.chats = chats;
+        this.history = history;
     }
 
     @GetMapping("/login")
@@ -127,9 +134,52 @@ public class ManagerController {
             return redirectTo(name);
         }
         var sent = messages.sendText(name, number, text, null, null);
+        history.recordSent(sent.instance(), sent.message(), "conversation", java.util.Map.of("conversation", text));
         flash.addFlashAttribute("success", "manager.flash.sent");
         flash.addFlashAttribute("sentId", sent.message().id());
         return redirectTo(name);
+    }
+
+    // ------------------------------------------------------------ mensagens (histórico)
+
+    @GetMapping("/instances/{name}/messages")
+    public String messages(@PathVariable String name, Model model) {
+        var instance = instances.get(name);
+        model.addAttribute("instanceName", instance.getName());
+        model.addAttribute("chats", chatRows(name));
+        return "manager/messages";
+    }
+
+    @GetMapping("/instances/{name}/messages/chats")
+    public String chatList(@PathVariable String name, Model model) {
+        model.addAttribute("instanceName", name);
+        model.addAttribute("chats", chatRows(name));
+        return "manager/messages :: chats";
+    }
+
+    @GetMapping("/instances/{name}/messages/chat")
+    public String conversation(@PathVariable String name, @RequestParam String jid,
+                               @RequestParam(defaultValue = "1") int page, Model model) {
+        var current = Math.max(page, 1);
+        var found = chats.findMessages(name, new dev.msgforge.chat.ChatDtos.KeyFilter(jid, null, null),
+                current, CONVERSATION_PAGE_SIZE);
+        var rows = new java.util.ArrayList<>(found.records().stream()
+                .map(m -> new ManagerViews.MessageRow(m.key().id(), m.key().fromMe(), m.pushName(),
+                        ManagerViews.preview(m.messageType(), m.message()), ManagerViews.time(m.messageTimestamp()),
+                        m.status()))
+                .toList());
+        java.util.Collections.reverse(rows);   // a página vem da mais nova para a mais antiga
+        model.addAttribute("instanceName", name);
+        model.addAttribute("conversation", new ManagerViews.Conversation(jid, rows, current, found.pages()));
+        return "manager/messages :: conversation";
+    }
+
+    private List<ManagerViews.ChatRow> chatRows(String name) {
+        return chats.findChats(name).stream()
+                .map(c -> new ManagerViews.ChatRow(c.remoteJid(), c.pushName(),
+                        ManagerViews.preview(c.lastMessage().messageType(), c.lastMessage().message()),
+                        ManagerViews.time(c.lastMessage().messageTimestamp()), c.lastMessage().key().fromMe()))
+                .toList();
     }
 
     @PostMapping("/instances/{name}/logout")
