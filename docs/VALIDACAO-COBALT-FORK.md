@@ -1,11 +1,13 @@
 # Validação ao vivo: motor Cobalt 0.1.0 (fork)
 
-Roteiro para validar, com celulares de verdade, a troca do Cobalt 0.0.10 pelo fork
-`jonales/Cobalt` (PR jonales/msgforge-api#12, branch `claude/elegant-faraday-6i4y7z`).
+Roteiro para validar, com celulares de verdade, o Cobalt 0.1.0 do fork `jonales/Cobalt` (commit
+fixado em `scripts/install-cobalt.sh`). Rode de novo a cada commit novo do fork.
 Não dá para rodar na nuvem: o proxy bloqueia o WhatsApp. Leva uns 30 minutos.
 
-**O que decide a migração:** o teste 3 (aviso de código de segurança) e o teste 2 (tempo de
-login). Os outros confirmam que nada regrediu.
+**O que mais importa:** o teste 3 (aviso de código de segurança, no celular **e** no WhatsApp
+Web), o 4 (recibos e mensagens de aparelho vinculado) e o 2 (tempo de login). O spike da
+[ADR 0009](decisoes/0009-spike-comparativo-motores.md), feito com o Cobalt original antes do
+fork, viu falhar justamente o aviso no Web, o recebimento de aparelho vinculado e os recibos.
 
 ## Antes de começar
 
@@ -18,9 +20,8 @@ login). Os outros confirmam que nada regrediu.
 ## 1. Subir a stack
 
 ```bash
-git clone https://github.com/jonales/msgforge-api.git   # ou: git fetch && git checkout
+git clone https://github.com/jonales/msgforge-api.git   # ou: git pull no main
 cd msgforge-api
-git checkout claude/elegant-faraday-6i4y7z
 cp .env.example .env
 ```
 
@@ -59,10 +60,12 @@ curl -X POST http://localhost:8080/message/sendText/teste \
   -d '{"number":"55DDDNUMERO_DO_B","text":"teste 1"}'
 ```
 
-Repita mais duas vezes (`teste 2`, `teste 3`). No celular **B**, abra a conversa.
+Repita mais duas vezes (`teste 2`, `teste 3`). No celular **B**, abra a conversa. Abra também
+o WhatsApp Web de **B** (web.whatsapp.com, vinculado ao celular B) na mesma conversa.
 
 Esperado: as 3 mensagens chegam e **não aparece** "Não foi possível confirmar seu código de
-segurança". Se aparecer, anote em qual mensagem (a 1ª ou todas) e guarde o log desse trecho.
+segurança", nem no celular nem no Web. Se aparecer, anote onde (celular, Web ou os dois) e em
+qual mensagem (a 1ª ou todas), e guarde o log desse trecho.
 
 **Sessão Signal (a pista da 0.0.10):** no log, cada envio aparece como
 `-> message{...} [participants{} [to{jid=...} [enc{type=pkmsg, ...}]] ...]`. Depois que **B
@@ -72,7 +75,9 @@ responder** (teste 4), envie mais um texto: o `enc` para o aparelho de B deve pa
 
 ## 4. Receber e status
 
-1. Responda do celular **B**.
+1. Responda do celular **B**. Depois responda também pelo **WhatsApp Web de B** (aparelho
+   vinculado): no log, procure se a mensagem foi decifrada ou se o Cobalt pediu reenvio
+   (`receipt type=retry`).
 2. No Manager, abra Mensagens da instância `teste`: a resposta deve aparecer, com o número do B
    (não um `...@lid`).
 3. Ainda nas Mensagens, confira o status das enviadas: deve avançar para entregue e, depois que B
@@ -110,21 +115,28 @@ Atenção: `docker compose down -v` apaga o volume `cobalt_sessions` e obriga a 
 - Guarde o log: `docker compose logs msgforge > log-validacao.txt` (com o `DEBUG` acima, o log
   traz só nomes e atributos dos nós, nunca o conteúdo das mensagens).
 - Se o log mostrar "o WhatsApp pediu a passkey do aparelho", abra o link no celular A.
-- Para testar outro commit do motor, troque `COBALT_REF` em `scripts/install-cobalt.sh` e rode
-  `docker compose up -d --build` de novo.
+- Para testar outro commit do motor, troque o padrão de `COBALT_REF` em
+  `scripts/install-cobalt.sh` e rode `docker compose up -d --build` de novo (a build do Docker
+  não repassa a variável de ambiente; fora do Docker, `COBALT_REF=<commit> scripts/install-cobalt.sh`
+  funciona).
 
-## Resultados (preencha e cole no PR #12 ou numa conversa com o Claude)
+## Resultados (preencha e cole numa issue do fork ou numa conversa com o Claude)
+
+Commit do fork testado: `________`
 
 | # | Teste | Esperado | Resultado |
 |---|---|---|---|
 | 2 | Login após o scan | bem menos de 60 s | ___ s |
-| 3 | Aviso de código de segurança no B | não aparece | |
+| 3 | Aviso de código de segurança no celular de B | não aparece | |
+| 3 | Aviso de código de segurança no WhatsApp Web de B | não aparece | |
 | 3 | 3 textos seguidos chegam | sim | |
 | 4 | Envio depois da resposta do B sai como `enc type=msg` | sim (não `pkmsg`) | |
 | 4 | Resposta do B aparece com o número (não LID) | sim | |
+| 4 | Resposta pelo Web de B (aparelho vinculado) é decifrada | sim (sem `retry`) | |
 | 4 | Status entregue / lida | avançam | |
 | 5 | Imagem com legenda chega | sim | |
 | 6 | Volta sem QR após restart | sim | |
 
-Com os testes 2 e 3 bons, a migração está validada: tire o item 5 de "Problemas conhecidos" do
-`CLAUDE.md` e marque a ADR 0007 como aceita.
+Cada linha boa tira a pendência correspondente do item 5 de "Problemas conhecidos" do
+`CLAUDE.md`. Com todas boas, marque a ADR 0007 como aceita. Cada linha ruim vira uma correção
+no fork: guarde o log do trecho.

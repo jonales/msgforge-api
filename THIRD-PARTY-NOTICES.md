@@ -6,15 +6,9 @@ trazem os próprios avisos dentro dos seus artefatos.
 
 ## Motor do WhatsApp
 
-### whatsmeow
-- Uso: biblioteca do serviço `msgforge-engine` (ADR 0008), sem modificações.
-- Copyright (c) 2021 Tulir Asokan e colaboradores.
-- Licença: Mozilla Public License 2.0 (https://mozilla.org/MPL/2.0/).
-- Código-fonte: https://github.com/tulir/whatsmeow (o commit usado está fixado no `go.mod` do
-  motor).
-
 ### Cobalt
-- Uso: motor `MSGFORGE_GATEWAY=cobalt` (ADR 0007), até a troca pelo `msgforge-engine`.
+- Uso: motor `MSGFORGE_GATEWAY=cobalt` (ADR 0007), a partir do fork
+  https://github.com/jonales/Cobalt (commit fixado em `scripts/install-cobalt.sh`).
 - Copyright (c) 2021 Alessandro Autiero.
 - Licença: MIT.
 
