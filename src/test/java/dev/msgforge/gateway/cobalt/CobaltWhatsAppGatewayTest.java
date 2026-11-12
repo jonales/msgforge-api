@@ -358,6 +358,20 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void numbersAnsweredWithoutTheNinthDigitStillExist() {
+        var withNine = "5561999998888@s.whatsapp.net";
+        var answered = "556199998888@s.whatsapp.net";   // a conta antiga, registrada sem o 9
+        var missing = "5561977776666@s.whatsapp.net";
+
+        var result = CobaltWhatsAppGateway.resolveNumbers(List.of(withNine, missing),
+                java.util.Map.of(answered, true, missing, false));
+
+        assertThat(result).containsEntry(withNine, answered);
+        assertThat(result).containsEntry(missing, null);
+        assertThat(result.keySet()).containsExactly(withNine, missing);
+    }
+
+    @Test
     void pausedPresenceEndsTyping() {
         assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.PAUSED))
                 .isEqualTo(it.auties.whatsapp.model.contact.ContactStatus.AVAILABLE);

@@ -158,7 +158,10 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
 5. **Cobalt sem teste ao vivo** (ver acima). Pontos frágeis a observar no primeiro teste: o
    `profileName` vem do `Store.name()` (pode vir o nome do aparelho; nesse caso vai nulo); texto
    recebido sai sempre como `conversation` (nunca `extendedTextMessage`); a reação manda o
-   timestamp em milissegundos num campo que o Cobalt chama de `timestampSeconds`.
+   timestamp em milissegundos num campo que o Cobalt chama de `timestampSeconds`. **Nono dígito:**
+   o `whatsappNumbers` já aceita a resposta sem o 9 (`Jids.brazilianMobileAlternative`), mas os
+   envios usam o JID como veio; se o WhatsApp responder pelo JID sem o 9, status e respostas desse
+   contato chegam com outro `remoteJid` e o histórico fica partido em duas conversas.
 6. A **API** não limita tentativas de chave errada; o Manager sim.
 7. Histórico (ADR 0008): sem retenção (a tabela `message` só cresce); o que chegou antes de a
    instância receber eventos não aparece; a mensagem de teste do Manager não é gravada (passa

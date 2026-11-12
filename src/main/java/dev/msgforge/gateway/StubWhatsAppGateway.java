@@ -71,9 +71,9 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
 
     /** No stub, todo número bem formado "tem WhatsApp". */
     @Override
-    public java.util.Map<String, Boolean> checkNumbers(Instance instance, java.util.List<String> jids) {
-        var result = new java.util.LinkedHashMap<String, Boolean>();
-        jids.forEach(jid -> result.put(jid, true));
+    public java.util.Map<String, String> checkNumbers(Instance instance, java.util.List<String> jids) {
+        var result = new java.util.LinkedHashMap<String, String>();
+        jids.forEach(jid -> result.put(jid, jid));
         return result;
     }
 

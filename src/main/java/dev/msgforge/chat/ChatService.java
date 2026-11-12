@@ -9,7 +9,6 @@ import dev.msgforge.gateway.WhatsAppGateway.Profile;
 import dev.msgforge.gateway.WhatsAppGateway.ProfileUpdate;
 import dev.msgforge.instance.InstanceService;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Service;
@@ -53,18 +52,21 @@ public class ChatService {
                 .toList();
     }
 
-    /** Números com formato inválido voltam como inexistentes, sem consultar o WhatsApp. */
+    /**
+     * Uma resposta por número pedido, na ordem (repetidos também). Formato inválido volta como
+     * inexistente, sem consultar o WhatsApp. {@code jid}: o que o WhatsApp conhece, se existir.
+     */
     public List<ChatDtos.NumberStatus> whatsappNumbers(String instanceName, List<String> numbers) {
         var instance = instances.get(instanceName);
-        var jids = new LinkedHashMap<String, String>();   // número -> JID (null se inválido)
-        for (var number : numbers) {
-            jids.put(number, phoneJid(number));
-        }
-        var query = jids.values().stream().filter(jid -> jid != null).distinct().toList();
-        var exists = query.isEmpty() ? java.util.Map.<String, Boolean>of() : gateway.checkNumbers(instance, query);
+        var jids = numbers.stream().map(ChatService::phoneJid).toList();   // null se inválido
+        var query = jids.stream().filter(jid -> jid != null).distinct().toList();
+        var known = query.isEmpty() ? java.util.Map.<String, String>of() : gateway.checkNumbers(instance, query);
         var result = new ArrayList<ChatDtos.NumberStatus>();
-        jids.forEach((number, jid) -> result.add(
-                new ChatDtos.NumberStatus(jid != null && Boolean.TRUE.equals(exists.get(jid)), jid, number)));
+        for (var i = 0; i < numbers.size(); i++) {
+            var jid = jids.get(i);
+            var real = jid == null ? null : known.get(jid);
+            result.add(new ChatDtos.NumberStatus(real != null, real != null ? real : jid, numbers.get(i)));
+        }
         return result;
     }
 

@@ -52,7 +52,7 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 ## Chat e Profile
 | Método | Rota | Status |
 |---|---|---|
-| POST | `/chat/whatsappNumbers/{instance}` | ✅ `[{exists, jid, number}]` na ordem pedida; número sem formato de telefone (ou grupo) volta `exists:false, jid:null` sem consultar o WhatsApp; até 100 por chamada |
+| POST | `/chat/whatsappNumbers/{instance}` | ✅ `[{exists, jid, number}]`, um por número pedido (repetidos também), na ordem; `jid` é o que o WhatsApp conhece (celular brasileiro pode vir sem o nono dígito); número sem formato de telefone (ou grupo) volta `exists:false, jid:null` sem consultar o WhatsApp; até 100 por chamada |
 | POST | `/chat/markMessageAsRead/{instance}` | 🟡 Cobalt: mensagem conhecida na sessão é lida uma a uma; desconhecida marca a conversa inteira; `fromMe:true` é ignorada |
 | POST | `/chat/sendPresence/{instance}` | 🟡 `{number, presence, delay}` → 201 `{presence}`; `composing`/`recording` com `delay` voltam ao normal depois (teto 20 s); `paused` = `available` no Cobalt |
 | POST | `/chat/fetchProfilePictureUrl/{instance}` | ✅ `{wuid, profilePictureUrl}` (null se não houver ou a privacidade esconder) |

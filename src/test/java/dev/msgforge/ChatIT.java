@@ -33,11 +33,13 @@ class ChatIT extends IntegrationTest {
     @Test
     void whatsappNumbersKeepsOrderAndMarksInvalidOnesAsMissing() {
         var response = chat("whatsappNumbers", """
-                {"numbers":["+55 (61) 99999-9999","abc","120363000000000000@g.us"]}""");
+                {"numbers":["+55 (61) 99999-9999","abc","120363000000000000@g.us","5561999999999"]}""");
 
         assertThat(response.status()).isEqualTo(200);
         var list = response.body();
-        assertThat(list.size()).isEqualTo(3);
+        assertThat(list.size()).isEqualTo(4);   // o repetido (mesmo JID) também tem resposta
+        assertThat(list.get(3).get("number").asString()).isEqualTo("5561999999999");
+        assertThat(list.get(3).get("exists").asBoolean()).isTrue();
         assertThat(list.get(0).get("exists").asBoolean()).isTrue();
         assertThat(list.get(0).get("jid").asString()).isEqualTo("5561999999999@s.whatsapp.net");
         assertThat(list.get(0).get("number").asString()).isEqualTo("+55 (61) 99999-9999");

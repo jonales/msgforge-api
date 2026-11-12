@@ -21,8 +21,11 @@ public interface WhatsAppGateway {
     /** Demais tipos de mensagem (áudio de voz, localização, contatos, reação, enquete). */
     SentMessage send(Instance instance, Outgoing message);
 
-    /** Quais JIDs têm WhatsApp. Mantém a ordem da consulta. */
-    java.util.Map<String, Boolean> checkNumbers(Instance instance, java.util.List<String> jids);
+    /**
+     * Quais JIDs têm WhatsApp. Para cada JID consultado, o JID que o WhatsApp conhece (pode
+     * diferir no nono dígito de celulares brasileiros) ou null se não tem WhatsApp.
+     */
+    java.util.Map<String, String> checkNumbers(Instance instance, java.util.List<String> jids);
 
     /** Marca mensagens recebidas como lidas (tique azul). */
     void markRead(Instance instance, java.util.List<MessageKey> keys);

@@ -3,6 +3,7 @@ package dev.msgforge.gateway.cobalt;
 import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.GatewayEvent;
+import dev.msgforge.gateway.Jids;
 import dev.msgforge.gateway.WhatsAppGateway;
 import dev.msgforge.gateway.media.AudioTranscoder;
 import dev.msgforge.gateway.media.MediaSignatures;
@@ -443,14 +444,32 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     }
 
     @Override
-    public Map<String, Boolean> checkNumbers(Instance instance, List<String> jids) {
+    public Map<String, String> checkNumbers(Instance instance, List<String> jids) {
         var connection = requireConnected(instance);
         var query = jids.stream().map(Jid::of).toArray(Jid[]::new);
         var found = await(connection.api.hasWhatsapp(query), "consulta de números");
         var exists = new HashMap<String, Boolean>();
         found.forEach((jid, has) -> exists.put(jid.toSimpleJid().toString(), has));
-        var result = new LinkedHashMap<String, Boolean>();
-        jids.forEach(jid -> result.put(jid, Boolean.TRUE.equals(exists.get(jid))));
+        return resolveNumbers(jids, exists);
+    }
+
+    /**
+     * O Cobalt chaveia a resposta pelo JID que o WhatsApp devolve, que pode ser o celular
+     * brasileiro sem (ou com) o nono dígito. Sem o JID consultado na resposta, vale a forma
+     * alternativa.
+     */
+    static Map<String, String> resolveNumbers(List<String> queried, Map<String, Boolean> found) {
+        var result = new LinkedHashMap<String, String>();
+        for (var jid : queried) {
+            String known = null;
+            if (Boolean.TRUE.equals(found.get(jid))) {
+                known = jid;
+            } else {
+                known = Jids.brazilianMobileAlternative(jid).filter(alt -> Boolean.TRUE.equals(found.get(alt)))
+                        .orElse(null);
+            }
+            result.put(jid, known);
+        }
         return result;
     }
 

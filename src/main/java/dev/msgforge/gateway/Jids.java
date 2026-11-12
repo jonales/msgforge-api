@@ -48,6 +48,28 @@ public final class Jids {
         return digits + "@s.whatsapp.net";
     }
 
+    /**
+     * Celular brasileiro na outra forma: com nono dígito (55 + DDD + 9 + 8 dígitos) vira sem,
+     * e vice-versa. O WhatsApp registrou parte das contas antigas sem o 9.
+     */
+    public static java.util.Optional<String> brazilianMobileAlternative(String jid) {
+        if (jid == null || !jid.endsWith("@s.whatsapp.net")) {
+            return java.util.Optional.empty();
+        }
+        var user = jid.substring(0, jid.indexOf('@'));
+        if (!user.startsWith("55") || !user.chars().allMatch(Character::isDigit)) {
+            return java.util.Optional.empty();
+        }
+        if (user.length() == 13 && user.charAt(4) == '9') {
+            return java.util.Optional.of(user.substring(0, 4) + user.substring(5) + "@s.whatsapp.net");
+        }
+        // Sem o 9: só celulares (o número local começa com 6 a 9; fixos começam com 2 a 5)
+        if (user.length() == 12 && user.charAt(4) >= '6') {
+            return java.util.Optional.of(user.substring(0, 4) + "9" + user.substring(4) + "@s.whatsapp.net");
+        }
+        return java.util.Optional.empty();
+    }
+
     private static BadRequestException invalid(String number) {
         return new BadRequestException("Invalid number: \"" + number + "\"");
     }
