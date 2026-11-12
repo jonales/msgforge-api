@@ -58,5 +58,7 @@ public record MsgforgeProperties(
             @DefaultValue("10000") long qrWaitMs,
             @DefaultValue("30000") long sendTimeoutMs,
             @DefaultValue("67108864") long mediaMaxBytes,
-            String proxy) {}
+            String proxy,
+            /** Versão do WhatsApp Web fixa (ex.: 2.3000.1054172749); vazio = busca no sw.js. */
+            String webVersion) {}
 }

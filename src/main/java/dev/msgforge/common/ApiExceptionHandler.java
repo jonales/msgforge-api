@@ -32,6 +32,12 @@ public class ApiExceptionHandler {
         return error(HttpStatus.NOT_FOUND, List.of(ex.getMessage()));
     }
 
+    /** Como no contrato de origem: message traz {exists, jid, number}, não um texto. */
+    @ExceptionHandler(NumberNotOnWhatsAppException.class)
+    ResponseEntity<Map<String, Object>> notOnWhatsApp(NumberNotOnWhatsAppException ex) {
+        return error(HttpStatus.BAD_REQUEST, List.of(Map.of("exists", false, "jid", ex.jid, "number", ex.number)));
+    }
+
     @ExceptionHandler(BadRequestException.class)
     ResponseEntity<Map<String, Object>> badRequest(BadRequestException ex) {
         return error(HttpStatus.BAD_REQUEST, List.of(ex.getMessage()));
@@ -124,11 +130,11 @@ public class ApiExceptionHandler {
         return known != null ? known.getReasonPhrase() : "Error";
     }
 
-    private static ResponseEntity<Map<String, Object>> error(HttpStatus status, List<String> messages) {
+    private static ResponseEntity<Map<String, Object>> error(HttpStatus status, List<?> messages) {
         return error(status.value(), status.getReasonPhrase(), messages);
     }
 
-    private static ResponseEntity<Map<String, Object>> error(int status, String reason, List<String> messages) {
+    private static ResponseEntity<Map<String, Object>> error(int status, String reason, List<?> messages) {
         return ResponseEntity.status(status).body(Map.of(
                 "status", status,
                 "error", reason,
@@ -141,5 +147,17 @@ public class ApiExceptionHandler {
 
     public static class BadRequestException extends RuntimeException {
         public BadRequestException(String message) { super(message); }
+    }
+
+    /** O número de destino não tem WhatsApp. */
+    public static class NumberNotOnWhatsAppException extends BadRequestException {
+        final String jid;
+        final String number;
+
+        public NumberNotOnWhatsAppException(String jid, String number) {
+            super(number + " is not on WhatsApp");
+            this.jid = jid;
+            this.number = number;
+        }
     }
 }

@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 
 /**
  * Converte mensagens do Cobalt para o JSON do contrato (formato Baileys) entregue em
@@ -38,14 +39,22 @@ final class CobaltMessageMapper {
 
     private CobaltMessageMapper() {}
 
+    /** Como os JIDs saem no JSON: o padrão é o texto do Cobalt; ao vivo, o {@link LidResolver}. */
+    static final Function<Jid, String> PLAIN =
+            jid -> jid.hasServer(JidServer.whatsapp()) ? jid.toSimpleJid().toString() : jid.toString();
+
     static Optional<Map<String, Object>> upsert(ChatMessageInfo info, UUID instanceId) {
+        return upsert(info, instanceId, PLAIN);
+    }
+
+    static Optional<Map<String, Object>> upsert(ChatMessageInfo info, UUID instanceId, Function<Jid, String> names) {
         var container = info.message().unbox();
         if (IGNORED.contains(container.type())) {
             return Optional.empty();
         }
-        var content = content(container.content(), container.type());
+        var content = content(container.content(), container.type(), names);
         var data = new LinkedHashMap<String, Object>();
-        data.put("key", key(info.key(), info.senderJid()));
+        data.put("key", key(info.key(), info.senderJid(), names));
         info.pushName().ifPresent(name -> data.put("pushName", name));
         data.put("status", status(info.status()));
         data.put("message", Map.of(content.type(), content.value()));
@@ -58,10 +67,15 @@ final class CobaltMessageMapper {
 
     /** messages.update do contrato: identifica a mensagem pela key e traz o novo status. */
     static Optional<Map<String, Object>> statusUpdate(MessageInfo<?> info, UUID instanceId) {
+        return statusUpdate(info, instanceId, PLAIN);
+    }
+
+    static Optional<Map<String, Object>> statusUpdate(MessageInfo<?> info, UUID instanceId,
+                                                      Function<Jid, String> names) {
         if (!(info instanceof ChatMessageInfo chat)) {
             return Optional.empty();
         }
-        var key = key(chat.key(), chat.senderJid());
+        var key = key(chat.key(), chat.senderJid(), names);
         var data = new LinkedHashMap<String, Object>();
         data.put("messageId", chat.id());
         data.put("keyId", chat.id());
@@ -90,13 +104,14 @@ final class CobaltMessageMapper {
         };
     }
 
-    private static Map<String, Object> key(ChatMessageKey key, Jid sender) {
+    private static Map<String, Object> key(ChatMessageKey key, Jid sender, Function<Jid, String> names) {
         var map = new LinkedHashMap<String, Object>();
-        map.put("remoteJid", key.chatJid().toString());
+        map.put("remoteJid", names.apply(key.chatJid()));
         map.put("fromMe", key.fromMe());
         map.put("id", key.id());
         if (key.chatJid().hasServer(JidServer.groupOrCommunity()) && sender != null) {
-            map.put("participant", sender.toSimpleJid().toString());
+            // Sem toSimpleJid() aqui: ele descarta o agente, e o resolver não reconheceria o LID
+            map.put("participant", names.apply(sender));
         }
         return map;
     }
@@ -104,7 +119,7 @@ final class CobaltMessageMapper {
     /** {@code value}: um objeto com os campos, ou uma string no caso de "conversation" (como no Baileys). */
     private record Content(String type, Object value) {}
 
-    private static Content content(Message message, Message.Type type) {
+    private static Content content(Message message, Message.Type type, Function<Jid, String> names) {
         var fields = new LinkedHashMap<String, Object>();
         return switch (message) {
             // Texto simples sai como "conversation", que é o campo que os clientes leem primeiro
@@ -151,7 +166,7 @@ final class CobaltMessageMapper {
             }
             case ReactionMessage reaction -> {
                 fields.put("text", reaction.content());
-                fields.put("key", key(reaction.key(), reaction.key().senderJid().orElse(null)));
+                fields.put("key", key(reaction.key(), reaction.key().senderJid().orElse(null), names));
                 yield new Content("reactionMessage", fields);
             }
             case ContactMessage contact -> {

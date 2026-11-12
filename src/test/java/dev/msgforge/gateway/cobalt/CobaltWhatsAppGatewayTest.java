@@ -37,6 +37,9 @@ class CobaltWhatsAppGatewayTest {
     private final InMemorySessionStore sessions = new InMemorySessionStore();
     private HttpServer server;
 
+    /** Versão fixa: sem ela, o gateway buscaria a versão no sw.js (pelo proxy). */
+    private static final String TEST_WEB_VERSION = "2.3000.1";
+
     private static String deadProxy() {
         try (var socket = new ServerSocket(0)) {
             return "http://127.0.0.1:" + socket.getLocalPort();   // fechada ao sair do try
@@ -50,7 +53,7 @@ class CobaltWhatsAppGatewayTest {
                 new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10,
                         blockPrivateNetworks),
                 null, "cobalt",
-                new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy()));
+                new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), TEST_WEB_VERSION));
         return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties);
     }
 
@@ -120,7 +123,7 @@ class CobaltWhatsAppGatewayTest {
                     new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false),
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
-                            "http://127.0.0.1:" + proxy.getLocalPort()));
+                            "http://127.0.0.1:" + proxy.getLocalPort(), TEST_WEB_VERSION));
             var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties);
             var instance = instance("corrida");
             try {
