@@ -37,6 +37,9 @@ class CobaltWhatsAppGatewayTest {
     private final InMemorySessionStore sessions = new InMemorySessionStore();
     private HttpServer server;
 
+    /** Versão fixa: sem ela, o gateway buscaria a versão no sw.js (pelo proxy). */
+    private static final String TEST_WEB_VERSION = "2.3000.1";
+
     private static String deadProxy() {
         try (var socket = new ServerSocket(0)) {
             return "http://127.0.0.1:" + socket.getLocalPort();   // fechada ao sair do try
@@ -50,7 +53,7 @@ class CobaltWhatsAppGatewayTest {
                 new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10,
                         blockPrivateNetworks),
                 null, "cobalt",
-                new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy()));
+                new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), TEST_WEB_VERSION));
         return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties);
     }
 
@@ -120,7 +123,7 @@ class CobaltWhatsAppGatewayTest {
                     new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false),
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
-                            "http://127.0.0.1:" + proxy.getLocalPort()));
+                            "http://127.0.0.1:" + proxy.getLocalPort(), TEST_WEB_VERSION));
             var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties);
             var instance = instance("corrida");
             try {
@@ -321,7 +324,7 @@ class CobaltWhatsAppGatewayTest {
                 .communityGroups(new java.util.LinkedHashSet<>())
                 .build();
 
-        var group = CobaltWhatsAppGateway.groupInfo(metadata);
+        var group = CobaltWhatsAppGateway.groupInfo(metadata, new LidResolver());
 
         assertThat(group.id()).isEqualTo("120363000000000001@g.us");
         assertThat(group.subject()).isEqualTo("Família");
@@ -334,6 +337,31 @@ class CobaltWhatsAppGatewayTest {
         assertThat(group.participants()).extracting(p -> p.id() + "=" + p.admin()).containsExactly(
                 "5561911111111@s.whatsapp.net=superadmin", "5561922222222@s.whatsapp.net=admin",
                 "5561933333333@s.whatsapp.net=null");
+    }
+
+    @Test
+    void groupParticipantsByLidNeverBecomeFakePhones() {
+        var known = it.auties.whatsapp.model.jid.Jid.of("111111111111111_1:16@s.whatsapp.net");
+        var unknown = it.auties.whatsapp.model.jid.Jid.of("222222222222222_1:16@s.whatsapp.net");
+        var participants = new java.util.LinkedHashSet<it.auties.whatsapp.model.chat.ChatParticipant>();
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(known, it.auties.whatsapp.model.chat.ChatRole.FOUNDER));
+        participants.add(it.auties.whatsapp.model.chat.ChatParticipant.ofGroup(unknown, it.auties.whatsapp.model.chat.ChatRole.USER));
+        var metadata = new it.auties.whatsapp.model.chat.ChatMetadataBuilder()
+                .jid(it.auties.whatsapp.model.jid.Jid.of("120363000000000001@g.us"))
+                .subject("G").founderJid(known)
+                .settings(java.util.Map.of())
+                .participants(participants)
+                .pastParticipants(new java.util.LinkedHashSet<>())
+                .communityGroups(new java.util.LinkedHashSet<>())
+                .build();
+        var lids = new LidResolver();
+        lids.learn(known, it.auties.whatsapp.model.jid.Jid.of("5561911111111@s.whatsapp.net"));
+
+        var group = CobaltWhatsAppGateway.groupInfo(metadata, lids);
+
+        assertThat(group.owner()).isEqualTo("5561911111111@s.whatsapp.net");
+        assertThat(group.participants()).extracting(p -> p.id())
+                .containsExactly("5561911111111@s.whatsapp.net", "222222222222222@lid");
     }
 
     @Test

@@ -7,6 +7,7 @@ import it.auties.whatsapp.controller.ControllerSerializer;
 import it.auties.whatsapp.controller.KeysSpec;
 import it.auties.whatsapp.controller.StoreKeysPair;
 import it.auties.whatsapp.controller.StoreSpec;
+import it.auties.whatsapp.model.jid.Jid;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -38,6 +39,25 @@ class DatabaseSessionSerializerTest {
                 .isEqualTo(KeysSpec.encode(session.keys()));
         assertThat(StoreSpec.encode(serializer.deserializeStore(ClientType.WEB, id).orElseThrow()))
                 .isEqualTo(StoreSpec.encode(session.store()));
+    }
+
+    @Test
+    void readsBackSessionWithJidsAfterLogin() {
+        // Depois do login, o Store tem JIDs no meio do protobuf. O decode por byte[] do Cobalt
+        // 0.0.10 quebra neles (offset absoluto misturado com tamanho relativo).
+        var id = UUID.randomUUID();
+        var session = newSession(id);
+        session.store().setName("Teste")
+                .setJid(Jid.of("556182243991:16@s.whatsapp.net"))
+                .setLid(Jid.of("123456789012345:16@lid"));
+        serializer.serializeKeys(session.keys(), false).join();
+        serializer.serializeStore(session.store(), false).join();
+
+        var store = serializer.deserializeStore(ClientType.WEB, id).orElseThrow();
+
+        assertThat(store.jid()).hasValue(Jid.of("556182243991:16@s.whatsapp.net"));
+        assertThat(store.lid()).hasValue(Jid.of("123456789012345:16@lid"));
+        assertThat(serializer.deserializeKeys(ClientType.WEB, id)).isPresent();
     }
 
     @Test

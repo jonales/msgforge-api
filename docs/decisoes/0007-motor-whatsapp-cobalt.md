@@ -87,3 +87,31 @@ Pacote `dev.msgforge.gateway.cobalt`:
   uma coluna nova (seguindo `docs/MIGRATIONS.md`).
 - Testes do gateway: unitários com o mapeamento a partir de objetos do Cobalt construídos
   offline. O fluxo real só no teste manual ao vivo. O CI não alcança o WhatsApp, e não deve.
+
+## Teste ao vivo (2026-11-12)
+Duas instâncias locais (Docker, `MSGFORGE_GATEWAY=cobalt`) com dois números de teste, conversando
+entre si. Critérios do roteiro:
+
+| # | Critério | Resultado |
+|---|---|---|
+| 1 | Login por QR | ✅ (`wuid` e `profileName` no `connection.update`) |
+| 2 | Envio de texto | ✅ (chega no celular; `send.message` publicado) |
+| 3 | Recebimento | ✅ em tempo real, depois das correções abaixo |
+| 4 | Status de entrega/leitura | ❌ os recibos chegam, mas não viram `messages.update` (LID) |
+| 5 | Sessão persistida | ✅ reconecta sem QR no boot |
+
+O teste achou quatro defeitos que os testes offline não alcançavam, todos corrigidos em
+`gateway/cobalt/`: o `isConnected()` do Cobalt é true antes do scan; o `send.message` não era
+publicado; o decode da sessão por `byte[]` quebra em JIDs (bug do Cobalt); e a fila offline
+travava (o Cobalt não pede `offline_batch` nem manda ack do que não decodifica), o que impedia
+receber. Pendente para "aceita": traduzir LID → número (remetente e status). Detalhes no
+CLAUDE.md, "Problemas conhecidos".
+
+### Segunda rodada (2026-11-12, noite)
+O critério 4 passou: os `messages.update` (SERVER_ACK, DELIVERY_ACK, READ) saem a partir dos nós
+do protocolo, e o `remoteJid` vem com o número (tradução de LID). A rodada achou mais três
+defeitos do Cobalt, contornados em `gateway/cobalt/`: a versão do WhatsApp Web que ele busca sumiu
+da página (login recusado com 405); o cache "tem WhatsApp?" descartava envios em silêncio a partir
+do segundo; e envios que falham concluem com status ERROR, sem exceção. Ainda aberto, e decisivo
+para "aceita": o aviso "Não foi possível confirmar seu código de segurança" no app do
+destinatário (CLAUDE.md, problemas conhecidos, item 5).

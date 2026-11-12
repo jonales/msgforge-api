@@ -19,7 +19,16 @@ Sem acesso ao WhatsApp, `connect()` falha em menos de 1 s com `IOException`, sem
 
 ## 2. Teste ao vivo pela própria API (recomendado, depois do gateway)
 
-Com o `CobaltWhatsAppGateway` pronto, dá para testar direto na aplicação, sem o `LiveProbe`:
+Com o `CobaltWhatsAppGateway` pronto, dá para testar direto na aplicação, sem o `LiveProbe`.
+O resultado do primeiro teste (2026-11-12) está no [ADR 0007](../../decisoes/0007-motor-whatsapp-cobalt.md).
+
+Dicas que o primeiro teste ensinou:
+- Com duas instâncias (dois números) dá para validar envio e recebimento sem um terceiro aparelho.
+- Aponte o webhook das instâncias para um receptor local HTTP/1.1 que aceite corpo chunked
+  (com a app no Docker: `http://host.docker.internal:<porta>/...`).
+- O login leva ~60 s (novo ou restaurado). Antes disso, envio responde "not connected".
+- `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG` mostra os nós do protocolo (só atributos).
+- No DF (e em outros DDDs antigos) o JID não tem o 9: confira o `wuid` no `connection.update`.
 
 ```bash
 MSGFORGE_GATEWAY=cobalt mvn spring-boot:run          # Postgres + Redis locais

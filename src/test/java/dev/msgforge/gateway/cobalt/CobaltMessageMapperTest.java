@@ -63,6 +63,22 @@ class CobaltMessageMapperTest {
     }
 
     @Test
+    void lidJidsAreTranslatedToThePhoneNumber() {
+        var lids = new LidResolver();
+        lids.learn(Jid.of("111111111111111@lid"), Jid.of("5561999999999@s.whatsapp.net"));
+        lids.learn(Jid.of("222222222222222@lid"), Jid.of("5561988887777@s.whatsapp.net"));
+
+        var direct = CobaltMessageMapper.upsert(message("111111111111111_1:16@s.whatsapp.net",
+                "111111111111111_1:16@s.whatsapp.net", false, MessageContainer.of("oi")), INSTANCE, lids).orElseThrow();
+        var group = CobaltMessageMapper.upsert(message("120363000000000000@g.us",
+                "222222222222222_1:29@s.whatsapp.net", false, MessageContainer.of("oi grupo")), INSTANCE, lids).orElseThrow();
+
+        assertThat(map(direct.get("key"))).containsEntry("remoteJid", "5561999999999@s.whatsapp.net");
+        assertThat(map(group.get("key"))).containsEntry("remoteJid", "120363000000000000@g.us")
+                .containsEntry("participant", "5561988887777@s.whatsapp.net");
+    }
+
+    @Test
     void mediaMessagesExposeCaptionMimetypeAndFileName() {
         var image = new ImageMessageSimpleBuilder().media(new byte[] {1, 2, 3}).caption("foto").mimeType("image/png").build();
         var data = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, true,

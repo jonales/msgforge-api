@@ -43,6 +43,26 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   - `connect`/`logout` são serializados por instância (lock): nunca dois clientes do WhatsApp para
     a mesma sessão. Um `connect` com QR já pendente **reaproveita** a conexão e devolve o QR atual;
     pedir pairing code recomeça.
+  - Armadilhas do Cobalt 0.0.10 achadas no teste ao vivo (não regrida):
+    - `api.isConnected()` vira true logo após o handshake, antes do scan. "Logada" é o
+      `Connection.loggedIn`.
+    - `KeysSpec`/`StoreSpec.decode(byte[])` quebram em qualquer JID no meio do protobuf. Decodifique
+      por `ProtobufInputStream.fromStream` (`DatabaseSessionSerializer`).
+    - O Cobalt não pede a fila offline (`ib/offline_batch`) e não manda ack de mensagens que não
+      decodifica: a instância envia, mas não recebe. Quem cobre é o `OfflineQueueGuard`. O `ib`
+      sai **sem id**, por `RawNodes` (o `sendNode` público acrescenta um id e o servidor ignora).
+    - A versão do WhatsApp Web que o Cobalt busca sumiu da página; com a versão fixa antiga, o
+      login falha com `failure 405`. `WebVersion` lê a revisão do `sw.js` (ou `COBALT_WEB_VERSION`).
+    - O WhatsApp endereça por LID e o Cobalt não traduz: `LidResolver` aprende o número com o
+      `sender_pn`/`participant_pn` dos nós, e `SentStatusTracker` gera os `messages.update` a
+      partir dos `ack`/`receipt` (o listener de status do Cobalt não dispara com LID). Não use
+      `toSimpleJid()` num LID: ele descarta o agente e o LID vira um "telefone" falso.
+    - O cache "tem WhatsApp?" do Cobalt (estático) envenena e descarta envios em silêncio, e um
+      envio que falha conclui com status `ERROR`, sem exceção. Todo envio passa por `resolve`
+      (consulta o número e usa o JID devolvido: no Brasil, o número com o 9 resolve sem ele; sem
+      JID, 400 `{exists: false}`) e por `deliver` (que confere o `ERROR`).
+  - Diagnóstico do protocolo: `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG` registra os
+    nós enviados e recebidos (só nomes e atributos, nunca o conteúdo).
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
@@ -50,7 +70,10 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `/chat/*` (`ChatService`) usa `checkNumbers`, `markRead`, `sendPresence`, `fetchProfile`,
   `profilePictureUrl` e `updateProfile` (`ProfileUpdate` selado). Foto e recado escondidos pela
   privacidade viram null, não erro. `markRead` de mensagem fora do Store do Cobalt marca a conversa
-  inteira.
+  inteira. No Cobalt, números passam por `resolve`/`resolveMany` (limpa o `UsersCache` e usa o JID
+  devolvido); grupos traduzem LID pelo `LidResolver` da conexão, e `updateParticipants` devolve os
+  JIDs **pedidos** (o WhatsApp responde pelo resolvido). Ainda não testados ao vivo: `markRead` em
+  conversa endereçada por LID e o mapeamento de grupos com LID.
 - `/group/*` (`GroupService` valida `groupJid` e participantes; o gateway recebe JIDs prontos).
   O stub guarda os grupos **em memória** por instância, para o `GroupIT` exercitar o fluxo
   inteiro. No Cobalt, `fetchAllGroups` parte dos chats do Store (não há consulta "todos os grupos").
@@ -140,10 +163,12 @@ ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skil
 ## Estado atual e backlog
 
 O roadmap está no `README.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
-`CobaltWhatsAppGateway` está implementado e testado **offline** (ADR 0007 ainda *proposta*).
-**Nunca foi validado ao vivo**, porque o proxy da nuvem bloqueia `web.whatsapp.com`. O roteiro
-para validar com um número de teste está em `docs/spikes/cobalt/README.md`. Se o protocolo da
-0.0.10 não funcionar, a alternativa preferida é um sidecar com Baileys (só troca `gateway/`).
+`CobaltWhatsAppGateway` foi **validado ao vivo** em 2026-11-12, com duas instâncias locais
+(Docker) conversando entre si: login por QR, envio, recebimento em tempo real e sessão restaurada
+no boot funcionam. A ADR 0007 continua *proposta* até os status (`messages.update`) funcionarem
+(item 5). O roteiro está em `docs/spikes/cobalt/README.md`. Na nuvem não dá para testar ao vivo
+(o proxy bloqueia `web.whatsapp.com`). Se o Cobalt travar de vez, a alternativa preferida é um
+sidecar com Baileys (só troca `gateway/`).
 
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
@@ -155,13 +180,16 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt sem teste ao vivo** (ver acima). Pontos frágeis a observar no primeiro teste: o
-   `profileName` vem do `Store.name()` (pode vir o nome do aparelho; nesse caso vai nulo); texto
-   recebido sai sempre como `conversation` (nunca `extendedTextMessage`); a reação manda o
-   timestamp em milissegundos num campo que o Cobalt chama de `timestampSeconds`. **Nono dígito:**
-   o `whatsappNumbers` já aceita a resposta sem o 9 (`Jids.brazilianMobileAlternative`), mas os
-   envios usam o JID como veio; se o WhatsApp responder pelo JID sem o 9, status e respostas desse
-   contato chegam com outro `remoteJid` e o histórico fica partido em duas conversas.
+5. **Cobalt ao vivo, pendências.** (a) O app oficial do destinatário mostra "Não foi possível
+   confirmar seu código de segurança" em mensagens vindas do Cobalt. Evidências: a chave de
+   identidade é estável entre restarts; **toda** mensagem do Cobalt sai como `pkmsg` (a sessão
+   Signal nunca se estabiliza); a cada login o Cobalt reenvia as chaves (`iq encrypt`). Suspeitas:
+   sessões que não se fixam, ou a verificação automática de chaves do WhatsApp não aceita o
+   aparelho. (b) O `pushName` enviado é o nome do aparelho, e após restaurar a sessão o
+   `profileName` vem nulo. (c) O login (novo ou restaurado) só conclui ~60 s depois, após um iq
+   `w`/`props` sem resposta. (d) O Cobalt não atende `receipt type=retry` (aparelho que não
+   decifrou pede reenvio). Ainda não observados: texto recebido como `extendedTextMessage` e o
+   timestamp da reação.
 6. A **API** não limita tentativas de chave errada; o Manager sim.
 7. Histórico (ADR 0008): sem retenção (a tabela `message` só cresce); o que chegou antes de a
    instância receber eventos não aparece; a mensagem de teste do Manager não é gravada (passa

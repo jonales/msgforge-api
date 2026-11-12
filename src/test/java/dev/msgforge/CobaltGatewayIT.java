@@ -18,6 +18,7 @@ import org.springframework.test.context.TestPropertySource;
 @TestPropertySource(properties = {
         "msgforge.gateway=cobalt",
         "msgforge.cobalt.proxy=http://127.0.0.1:9",
+        "msgforge.cobalt.web-version=2.3000.1",
         "msgforge.cobalt.qr-wait-ms=3000",
 })
 class CobaltGatewayIT extends IntegrationTest {
