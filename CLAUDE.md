@@ -62,6 +62,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
       então `sendMessage`.
     - O WhatsApp pode pedir a passkey do aparelho numa sessão conectada ("checkpoint"); o link vai
       para o log (`passkeyCheckpoint`).
+    - Mídia passa pelo transcodificador do fork (ffmpeg nativo), que lê MP3, OGG e WAV. Nota de
+      voz (`ptt`) sai em OGG/Opus a 16 kHz; o granule precisa estar em 48 kHz, ou o WhatsApp não
+      baixa o áudio. Áudio comum vira AAC em quadros de `frame_size` fixo.
     - Toda mensagem leva o `deviceListMetadata` (ICDC) com o `ts` da lista de aparelhos do
       remetente. Ele precisa ser o `ts` **assinado** da lista de índices de chave, em segundos: com
       o horário da consulta, o WhatsApp Web de quem recebe mostrava "Não foi possível confirmar
@@ -211,12 +214,12 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
 5. **Cobalt ao vivo, pendências** (fork, rodada de 2026-11-12/13 com dois números; resolvidos no
    fork: resolve de 30 s, restart pedindo QR, ack 479 para conta Business, sessão Signal que não se
    fixava, mensagem de aparelho vinculado não decifrada, imagem, queda da JVM na mídia e fila
-   offline travada pelos stories, e o aviso "Não foi possível confirmar seu código de segurança"
-   no WhatsApp Web de quem recebe). Abertos: (a) O `pushName` enviado é o nome do aparelho, e após
-   restaurar a sessão o `profileName` vem nulo. (b) O Cobalt não atende `receipt type=retry`.
-   (c) O ffmpeg nativo do fork não tem demuxer de MP3 nem de OGG: áudio nesses formatos deve falhar
-   (não testado). (d) Exceção solta de `NodeTimeout` (`fb:thrift_iq`) numa thread sem nome. A suíte
-   do fork tem 16 falhas e 93 erros que já existem no `master`.
+   offline travada pelos stories, o aviso "Não foi possível confirmar seu código de segurança"
+   no WhatsApp Web de quem recebe, a nota de voz que não baixava e o áudio comum que falhava).
+   Abertos: (a) O `pushName` enviado é o nome do aparelho, e após restaurar a sessão o
+   `profileName` vem nulo. (b) O Cobalt não atende `receipt type=retry`. (c) Exceção solta de
+   `NodeTimeout` (`fb:thrift_iq`) numa thread sem nome. A suíte do fork tem 16 falhas e 93 erros
+   que já existem no `master`.
 6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 
