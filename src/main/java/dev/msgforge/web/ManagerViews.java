@@ -23,11 +23,12 @@ public final class ManagerViews {
     }
 
     public record InstanceDetail(String name, String state, String number, String profileName, String integration,
-                          Instant createdAt) {
+                          Instant createdAt, String historySync) {
 
         static InstanceDetail of(Instance instance, ConnectionState state) {
             return new InstanceDetail(instance.getName(), state.value(), numberOf(instance),
-                    instance.getProfileName(), instance.getIntegration(), instance.getCreatedAt());
+                    instance.getProfileName(), instance.getIntegration(), instance.getCreatedAt(),
+                    instance.getHistorySync().name());
         }
 
         public boolean open() {

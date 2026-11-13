@@ -49,6 +49,18 @@
                     <input name="number" inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
                 </label>
                 <p class="muted small" th:text="#{manager.connect.hint}">Sem número: QR code.</p>
+                <fieldset class="choices" aria-describedby="history-hint">
+                    <legend th:text="#{manager.history.label}">Histórico das conversas</legend>
+                    <label class="choice" th:each="option : ${historyOptions}">
+                        <input type="radio" name="historySync" th:value="${option}"
+                               th:checked="${option == instance.historySync}">
+                        <span>
+                            <strong th:text="#{'manager.history.' + ${option}}">Sem histórico</strong>
+                            <span class="muted small" th:text="#{'manager.history.' + ${option} + '.desc'}">Descrição</span>
+                        </span>
+                    </label>
+                    <p id="history-hint" class="muted small" th:text="#{manager.history.hint}">Vale no próximo pareamento.</p>
+                </fieldset>
                 <button type="submit" class="primary" th:text="#{manager.connect.submit}">Gerar QR</button>
             </form>
         </section>
