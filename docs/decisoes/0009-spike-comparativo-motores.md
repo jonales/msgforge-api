@@ -2,8 +2,9 @@
 
 **Status:** aceita (2026-11-12). Complementa a [0007](0007-motor-whatsapp-cobalt.md), que segue
 valendo. A comparação abaixo levou a uma variante com whatsmeow (Go), que vive num repositório
-separado (`jonales/msgforge-whatsmeow`). **Aqui o motor continua o Cobalt 0.1.0 do fork
-`jonales/Cobalt`**, e os defeitos achados no spike viram trabalho de correção no fork.
+separado (`jonales/msgforge-whatsmeow`). **Aqui o motor continua o Cobalt 0.1.0, hoje em
+`jonales/cobalt-2`** (até 2026-11-13, o fork `jonales/Cobalt`), e os defeitos achados no spike
+viram trabalho de correção nele.
 
 ## Contexto
 O teste ao vivo do Cobalt 0.0.10 (ADR 0007) achou, em uma noite, nove defeitos do motor que os
@@ -40,7 +41,7 @@ O Cobalt 0.1.0 também tem bugs na própria API: `Options.Web.name()` faz cast p
 `registered()` passa um handler nulo, então reabrir uma sessão salva falha.
 
 ## Decisão
-- **Neste repositório:** o motor é o fork `jonales/Cobalt` (0.1.0), instalado por
+- **Neste repositório:** o motor é o `jonales/cobalt-2` (Cobalt 0.1.0; até 2026-11-13, o fork `jonales/Cobalt`), instalado por
   `scripts/install-cobalt.sh`. Os defeitos da coluna "Cobalt 0.1.0" acima são corrigidos no fork,
   com teste ao vivo (`docs/VALIDACAO-COBALT-FORK.md`), e entram aqui subindo o commit fixado.
   Prioridade: aviso de segurança no WhatsApp Web, decifrar mensagens de aparelhos vinculados e

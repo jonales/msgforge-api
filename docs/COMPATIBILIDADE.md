@@ -94,7 +94,7 @@ WhatsApp (Cobalt): 400 com `message: [{"exists": false, "jid", "number"}]`, como
 
 ## Motor
 O padrão é o stub, que não fala com o WhatsApp. `MSGFORGE_GATEWAY=cobalt` usa o Cobalt 0.1.0 do
-fork `jonales/Cobalt`, a versão oficial do motor (ADR 0007), validado ao vivo em 2026-11-12/13
+`jonales/cobalt-2`, a versão oficial do motor (ADR 0007), validado ao vivo em 2026-11-12/13
 (`docs/VALIDACAO-COBALT-FORK.md`).
 
 ## Diferenças conhecidas

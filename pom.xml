@@ -91,7 +91,7 @@
         </dependency>
 
         <!--
-            Motor do WhatsApp (Fase 2, ADR 0007): Cobalt 0.1.0 do fork jonales/Cobalt. Só o pacote
+            Motor do WhatsApp (Fase 2, ADR 0007): Cobalt 0.1.0 de jonales/cobalt-2. Só o pacote
             dev.msgforge.gateway.cobalt usa. Não está no Maven Central: instale antes da build com
             scripts/install-cobalt.sh (commit fixado no script).
         -->

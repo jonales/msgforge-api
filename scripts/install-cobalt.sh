@@ -1,5 +1,5 @@
 #!/bin/bash
-# Instala o motor Cobalt (fork jonales/Cobalt) no repositório Maven local.
+# Instala o motor Cobalt (jonales/cobalt-2) no repositório Maven local.
 # A versão 0.1.0 não está no Maven Central: a build do Msgforge depende desta instalação.
 # Idempotente: não reinstala se o mesmo commit já foi instalado.
 #
@@ -7,7 +7,7 @@
 #      COBALT_REF=<commit|branch> scripts/install-cobalt.sh
 set -euo pipefail
 
-COBALT_REPO="${COBALT_REPO:-https://github.com/jonales/Cobalt.git}"
+COBALT_REPO="${COBALT_REPO:-https://github.com/jonales/cobalt-2.git}"
 # Commit do fork testado com o Msgforge. Ao trocar, rode os testes e o roteiro ao vivo.
 COBALT_REF="${COBALT_REF:-bc2dec20f8ef0d03831631de01bd4b7dc44924b1}"
 

@@ -1,6 +1,6 @@
 FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /app
-# Motor Cobalt (fork jonales/Cobalt): fora do Maven Central, instalado no commit fixado no script
+# Motor Cobalt (jonales/cobalt-2): fora do Maven Central, instalado no commit fixado no script
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY scripts/install-cobalt.sh scripts/
 RUN scripts/install-cobalt.sh
