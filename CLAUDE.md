@@ -66,6 +66,12 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     `DatabaseSessionSerializer` e o shim do aspose) foram removidos: o fork resolve versão do
     WhatsApp Web, fila offline e cache de números. Se um desses sintomas voltar, confira o motor
     antes de recriar o contorno.
+  - Histórico no pareamento: `Instance.historySync` (`NONE` padrão das novas, `RECENT`, `FULL`),
+    escolhido no Manager (card "Conectar" e criar) e aplicado só ao criar a conexão nova
+    (`discardHistory`/`defaultHistory`/`fullHistory` do Cobalt). Não é rota da API (settings
+    estão fora do contrato).
+  - Sessão salva que o motor não consegue abrir **não** é apagada: o connect falha com
+    `GatewayException` e o marcador e a pasta ficam (antes, virava QR novo por cima da sessão).
   - Diagnóstico do protocolo: `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG` registra os
     nós enviados e recebidos (só nomes e atributos, nunca o conteúdo).
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
@@ -139,7 +145,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 
 ## Front-end (Manager com Thymeleaf)
 
-ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skill `nova-tela`.
+ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skill `nova-tela` (estrutura)
+e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.properties`.
 - Thymeleaf renderizado no servidor, rota base `/manager`, sem
   SPA e sem Node/npm. Interatividade com htmx vendorizado (sem CDN).
 - Controllers MVC em `dev.msgforge.web` chamam os **serviços**, nunca repositórios nem a
@@ -171,6 +178,7 @@ ADR 0005 (seção "Implementação"). Para criar ou alterar uma tela, use a skil
   - [x] webhook
   - [x] mensagem de teste
   - [x] logout e exclusão
+  - [x] histórico no pareamento por instância (rádios no card "Conectar", select no criar)
   - [x] mensagens: conversas e conversa aberta, lidas do histórico (`/manager/instances/{n}/messages`,
     atualiza por htmx; o envio de teste do Manager também vai para o histórico)
 - Próximas ideias (não planejadas): webhook global, envio de mídia.
@@ -196,23 +204,17 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt ao vivo, pendências** (observadas na 0.0.10). **Próximo passo: rodar
-   `docs/VALIDACAO-COBALT-FORK.md`** (roteiro com o fork 0.1.0, PR #12) e tirar daqui o que ele
-   resolver. (a) O app oficial do destinatário mostra "Não foi possível
-   confirmar seu código de segurança" em mensagens vindas do Cobalt. Evidências: a chave de
-   identidade é estável entre restarts; **toda** mensagem do Cobalt sai como `pkmsg` (a sessão
-   Signal nunca se estabiliza); a cada login o Cobalt reenvia as chaves (`iq encrypt`). Suspeitas:
-   sessões que não se fixam, ou a verificação automática de chaves do WhatsApp não aceita o
-   aparelho. (b) O `pushName` enviado é o nome do aparelho, e após restaurar a sessão o
-   `profileName` vem nulo. (c) O login (novo ou restaurado) só conclui ~60 s depois, após um iq
-   `w`/`props` sem resposta. (d) O Cobalt não atende `receipt type=retry` (aparelho que não
-   decifrou pede reenvio). Ainda não observados: texto recebido como `extendedTextMessage` e o
-   timestamp da reação. O spike da ADR 0009 (Cobalt 0.1.0 do `main` original, antes do fork)
-   também viu: (e) o aviso de segurança some no celular, mas aparece no WhatsApp Web; (f)
-   mensagem de um aparelho vinculado (Web) não é decifrada (sessão aberta pelo número, resposta
-   pelo LID); (g) os recibos de entrega/leitura não disparam; (h) `Options.Web.name()` faz cast
-   para `Mobile` e `registered()` passa handler nulo (reabrir sessão salva falha). Confira cada um
-   no fork antes de corrigir: alguns podem já estar resolvidos no commit fixado.
+5. **Cobalt ao vivo, pendências** (fork, rodada de 2026-11-12/13 com dois números; resolvidos no
+   fork: resolve de 30 s, restart pedindo QR, ack 479 para conta Business, sessão Signal que não se
+   fixava, mensagem de aparelho vinculado não decifrada, imagem, queda da JVM na mídia e fila
+   offline travada pelos stories). Abertos: (a) **o WhatsApp Web de quem recebe mostra "Não foi
+   possível confirmar seu código de segurança"**, mesmo com a sessão fixa (`msg`); o celular não
+   mostra. Sessão Signal e ADV/`pair-device-sign` foram descartados (iguais ao whatsmeow);
+   suspeita: a verificação automática de chaves (Key Transparency). (b) O `pushName` enviado é o
+   nome do aparelho, e após restaurar a sessão o `profileName` vem nulo. (c) O Cobalt não atende
+   `receipt type=retry`. (d) O ffmpeg nativo do fork não tem demuxer de MP3 nem de OGG: áudio
+   nesses formatos deve falhar (não testado). (e) Exceção solta de `NodeTimeout` (`fb:thrift_iq`)
+   numa thread sem nome. A suíte do fork tem 16 falhas e 93 erros que já existem no `master`.
 6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 
