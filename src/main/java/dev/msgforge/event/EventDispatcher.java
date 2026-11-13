@@ -8,17 +8,23 @@ import dev.msgforge.event.GatewayEvent.MessageReceived;
 import dev.msgforge.event.GatewayEvent.MessageSent;
 import dev.msgforge.event.GatewayEvent.MessageStatusUpdated;
 import dev.msgforge.event.GatewayEvent.QrCodeUpdated;
+import dev.msgforge.event.outbox.Outbox;
+import dev.msgforge.event.outbox.OutboxProperties;
+import dev.msgforge.event.outbox.OutboxWorker;
 import dev.msgforge.instance.InstanceRepository;
 import dev.msgforge.instance.InstanceStateService;
 import dev.msgforge.webhook.WebhookService;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -36,8 +42,10 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>Assíncrono, numa virtual thread, só <b>depois do commit</b> (ou na hora, se não
  *       houver transação): entrega usando apenas o snapshot. Em rollback, nada é entregue.</li>
  * </ol>
- * As entregas de uma mesma instância saem na ordem dos eventos (ADR 0006): uma fila por
- * instância, instâncias diferentes em paralelo.
+ * As entregas de uma mesma instância saem na ordem dos eventos (ADR 0006), instâncias diferentes
+ * em paralelo. Com OUTBOX_ENABLED (padrão), o segundo tempo grava as entregas na outbox, numa
+ * transação própria, e o {@link OutboxWorker} entrega (ADR 0012); desligado, a fila é a em memória
+ * ({@link OrderedExecutor}). O corpo que sai para o destino é o mesmo nos dois caminhos.
  */
 @Component
 public class EventDispatcher {
@@ -52,9 +60,14 @@ public class EventDispatcher {
     private final WebhookSender sender;
     private final RabbitTemplate rabbit;
     private final JsonMapper json;
+    private final Outbox outbox;
+    private final OutboxProperties outboxProperties;
+    private final ObjectProvider<OutboxWorker> outboxWorker;
+    private final boolean blockPrivateNetworks;
 
     public EventDispatcher(MsgforgeProperties properties, InstanceRepository instances, InstanceStateService stateService,
-                           WebhookService webhooks, WebhookSender sender, RabbitTemplate rabbit, JsonMapper json) {
+                           WebhookService webhooks, WebhookSender sender, RabbitTemplate rabbit, JsonMapper json,
+                           Outbox outbox, OutboxProperties outboxProperties, ObjectProvider<OutboxWorker> outboxWorker) {
         this.properties = properties;
         this.deliveries = new OrderedExecutor(Executors.newVirtualThreadPerTaskExecutor(),
                 properties.webhook().maxPendingPerInstance());
@@ -64,6 +77,10 @@ public class EventDispatcher {
         this.sender = sender;
         this.rabbit = rabbit;
         this.json = json;
+        this.outbox = outbox;
+        this.outboxProperties = outboxProperties;
+        this.outboxWorker = outboxWorker;
+        this.blockPrivateNetworks = properties.webhook().blockPrivateNetworks();
     }
 
     /** Envelope de evento do contrato da API (docs/COMPATIBILIDADE.md). */
@@ -96,12 +113,9 @@ public class EventDispatcher {
         }
         var data = dataOf(event);
         var dateTime = OffsetDateTime.now().toString();
-        Runnable delivery = () -> {
-            if (!deliveries.submit(target.instanceName(), () -> deliver(target, type, data, dateTime))) {
-                log.warn("Evento {} da instância {} descartado: {} entregas já aguardando",
-                        type, target.instanceName(), properties.webhook().maxPendingPerInstance());
-            }
-        };
+        Runnable delivery = outboxProperties.enabled()
+                ? () -> enqueue(target, type, data, dateTime)
+                : () -> submitInMemory(target, type, data, dateTime);
 
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -147,23 +161,67 @@ public class EventDispatcher {
         };
     }
 
-    private void deliver(DeliveryTarget target, EventType type, Object data, String dateTime) {
+    /** Uma entrega de um evento: destino e envelope, iguais na outbox e na fila em memória. */
+    private record Delivery(Outbox.Type type, String destination, Map<String, String> headers, EventEnvelope body) {}
+
+    private List<Delivery> deliveriesOf(DeliveryTarget target, EventType type, Object data, String dateTime) {
+        var list = new ArrayList<Delivery>(3);
         var webhook = target.webhook();
         if (webhook != null && webhook.accepts(type)) {
             var url = webhook.urlFor(type);
-            sender.sendUntrusted(url, type.payloadName(), envelope(target, type, data, url, dateTime),
-                    webhook.headers());
+            list.add(new Delivery(Outbox.Type.WEBHOOK, url, webhook.headers(),
+                    envelope(target, type, data, url, dateTime)));
         }
 
         var global = properties.webhook();
         if (global.globalEnabled() && global.globalUrl() != null && !global.globalUrl().isBlank()) {
-            sender.send(global.globalUrl(), type.payloadName(),
-                    envelope(target, type, data, global.globalUrl(), dateTime), Map.of());
+            list.add(new Delivery(Outbox.Type.WEBHOOK_GLOBAL, global.globalUrl(), Map.of(),
+                    envelope(target, type, data, global.globalUrl(), dateTime)));
         }
 
         if (properties.rabbitmq().enabled()) {
-            publishRabbit(target.instanceName(), type, envelope(target, type, data, null, dateTime));
+            list.add(new Delivery(Outbox.Type.RABBITMQ, properties.rabbitmq().exchange(), Map.of(),
+                    envelope(target, type, data, null, dateTime)));
         }
+        return list;
+    }
+
+    /** Fila em memória (OUTBOX_ENABLED=false), com teto por instância (ADR 0006). */
+    private void submitInMemory(DeliveryTarget target, EventType type, Object data, String dateTime) {
+        if (!deliveries.submit(target.instanceName(), () -> deliver(target, type, data, dateTime))) {
+            log.warn("Evento {} da instância {} descartado: {} entregas já aguardando",
+                    type, target.instanceName(), properties.webhook().maxPendingPerInstance());
+        }
+    }
+
+    private void deliver(DeliveryTarget target, EventType type, Object data, String dateTime) {
+        for (var d : deliveriesOf(target, type, data, dateTime)) {
+            switch (d.type()) {
+                case WEBHOOK -> sender.sendUntrusted(d.destination(), type.payloadName(), d.body(), d.headers());
+                case WEBHOOK_GLOBAL -> sender.send(d.destination(), type.payloadName(), d.body(), d.headers());
+                case RABBITMQ -> publishRabbit(target.instanceName(), type, d.body());
+            }
+        }
+    }
+
+    /** Outbox (ADR 0012): grava antes de entregar; o trabalhador entrega a partir da linha. */
+    private void enqueue(DeliveryTarget target, EventType type, Object data, String dateTime) {
+        var entries = deliveriesOf(target, type, data, dateTime).stream()
+                .map(d -> new Outbox.NewEntry(d.type(), target.instanceName(), type.payloadName(), d.destination(),
+                        d.headers(), d.type() == Outbox.Type.WEBHOOK && blockPrivateNetworks,
+                        json.writeValueAsString(d.body())))
+                .toList();
+        if (entries.isEmpty()) {
+            return;
+        }
+        try {
+            outbox.insert(entries);
+        } catch (RuntimeException e) {
+            log.error("Evento {} da instância {} perdido: falha ao gravar na outbox: {}",
+                    type, target.instanceName(), e.getMessage(), e);
+            return;
+        }
+        outboxWorker.ifAvailable(OutboxWorker::wake);
     }
 
     private EventEnvelope envelope(DeliveryTarget target, EventType type, Object data, String destination,

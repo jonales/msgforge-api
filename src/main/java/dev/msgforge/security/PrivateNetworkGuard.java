@@ -40,9 +40,14 @@ public class PrivateNetworkGuard {
 
     /** @return o motivo da recusa, ou vazio se a URL pode ser chamada */
     public Optional<String> check(String url) {
-        if (!enabled) {
-            return Optional.empty();
-        }
+        return enabled ? inspect(url) : Optional.empty();
+    }
+
+    /**
+     * A checagem em si, mesmo com a proteção deste nó desligada. A outbox usa: quem decide se a
+     * entrega é checada é o nó em que o evento aconteceu (o snapshot), não o nó que entrega.
+     */
+    public Optional<String> inspect(String url) {
         String host;
         try {
             host = URI.create(url).getHost();

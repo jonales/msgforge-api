@@ -19,8 +19,10 @@
         · <span th:text="${instance.integration}">WHATSAPP-BAILEYS</span>
     </p>
 
-    <!-- Trecho vivo: estado + QR. Enquanto não conecta, o htmx busca a versão nova a cada 3 s -->
-    <section class="card" th:fragment="live" id="live"
+    <!-- Trecho vivo: estado + QR. Chega pelo SSE (evento "live"); o polling (3 s enquanto não
+         conecta, 15 s depois) é a reserva quando o stream não está aberto (manager.js) -->
+    <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances/{n}(n=${instance.name})}">
+    <section class="card" th:fragment="live" id="live" sse-swap="live" data-poll
              th:attr="hx-get=@{/manager/instances/{n}/live(n=${live.name})},hx-trigger=(${live.open()} ? 'every 15s' : 'every 3s')"
              hx-swap="outerHTML">
         <h2 th:text="#{manager.connection.title}">Conexão</h2>
@@ -39,6 +41,7 @@
         </div>
         <p class="muted" th:if="${live.open()}" th:text="#{manager.connection.connected}">Conectada</p>
     </section>
+    </div>
 
     <div class="grid">
         <section class="card">

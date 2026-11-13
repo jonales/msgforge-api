@@ -32,8 +32,6 @@ public class ManagerController {
 
     static final List<String> EVENT_NAMES = Arrays.stream(EventType.values()).map(Enum::name).toList();
 
-    static final int CONVERSATION_PAGE_SIZE = 30;
-
     static final List<String> HISTORY_OPTIONS = Arrays.stream(dev.msgforge.instance.HistorySync.values())
             .map(Enum::name).toList();
 
@@ -41,17 +39,17 @@ public class ManagerController {
     private final WebhookService webhooks;
     private final MessageService messages;
     private final QrCodeCache qrCodes;
-    private final dev.msgforge.chat.ChatService chats;
+    private final ManagerScreens screens;
     private final dev.msgforge.history.HistoryRecorder history;
 
     public ManagerController(InstanceService instances, WebhookService webhooks, MessageService messages,
-                             QrCodeCache qrCodes, dev.msgforge.chat.ChatService chats,
+                             QrCodeCache qrCodes, ManagerScreens screens,
                              dev.msgforge.history.HistoryRecorder history) {
         this.instances = instances;
         this.webhooks = webhooks;
         this.messages = messages;
         this.qrCodes = qrCodes;
-        this.chats = chats;
+        this.screens = screens;
         this.history = history;
     }
 
@@ -69,7 +67,7 @@ public class ManagerController {
         return "manager/instances";
     }
 
-    /** Trecho da tabela, atualizado pelo htmx a cada poucos segundos. */
+    /** Trecho da tabela: o polling do htmx busca este; o SSE (ADR 0013) envia o mesmo trecho. */
     @GetMapping("/instances/table")
     public String table(Model model) {
         model.addAttribute("instances", rows());
@@ -170,26 +168,9 @@ public class ManagerController {
     @GetMapping("/instances/{name}/messages/chat")
     public String conversation(@PathVariable String name, @RequestParam String jid,
                                @RequestParam(defaultValue = "1") int page, Model model) {
-        var current = Math.max(page, 1);
-        var found = chats.findMessages(name, new dev.msgforge.chat.ChatDtos.KeyFilter(jid, null, null),
-                current, CONVERSATION_PAGE_SIZE);
-        var rows = new java.util.ArrayList<>(found.records().stream()
-                .map(m -> new ManagerViews.MessageRow(m.key().id(), m.key().fromMe(), m.pushName(),
-                        ManagerViews.preview(m.messageType(), m.message()), ManagerViews.time(m.messageTimestamp()),
-                        m.status()))
-                .toList());
-        java.util.Collections.reverse(rows);   // a página vem da mais nova para a mais antiga
         model.addAttribute("instanceName", name);
-        model.addAttribute("conversation", new ManagerViews.Conversation(jid, rows, current, found.pages()));
+        model.addAttribute("conversation", screens.conversation(name, jid, page));
         return "manager/messages :: conversation";
-    }
-
-    private List<ManagerViews.ChatRow> chatRows(String name) {
-        return chats.findChats(name).stream()
-                .map(c -> new ManagerViews.ChatRow(c.remoteJid(), c.pushName(),
-                        ManagerViews.preview(c.lastMessage().messageType(), c.lastMessage().message()),
-                        ManagerViews.time(c.lastMessage().messageTimestamp()), c.lastMessage().key().fromMe()))
-                .toList();
     }
 
     @PostMapping("/instances/{name}/logout")
@@ -212,16 +193,15 @@ public class ManagerController {
     // ------------------------------------------------------------ apoio
 
     private List<InstanceRow> rows() {
-        return instances.list().stream().map(i -> InstanceRow.of(i, instances.stateOf(i))).toList();
+        return screens.rows();
     }
 
     private Live live(String name) {
-        var instance = instances.get(name);
-        var state = instances.stateOf(instance).value();
-        var qr = qrCodes.get(name).orElse(null);
-        return qr == null || "open".equals(state)
-                ? new Live(name, state, null, null, null)
-                : new Live(name, state, qr.code(), qr.base64(), qr.pairingCode());
+        return screens.live(name);
+    }
+
+    private List<ManagerViews.ChatRow> chatRows(String name) {
+        return screens.chatRows(name);
     }
 
     static String redirectTo(String name) {
