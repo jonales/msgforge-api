@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.msgforge.event.GatewayEvent.MessageReceived;
 import dev.msgforge.support.IntegrationTest;
+import dev.msgforge.web.ManagerStreams;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -178,6 +179,20 @@ class ManagerStreamIT extends IntegrationTest {
                 .contains("hx-trigger=\"every 3s\"")           // e mantém o polling de reserva
                 .contains("badge connecting")
                 .contains("/manager/instances/" + name + "/live");   // links completos fora da requisição
+    }
+
+    @Autowired
+    ManagerStreams streams;
+
+    /** O Spring pausa e retoma contextos (stop/start); os streams precisam abrir de novo depois. */
+    @Test
+    void streamsOpenAgainAfterTheLifecycleRestarts() throws Exception {
+        var name = createInstance();
+        streams.stop();
+        streams.start();
+
+        var stream = open(loggedIn(), "/manager/stream/instances");
+        stream.await("table", html -> html.contains(name));
     }
 
     @Test

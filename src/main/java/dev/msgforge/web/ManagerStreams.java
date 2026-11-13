@@ -59,16 +59,13 @@ public class ManagerStreams implements SmartLifecycle {
     private final ConcurrentHashMap<String, AtomicInteger> perSession = new ConcurrentHashMap<>();
     /** Canal → conversas tocadas desde o último envio; a chave existe enquanto um envio está agendado. */
     private final ConcurrentHashMap<String, Set<String>> pending = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService timer;
-    private final ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor();
+    /** Criados no {@code start()} e desligados no {@code stop()}: o ciclo de vida pode reiniciar. */
+    private volatile ScheduledExecutorService timer;
+    private volatile ExecutorService workers;
 
     public ManagerStreams(ManagerBus bus, ManagerScreens screens, FragmentRenderer renderer) {
         this.screens = screens;
         this.renderer = renderer;
-        this.timer = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform()
-                .name("manager-sse-timer").daemon().factory());
-        timer.scheduleAtFixedRate(() -> workers.execute(this::heartbeat),
-                HEARTBEAT.toMillis(), HEARTBEAT.toMillis(), TimeUnit.MILLISECONDS);
         bus.subscribe(this::on);
     }
 
@@ -292,17 +289,32 @@ public class ManagerStreams implements SmartLifecycle {
     private volatile boolean running;
 
     @Override
-    public void start() {
+    public synchronized void start() {
+        if (running) {
+            return;
+        }
+        // Executores novos a cada start: o Spring pode parar e religar o contexto (os contextos de
+        // teste em cache são pausados e retomados), e um executor desligado recusa tarefas para sempre
+        workers = Executors.newVirtualThreadPerTaskExecutor();
+        timer = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform()
+                .name("manager-sse-timer").daemon().factory());
+        timer.scheduleAtFixedRate(() -> workers.execute(this::heartbeat),
+                HEARTBEAT.toMillis(), HEARTBEAT.toMillis(), TimeUnit.MILLISECONDS);
         running = true;
     }
 
     /** Fase padrão (a mais alta): para antes do desligamento gracioso do servidor web. */
     @Override
-    public void stop() {
+    public synchronized void stop() {
+        if (!running) {
+            return;
+        }
         running = false;
         timer.shutdownNow();
         channels.values().forEach(set -> List.copyOf(set).forEach(s -> s.emitter().complete()));
         channels.clear();
+        pending.clear();
+        perSession.clear();
         workers.shutdownNow();
     }
 
