@@ -11,9 +11,11 @@
     <h1 th:text="#{manager.messages.title}">Mensagens</h1>
     <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>
 
-    <div class="messages-layout">
-        <!-- Conversas: atualizam sozinhas a cada 15 s -->
-        <section class="card chats" th:fragment="chats" id="chats"
+    <!-- Ao vivo pelo SSE (eventos "chats" e "conversation:{jid}"); o polling é a reserva (manager.js) -->
+    <div class="messages-layout" hx-ext="sse"
+         th:attr="sse-connect=@{/manager/stream/instances/{n}/messages(n=${instanceName})}">
+        <!-- Conversas: sem o stream, atualizam sozinhas a cada 15 s -->
+        <section class="card chats" th:fragment="chats" id="chats" sse-swap="chats" data-poll
                  th:attr="hx-get=@{/manager/instances/{n}/messages/chats(n=${instanceName})}"
                  hx-trigger="every 15s" hx-swap="outerHTML">
             <h2 th:text="#{manager.messages.chats}">Conversas</h2>
@@ -34,15 +36,16 @@
             </ul>
         </section>
 
-        <!-- Conversa aberta: a página mais recente se atualiza a cada 10 s -->
-        <section class="card conversation" id="conversation" th:fragment="conversation">
+        <!-- Conversa aberta: a página mais recente chega pelo SSE; sem o stream, a cada 10 s -->
+        <section class="card conversation" id="conversation" th:fragment="conversation" hx-swap="outerHTML"
+                 th:attr="sse-swap=${conversation != null and conversation.page == 1} ? ${'conversation:' + conversation.jid} : null">
             <th:block th:if="${conversation == null}">
                 <p class="muted" th:text="#{manager.messages.pick}">Escolha uma conversa.</p>
             </th:block>
             <th:block th:if="${conversation != null}">
                 <div th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid})},
                               hx-trigger=(${conversation.page == 1} ? 'every 10s' : 'none')"
-                     hx-target="#conversation" hx-swap="outerHTML"></div>
+                     hx-target="#conversation" hx-swap="outerHTML" data-poll></div>
                 <h2><code th:text="${conversation.jid}">5561...@s.whatsapp.net</code></h2>
                 <p th:if="${conversation.hasOlder()}">
                     <button type="button"

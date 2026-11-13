@@ -62,6 +62,9 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(GET("/manager/login")).andExpect(status().isOk()).andExpect(view().name("manager/login"));
         mvc.perform(GET("/manager/manager.css")).andExpect(status().isOk());
         mvc.perform(GET("/manager/vendor/htmx-2.0.11.min.js")).andExpect(status().isOk());
+        mvc.perform(GET("/manager/vendor/htmx-ext-sse-2.2.4.min.js")).andExpect(status().isOk());
+        mvc.perform(GET("/manager/manager.js")).andExpect(status().isOk());
+        mvc.perform(GET("/manager/stream/instances")).andExpect(status().is3xxRedirection());
         // Um token de instância não abre o Manager
         mvc.perform(GET("/manager").header("apikey", API_KEY)).andExpect(status().is3xxRedirection());
     }
@@ -123,10 +126,13 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("manager/instance"))
                 .andExpect(model().attributeExists("instance", "live", "webhook", "eventNames"))
-                .andExpect(content().string(Matchers.not(Matchers.containsString(token))));
+                .andExpect(content().string(Matchers.not(Matchers.containsString(token))))
+                .andExpect(content().string(Matchers.containsString("sse-connect=\"/manager/stream/instances/" + name + "\"")))
+                .andExpect(content().string(Matchers.containsString("sse-swap=\"live\"")));
         mvc.perform(asManager(GET("/manager")))
                 .andExpect(view().name("manager/instances"))
                 .andExpect(content().string(Matchers.containsString(name)))
+                .andExpect(content().string(Matchers.containsString("sse-connect=\"/manager/stream/instances\"")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString(token))));
     }
 
@@ -251,13 +257,19 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(view().name("manager/messages"))
                 .andExpect(model().attribute("chats", Matchers.hasSize(1)))
                 .andExpect(content().string(Matchers.containsString("oi, tudo bem?")))
-                .andExpect(content().string(Matchers.containsString("Ana &lt;b&gt;")));   // escapado
+                .andExpect(content().string(Matchers.containsString("Ana &lt;b&gt;")))   // escapado
+                // Tempo real (ADR 0013): o stream das conversas, com o polling de reserva
+                .andExpect(content().string(Matchers.containsString(
+                        "sse-connect=\"/manager/stream/instances/" + name + "/messages\"")))
+                .andExpect(content().string(Matchers.containsString("sse-swap=\"chats\"")));
 
         mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat"))
                         .param("jid", "5561911111111@s.whatsapp.net"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("olá do manager")))
                 .andExpect(content().string(Matchers.containsString("oi, tudo bem?")))
+                .andExpect(content().string(Matchers.containsString(
+                        "sse-swap=\"conversation:5561911111111@s.whatsapp.net\"")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("<html"))));   // só o fragmento
 
         mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chats")))

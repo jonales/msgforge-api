@@ -32,7 +32,9 @@
 
     <section class="card">
         <h2 th:text="#{manager.instances.title}">Instâncias</h2>
-        <div th:fragment="table" id="instances-table"
+        <!-- Ao vivo pelo SSE (evento "table"); o polling de 5 s é a reserva (manager.js) -->
+        <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances}">
+        <div th:fragment="table" id="instances-table" sse-swap="table" data-poll
              th:attr="hx-get=@{/manager/instances/table}" hx-trigger="every 5s" hx-swap="outerHTML">
             <p class="muted" th:if="${#lists.isEmpty(instances)}" th:text="#{manager.instances.empty}">Nenhuma</p>
             <table th:unless="${#lists.isEmpty(instances)}">
@@ -53,6 +55,7 @@
                 </tr>
                 </tbody>
             </table>
+        </div>
         </div>
     </section>
 </main>

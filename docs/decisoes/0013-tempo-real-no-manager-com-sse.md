@@ -23,6 +23,19 @@ polling gera carga sem novidade.
   por usuário e `X-Accel-Buffering: no` para proxies. Se o SSE falhar, a tela volta ao polling.
 - Threads virtuais (já ligadas) tornam barato manter as conexões abertas.
 
+## Implementação (2026-11)
+- Rotas: `/manager/stream/instances` (evento `table`), `/manager/stream/instances/{nome}` (`live`) e
+  `/manager/stream/instances/{nome}/messages` (`chats` e `conversation:{jid}`, só a página 1 da
+  conversa aberta). Cada stream já abre com o trecho atual, o que cobre reconexões.
+- `ManagerEventBridge` (depois do commit) → `ManagerBus` (`LocalManagerBus`) → `ManagerStreams`,
+  que agrupa as mudanças de um canal em 250 ms, renderiza o fragmento uma vez (`FragmentRenderer`)
+  e envia a todos. Até 4 streams por sessão (o navegador abre só 6 conexões por origem); o stream
+  fecha a cada 15 min e na batida em que a sessão já não vale.
+- **htmx-ext-sse 2.2.4** em `static/manager/vendor/` (integridade conferida com o sha512 do registry
+  npm; licença 0BSD ao lado). `manager.js` suspende o polling (`data-poll`) enquanto o stream está
+  aberto, com uma busca de segurança por minuto, e o retoma quando o stream cai.
+- Pendente: o `ManagerBus` sobre Redis pub/sub, quando houver mais de um nó.
+
 ## Alternativas consideradas
 - **WebSocket (STOMP):** bidirecional, útil para "digitando..." no atendimento; mais pesado de
   operar e o Manager só precisa receber. Fica como opção se o atendimento exigir.

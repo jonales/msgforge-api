@@ -42,7 +42,8 @@ public class ManagerSecurityConfig {
         http.securityMatcher("/manager", "/manager/**")
                 .authenticationProvider(managerAuthentication)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/manager/login", "/manager/manager.css", "/manager/vendor/**").permitAll()
+                        .requestMatchers("/manager/login", "/manager/manager.css", "/manager/manager.js",
+                                "/manager/vendor/**").permitAll()
                         .anyRequest().hasRole(ROLE))
                 .formLogin(form -> form
                         .loginPage("/manager/login")
@@ -80,12 +81,16 @@ public class ManagerSecurityConfig {
 
     /**
      * Sem sessão: página de login. Exceto no polling do htmx, que seguiria o redirect e encaixaria
-     * a página de login inteira dentro do trecho atualizado; para ele, 401 + HX-Redirect.
+     * a página de login inteira dentro do trecho atualizado; para ele, 401 + HX-Redirect. O stream
+     * SSE (ADR 0013) recebe só 401: a página volta ao polling, que faz o redirect.
      */
     private static AuthenticationEntryPoint entryPoint() {
         var login = new LoginUrlAuthenticationEntryPoint("/manager/login");
         return (request, response, ex) -> {
-            if ("true".equals(request.getHeader("HX-Request"))) {
+            var accept = request.getHeader("Accept");
+            if (accept != null && accept.contains("text/event-stream")) {
+                response.setStatus(401);
+            } else if ("true".equals(request.getHeader("HX-Request"))) {
                 response.setStatus(401);
                 response.setHeader("HX-Redirect", request.getContextPath() + "/manager/login");
             } else {
