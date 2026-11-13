@@ -104,3 +104,8 @@ O padrão é o stub, que não fala com o WhatsApp. `MSGFORGE_GATEWAY=cobalt` usa
   a mensagem vai para o JID devolvido pelo WhatsApp (no Brasil, o número com o 9 extra resolve sem
   ele; o `remoteJid` da resposta já vem resolvido). O stub só valida o formato.
 - O token da instância precisa ser único (constraint `uk_instance_token`).
+- O token escolhido pelo cliente na criação precisa ter pelo menos 32 caracteres; mais curto, 400
+  no formato de erro (`token must have at least 32 characters`). Tokens já gravados continuam
+  valendo, e o gerado automaticamente (UUID) já cumpre o mínimo.
+- A aplicação não sobe com a `AUTHENTICATION_API_KEY` padrão, vazia ou com menos de 32
+  caracteres, exceto no perfil `dev`.

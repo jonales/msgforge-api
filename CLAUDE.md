@@ -114,8 +114,11 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   no envelope do contrato e entrega no webhook da instância, no webhook global e no RabbitMQ.
   Um evento novo exige um `case` novo nos `switch` exaustivos; isso é proposital.
   **A entrega roda depois do commit e usa só um snapshot (`DeliveryTarget`)**; a thread de
-  entrega nunca lê o banco (ADR 0004). As entregas de uma instância saem **em ordem**, numa fila
-  por instância com teto de pendências (`OrderedExecutor`, ADR 0006). `WebhookSender` cuida de
+  entrega nunca lê o banco (ADR 0004). As entregas de uma instância saem **em ordem** (ADR 0006).
+  **Outbox** (ADR 0012, `event/outbox/`): o dispatcher grava cada entrega na tabela `outbox`
+  (payload `json`, texto exato) e o `OutboxWorker` entrega só a cabeça de cada chave (tipo +
+  instância) com `FOR UPDATE SKIP LOCKED`; retry agendado na linha, `MORTO` após N tentativas;
+  `LISTEN/NOTIFY` entre nós. `OUTBOX_ENABLED=false` volta ao `OrderedExecutor`. `WebhookSender` cuida de
   timeout, retry e `Content-Length`; `sendUntrusted` (webhook de instância) passa pelo
   `security/PrivateNetworkGuard` quando `WEBHOOK_BLOCK_PRIVATE_NETWORKS=true`.
 - `gateway/session/SessionStore`: blob da sessão do WhatsApp por instância (`session_store`).
@@ -125,7 +128,13 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   mesma `FailureWindow` do login do Manager): passou de `AUTHENTICATION_MAX_FAILURES` em 15 min,
   429 em tudo, **inclusive com a chave certa** (senão o 200 entregaria a chave). Num IT que esgota
   o limite, use contexto próprio (`@TestPropertySource`), como o `ApiKeyLimitIT`: todos os ITs
-  chamam de 127.0.0.1.
+  chamam de 127.0.0.1 (e dois ITs com as mesmas propriedades dividem o contexto e o bloqueio).
+  - `ApiKeyStartupCheck`: fora do perfil `dev` a aplicação **não sobe** com a chave padrão, vazia
+    ou com menos de 32 caracteres (o `mvn spring-boot:run` já usa `dev`; os ITs usam chave longa).
+    Tokens de instância novos também exigem 32+ caracteres (os antigos continuam valendo).
+  - IP real atrás de proxy: `RemoteIpValve` do Tomcat (`forward-headers-strategy: native`), que só
+    aceita o `X-Forwarded-For` de `TRUSTED_PROXIES` (CIDRs; vazio = ignora). Os limitadores
+    continuam lendo `getRemoteAddr()`.
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
   Violação de constraint vira 400 (pelo nome da constraint); exceções do Spring com status
   (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.
@@ -219,18 +228,15 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
    Figurinha, botões e listas ainda não existem.
 2. O RabbitMQ usa um exchange tópico, e não filas por evento (`docs/COMPATIBILIDADE.md`).
-3. As entregas de webhook ficam só em memória (com teto por instância, ADR 0006): se o processo
-   cair durante os retries, o evento se perde. Uma fila persistente (outbox) resolveria; ainda
-   não é necessário.
-4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
+3. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt ao vivo** (rodada de 2026-11-12/13 com dois números): tudo o que o teste ao vivo achou
+4. **Cobalt ao vivo** (rodada de 2026-11-12/13 com dois números): tudo o que o teste ao vivo achou
    foi corrigido no motor (resolve de 30 s, restart pedindo QR, ack 479 em conta Business, sessão
    Signal, aparelho vinculado, mídia e áudio, fila offline, aviso de código de segurança no Web,
    nome do perfil sobrescrito pelo do aparelho ao restaurar, retry e exceção solta no login). O
    retry (`receipt type=retry`) segue o `getTargetChat` do WhatsApp Web, mas ainda não foi
    observado ao vivo. A suíte do motor tem 16 falhas e 93 erros que já existem no `master`.
-6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
+5. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 
 ## Memória entre sessões

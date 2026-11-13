@@ -161,10 +161,11 @@ class InstanceFlowIT extends IntegrationTest {
         var a = uniqueName("a");
         var b = uniqueName("b");
         assertThat(post("/instance/create", """
-                {"instanceName":"%s","token":"TOKEN-A-%s"}""".formatted(a, a)).status()).isEqualTo(201);
+                {"instanceName":"%s","token":"TOKEN-A-%s-0123456789abcdefghij"}""".formatted(a, a)).status())
+                .isEqualTo(201);
         assertThat(post("/instance/create", """
                 {"instanceName":"%s"}""".formatted(b)).status()).isEqualTo(201);
-        var tokenA = "TOKEN-A-" + a;
+        var tokenA = "TOKEN-A-" + a + "-0123456789abcdefghij";
 
         var own = call("GET", "/instance/fetchInstances", tokenA, null);
         assertThat(own.status()).isEqualTo(200);
@@ -202,11 +203,28 @@ class InstanceFlowIT extends IntegrationTest {
     void tokensMustBeUnique() {
         var a = uniqueName("a");
         post("/instance/create", """
-                {"instanceName":"%s","token":"MESMO-%s"}""".formatted(a, a));
+                {"instanceName":"%s","token":"MESMO-%s-0123456789abcdefghijklmn"}""".formatted(a, a));
 
         assertErrorFormat(post("/instance/create", """
-                {"instanceName":"%s","token":"MESMO-%s"}""".formatted(uniqueName("b"), a)), 400);
+                {"instanceName":"%s","token":"MESMO-%s-0123456789abcdefghijklmn"}""".formatted(uniqueName("b"), a)), 400);
         assertErrorFormat(post("/instance/create", """
                 {"instanceName":"%s","token":"%s"}""".formatted(uniqueName("c"), API_KEY)), 400);
+    }
+
+    @Test
+    void newTokensNeedAtLeast32Characters() {
+        var shortToken = post("/instance/create", """
+                {"instanceName":"%s","token":"%s"}""".formatted(uniqueName("curto"), "x".repeat(31)));
+        assertErrorFormat(shortToken, 400);
+        assertThat(shortToken.body().get("response").get("message").get(0).asString()).contains("32");
+
+        var exact = post("/instance/create", """
+                {"instanceName":"%s","token":"%s"}""".formatted(uniqueName("ok"), "y".repeat(32)));
+        assertThat(exact.status()).isEqualTo(201);
+
+        // Gerado automaticamente: já cumpre o mínimo
+        var generated = post("/instance/create", """
+                {"instanceName":"%s"}""".formatted(uniqueName("gerado")));
+        assertThat(generated.body().get("hash").asString()).hasSizeGreaterThanOrEqualTo(32);
     }
 }

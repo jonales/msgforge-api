@@ -70,7 +70,7 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
+            <!-- compile, e não runtime: o OutboxListener usa o LISTEN do driver (PGConnection) -->
         </dependency>
 
         <!-- Cache e mensageria -->
@@ -141,6 +141,12 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- mvn spring-boot:run sobe no perfil dev, que aceita a chave padrão (ApiKeyStartupCheck) -->
+                    <profiles>
+                        <profile>dev</profile>
+                    </profiles>
+                </configuration>
             </plugin>
             <!-- mvn test: só unitários (*Test). mvn verify: também os de integração (*IT). -->
             <plugin>

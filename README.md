@@ -22,7 +22,7 @@ RabbitMQ. Um painel web, o **Manager**, opera tudo pelo navegador.
 ## Comece em 1 minuto
 
 ```bash
-cp .env.example .env          # troque AUTHENTICATION_API_KEY
+cp .env.example .env          # defina AUTHENTICATION_API_KEY (openssl rand -hex 32)
 docker compose up -d --build  # aplicação + PostgreSQL + Redis + RabbitMQ
 ```
 
@@ -31,7 +31,7 @@ docker compose up -d --build  # aplicação + PostgreSQL + Redis + RabbitMQ
 
 ```bash
 curl -X POST http://localhost:8080/instance/create \
-  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
+  -H "apikey: $AUTHENTICATION_API_KEY" -H "Content-Type: application/json" \
   -d '{"instanceName":"vendas","qrcode":true}'
 ```
 
