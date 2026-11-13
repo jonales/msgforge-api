@@ -1,142 +1,87 @@
-# 0007: Motor do WhatsApp: Cobalt 0.0.10, condicionado ao teste ao vivo
+# 0007: Motor do WhatsApp: Cobalt, pelo fork oficial `jonales/Cobalt`
 
-**Status:** proposta (2026-11). Vira "aceita" quando o teste ao vivo do
-`docs/spikes/cobalt/README.md` passar nos critérios 1 a 5. O `CobaltWhatsAppGateway` já foi
-construído (por decisão do usuário, sem esperar o teste ao vivo) e está atrás de
-`MSGFORGE_GATEWAY=cobalt`; o padrão continua `stub`.
+**Status:** aceita (2026-11-13). O motor deste repositório é o Cobalt 0.1.0 do fork
+[`jonales/Cobalt`](https://github.com/jonales/Cobalt), que é a versão oficial do motor para o
+Msgforge. Validado ao vivo em 2026-11-12/13 (`docs/VALIDACAO-COBALT-FORK.md`). Complementada pela
+[0009](0009-spike-comparativo-motores.md), que compara os motores.
 
-## Contexto
-A Fase 2 troca o `StubWhatsAppGateway` por um motor real. O ADR 0001 previu o Cobalt (Java), mas
-nunca foi validado. O spike (`docs/spikes/cobalt/`) testou o que dava para testar sem um celular.
-O ambiente de nuvem não alcança o WhatsApp: o proxy recusa `web.whatsapp.com`.
+## Decisão
+- **Motor:** Cobalt (Java), rodando dentro da própria aplicação, sem serviço extra. Só o pacote
+  `gateway/cobalt/` importa classes do Cobalt; o resto fala com o `WhatsAppGateway` (ADR 0001).
+  `MSGFORGE_GATEWAY=cobalt` liga o motor; o stub continua como padrão para desenvolvimento e testes.
+- **Fork oficial:** `jonales/Cobalt` é a nossa versão do motor. Defeitos de protocolo são
+  corrigidos **no fork** (com teste, e validados ao vivo quando mexem no protocolo), e não com
+  contornos em `gateway/cobalt/`.
+- **Versão fixada:** `scripts/install-cobalt.sh` instala `com.github.auties00:cobalt-lib:0.1.0`
+  a partir de um commit fixo do fork (o CI, o Dockerfile e o hook de sessão rodam o script). Uma
+  correção entra aqui subindo esse commit, num PR deste repositório.
+- **Manutenção do fork:**
+  - branch de correção sempre a partir do `master` do fork;
+  - PR no fork mergeado com merge commit, **sem squash**: o script busca o commit pelo SHA, e um
+    squash deixaria o SHA fixado fora do `master` (se acontecer, re-fixe o commit);
+  - o upstream do Cobalt é só leitura; o que vier de lá entra no fork por PR, como qualquer mudança.
+- **Sessão:** em disco, no formato do Cobalt (`COBALT_SESSION_DIR/<instância>`, volume
+  `/data/cobalt` na imagem). O `session_store` guarda só um marcador. Guardar a sessão no Postgres
+  exigiria uma `LinkedWhatsAppStoreFactory` própria; fica para quando for necessário.
 
-## O que o spike verificou
+## Por que o Cobalt, e por que um fork
+- O Cobalt roda na mesma JVM da API (um artefato só, sem um processo de outra linguagem ao lado).
+  Licença MIT.
+- A última versão publicada (0.0.10, jul/2025) funcionou ao vivo, mas com defeitos de protocolo
+  graves (aviso de código de segurança em toda mensagem, login de ~60 s) e sem correções novas. A
+  reescrita 0.1.0 do upstream não é publicada. Manter um fork nosso dá controle sobre as correções
+  e sobre a versão em uso.
+
+## Validação ao vivo
+Duas instâncias locais (Docker) com dois números de teste, roteiro em
+`docs/VALIDACAO-COBALT-FORK.md`. Com o fork, tudo passou:
 
 | Item | Resultado |
 |---|---|
-| Disponibilidade | `com.github.auties00:cobalt:0.0.10` no Maven Central (jul/2025). Licença MIT |
-| Java 25 | Bytecode Java 21 (major 65), roda no JDK 25 sem flags |
-| Criptografia/chaves | `newStoreKeysPair` gera chaves offline no JDK 25 |
-| Persistência | `KeysSpec`/`StoreSpec.encode/decode` ↔ `byte[]`, ida e volta idêntica. Dá para escrever um `ControllerSerializer` sobre o `session_store` (Postgres) |
-| Montagem do cliente | `Whatsapp.webBuilder().serializer(..).newConnection(UUID)` ok; o UUID pode ser o id da instância |
-| Falha de rede | `connect()` falha em menos de 1 s com `IOException`, sem travar (`ErrorHandler` disponível) |
-| **Dependência `aspose-words`** | **Comercial**, fora do Central (repositório da Aspose); o build **quebra** sem ela. Excluída. **Correção posterior:** o spike concluiu que a ausência só degradava, mas, ao construir o gateway, montar *qualquer* mensagem de mídia falhou com `NoClassDefFoundError: com/aspose/words/SaveOptions`, porque a JVM carrega os tipos referenciados por `Medias` ao verificar a classe. Solução: **shim** em `src/main/java/com/aspose/words` (4 classes vazias, sem código da Aspose). Com ele, documento sai com 1 página e sem miniatura |
-| `slf4j-nop` | Dependência transitiva que silenciaria o log da aplicação. **Excluída** |
-| ffmpeg (`jaffree`) | Duração e miniatura de vídeo/áudio. Sem o binário, duração 0 e montagem em cerca de 5 ms. Com o binário: MP4 real em cerca de 450 ms; **bytes que não são vídeo fazem o `ffprobe` esperar cerca de 10 s** (limitado). A imagem Docker ainda não instala o ffmpeg |
-| Proxy | `OptionsBuilder.proxy(URI)` é respeitado: `COBALT_PROXY`. Os testes usam um proxy numa porta fechada para que o `connect` falhe igual em qualquer lugar, inclusive no CI |
-| Outras | `fastjson2`, `jackson-core` 2.x (coexiste com o Jackson 3 do Boot), zxing, libphonenumber; cerca de 10 MB no total |
-| Qualidade | Bug visto no código: `DocumentMessage` usa `thumbnail != null ? null : ...` (condição invertida) |
-| Manutenção | Upstream ativo até jul/2026, mas numa **reescrita 0.1.0 não publicada** (multi-módulo, nativo, Java 25 + `--enable-preview`). A 0.0.10 tem cerca de 16 meses |
+| Login por QR, e restart sem QR | ✅ 2 a 5 s; ~2 s após restart |
+| Envio e recebimento de texto | ✅ |
+| Aviso de código de segurança (celular e WhatsApp Web) | ✅ não aparece |
+| Mensagem de aparelho vinculado (Web) | ✅ decifrada |
+| LID → número, status até "lida" | ✅ |
+| Imagem, nota de voz, áudio como arquivo | ✅ |
+| Fila offline (inclusive stories) | ✅ |
 
-**Não verificado (o maior risco):** se o protocolo da 0.0.10 ainda é aceito pelo WhatsApp hoje
-(login, envio, recebimento, reconexão), e com que risco de banimento.
+Correções feitas no fork durante a validação (PRs jonales/Cobalt#3 e #4): consulta de número
+interativa, sessão salva reabrindo sem QR, atributo que gerava ack 479 em conta Business, sessão
+Signal por LID, par LID/número aprendido do `sender_pn`, mídia (queda da JVM, imagens, nota de voz
+com duração errada, áudio AAC), ack de stories na fila offline e o ICDC (`deviceListMetadata`)
+igual ao do WhatsApp Web, que era a causa do aviso de código de segurança.
 
-## Mapeamento contrato → Cobalt (base do gateway)
-
-| Msgforge (`WhatsAppGateway` / evento) | Cobalt 0.0.10 |
+## Mapeamento contrato → Cobalt
+| Msgforge (`WhatsAppGateway` / evento) | Cobalt |
 |---|---|
-| `connect` com QR | `webBuilder()...newConnection(id).unregistered(QrHandler)` + `connect()` |
-| `connect` com pairing code (`?number=`) | `unregistered(long phone, PairingCodeHandler)` |
-| Reconectar com sessão salva | `...newConnection(id).registered()` (via `ControllerSerializer` próprio) |
-| `logout` | `logout()`; apagar a sessão (`deleteSession`) |
-| `sendText` | `sendMessage(Jid.of(...), text)` |
-| `sendMedia` | `sendMessage(jid, MessageContainer)` com mensagens de mídia |
-| `qrcode.updated` | callback do `QrHandler` |
-| `connection.update` (open/close) | `addLoggedInListener` / `addDisconnectedListener(DisconnectReason)` |
-| `messages.upsert` | `addNewChatMessageListener(ChatMessageInfo)` → mapear para o formato Baileys |
-| `messages.update` (ack) | `addMessageStatusListener` (`ChatMessageInfo.status()`) |
-| Estado `close`/banido | `DisconnectReason.LOGGED_OUT` / `BANNED` |
+| `connect` com QR / pairing code | conexão nova com o tratador de QR ou de código |
+| Reconectar com sessão salva | conexão registrada a partir da pasta da sessão |
+| `logout` | `logout()` e remoção do marcador e da pasta |
+| `sendText`, `sendMedia`, `send(Outgoing)` | `sendMessage`, com `uploadMedia` antes para mídia |
+| `qrcode.updated`, `connection.update` | tratador de QR; eventos de login e desconexão |
+| `messages.upsert` | mensagens novas, convertidas por `CobaltMessageMapper` no formato do contrato |
+| `messages.update` | `ack`/`receipt` do protocolo (`SentStatusTracker`) |
 
-## Decisão (proposta)
-1. Usar o **Cobalt 0.0.10**, só no pacote `gateway/` (regra do ADR 0001), com as exclusões de
-   `aspose-words` e `slf4j-nop`.
-2. **Antes** de escrever o mapeamento completo, rodar o **teste ao vivo** (critérios do README do
-   spike) com um número de teste.
-3. Se o teste falhar, as alternativas, em ordem de preferência:
-   - **(B) Sidecar com Baileys**, atrás do `WhatsAppGateway`:
-     o payload de `MESSAGES_UPSERT` sai nativamente no formato que os clientes esperam, e a
-     biblioteca é mantida e muito usada. Custo: um processo Node a mais (fere o "um artefato" só
-     no motor) e um protocolo local (HTTP/WebSocket) entre os dois.
-   - **(C) Cobalt 0.1.0 compilado do fonte**: obrigaria a aplicação inteira a rodar com
-     `--enable-preview`, sem versão publicada e com dependências nativas. Só se (B) for vetado.
-
-## Implementação (Fase 2)
-Pacote `dev.msgforge.gateway.cobalt`:
-- **`CobaltWhatsAppGateway`:** uma conexão por instância. QR em texto e PNG em base64; pairing
-  code com `?number=`; reconexão sem QR quando há sessão; logout; `sendText` (com `delay` =
-  "digitando...") e `sendMedia` (URL ou base64, com teto de tamanho e `PrivateNetworkGuard`).
-- **Eventos:**
-  - `connection.update` com `wuid`/`profileName` ao abrir; ao fechar, os códigos do Baileys
-    (401 logout, 403 banido, 428 fechada).
-  - `messages.upsert` via `CobaltMessageMapper` (formato Baileys).
-  - `messages.update` (status `SERVER_ACK`/`DELIVERY_ACK`/`READ`/`PLAYED`).
-- **Concorrência:** `connect`/`logout` são serializados por instância. Antes da revisão, 10
-  chamadas simultâneas criavam 10 clientes do WhatsApp para a mesma sessão (provado em teste).
-  Agora, um connect com QR pendente reaproveita a conexão e devolve o QR atual.
-- **`DatabaseSessionSerializer`:** Keys e Store no `session_store`, num blob só
-  (`CobaltSessionCodec`), com lock por instância.
-- **Mudança nas camadas acima:** `InstanceService` não segura transação enquanto fala com o
-  gateway. Os eventos do motor chegam por threads do Cobalt e precisam enxergar a instância
-  commitada (ADR 0004).
+Detalhes de comportamento (lock por instância, `resolve`, `LidResolver`, mídia) estão no
+`CLAUDE.md`, seção "Arquitetura".
 
 ## Consequências
-- O isolamento atrás de `WhatsAppGateway` permite trocar de motor sem tocar na API: (A), (B) e
-  (C) afetam só `gateway/`.
-- O `session_store` guarda um blob por instância; o Cobalt tem dois (`Keys` e `Store`). A
-  implementação precisa decidir entre empacotar os dois num blob só ou criar uma migration com
-  uma coluna nova (seguindo `docs/MIGRATIONS.md`).
-- Testes do gateway: unitários com o mapeamento a partir de objetos do Cobalt construídos
-  offline. O fluxo real só no teste manual ao vivo. O CI não alcança o WhatsApp, e não deve.
+- Somos donos do motor: mudanças de protocolo do WhatsApp podem exigir correção no fork, e cada
+  correção precisa de teste e, quando mexe no protocolo, de uma rodada ao vivo.
+- O isolamento atrás de `WhatsAppGateway` mantém a API independente do motor; a variante em Go
+  (whatsmeow) vive em outro repositório (ADR 0009).
+- O CI não alcança o WhatsApp, e não deve: os testes do gateway usam um proxy numa porta fechada
+  (`COBALT_PROXY`). O fluxo real só se valida ao vivo.
+- Pendências conhecidas do motor ficam no `CLAUDE.md` ("Problemas conhecidos", item 5).
 
-## Teste ao vivo (2026-11-12)
-Duas instâncias locais (Docker, `MSGFORGE_GATEWAY=cobalt`) com dois números de teste, conversando
-entre si. Critérios do roteiro:
-
-| # | Critério | Resultado |
-|---|---|---|
-| 1 | Login por QR | ✅ (`wuid` e `profileName` no `connection.update`) |
-| 2 | Envio de texto | ✅ (chega no celular; `send.message` publicado) |
-| 3 | Recebimento | ✅ em tempo real, depois das correções abaixo |
-| 4 | Status de entrega/leitura | ❌ os recibos chegam, mas não viram `messages.update` (LID) |
-| 5 | Sessão persistida | ✅ reconecta sem QR no boot |
-
-O teste achou quatro defeitos que os testes offline não alcançavam, todos corrigidos em
-`gateway/cobalt/`: o `isConnected()` do Cobalt é true antes do scan; o `send.message` não era
-publicado; o decode da sessão por `byte[]` quebra em JIDs (bug do Cobalt); e a fila offline
-travava (o Cobalt não pede `offline_batch` nem manda ack do que não decodifica), o que impedia
-receber. Pendente para "aceita": traduzir LID → número (remetente e status). Detalhes no
-CLAUDE.md, "Problemas conhecidos".
-
-### Segunda rodada (2026-11-12, noite)
-O critério 4 passou: os `messages.update` (SERVER_ACK, DELIVERY_ACK, READ) saem a partir dos nós
-do protocolo, e o `remoteJid` vem com o número (tradução de LID). A rodada achou mais três
-defeitos do Cobalt, contornados em `gateway/cobalt/`: a versão do WhatsApp Web que ele busca sumiu
-da página (login recusado com 405); o cache "tem WhatsApp?" descartava envios em silêncio a partir
-do segundo; e envios que falham concluem com status ERROR, sem exceção. Ainda aberto, e decisivo
-para "aceita": o aviso "Não foi possível confirmar seu código de segurança" no app do
-destinatário (CLAUDE.md, problemas conhecidos, item 5).
-
-## Migração para o fork (0.1.0, 2026-11-12)
-Motivo: com a 0.0.10, o celular do destinatário mostrava "Não foi possível confirmar seu código de
-segurança" em toda mensagem, e o login levava ~60 s; a 0.0.10 não recebe mais correções. O fork
-`jonales/Cobalt` (a reescrita 0.1.0 do upstream, já sem `--enable-preview`) traz o ICDC
-(`deviceListMetadata`) no envio, LID ↔ número no Store, fila offline e versão do WhatsApp Web
-resolvidas, e correções próprias (PR jonales/Cobalt#2: lista de aparelhos refeita quando o servidor
-reporta phash divergente; bootstrap de login em paralelo).
-
-- **Dependência:** `com.github.auties00:cobalt-lib:0.1.0`, instalada por
-  `scripts/install-cobalt.sh` num commit fixo (CI, Dockerfile e hook de sessão).
-- **Sessão:** em disco, no formato do Cobalt (`COBALT_SESSION_DIR/<instância>`; volume
-  `/data/cobalt` na imagem). O `session_store` guarda só um marcador. Sessões da 0.0.10 não são
-  aproveitadas: a instância pede QR de novo. Guardar a sessão no Postgres exigiria uma
-  `LinkedWhatsAppStoreFactory` própria (a interface é `non-sealed`); fica para depois do teste ao vivo.
-- **Removidos:** `WebVersion`, `OfflineQueueGuard`, `RawNodes`, `UsersCache`,
-  `DatabaseSessionSerializer`, `CobaltSessionCodec` e o shim do `aspose-words`.
-- **Rodada com o fork (2026-11-12/13):** todos os itens do roteiro (`docs/VALIDACAO-COBALT-FORK.md`)
-  passaram, inclusive o aviso de código de segurança no celular e no WhatsApp Web (corrigido no
-  ICDC do fork, jonales/Cobalt#4) e o áudio (voz e arquivo, corrigidos no transcodificador do fork). Pela regra do roteiro, a ADR pode passar
-  a "aceita"; a decisão é do usuário.
-- **Aceite:** o roteiro de `docs/spikes/cobalt-0.1/README.md` com a API inteira (Docker), em
-  especial o aviso de código de segurança, o tempo de login, os status e a mídia (o
-  `uploadMedia` do fork transcodifica a mídia; ainda não exercitado na imagem Docker).
-
+## Histórico
+- **2026-11, spike offline (0.0.10):** disponibilidade no Maven Central, Java 25, chaves e sessão
+  ok; dependência comercial (`aspose-words`) contornada com um shim; protocolo não verificado.
+- **2026-11-12, ao vivo com a 0.0.10:** login, envio, recebimento, status e sessão passaram após
+  sete correções em `gateway/cobalt/`; ficaram o aviso de código de segurança e o login de ~60 s.
+- **2026-11-12, migração para o fork 0.1.0:** os contornos da 0.0.10 foram removidos (`WebVersion`,
+  `OfflineQueueGuard`, `RawNodes`, `UsersCache`, `DatabaseSessionSerializer`, `CobaltSessionCodec`
+  e o shim do `aspose-words`); a sessão foi para o disco.
+- **2026-11-12/13, validação com o fork:** todos os itens passaram (tabela acima). ADR aceita, com
+  o fork como versão oficial do motor.

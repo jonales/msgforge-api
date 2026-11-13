@@ -194,9 +194,10 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
 
 O roadmap está em `docs/roadmap.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
 `CobaltWhatsAppGateway` foi validado ao vivo com a 0.0.10 em 2026-11-12 (duas instâncias locais
-conversando entre si) e migrou para o fork 0.1.0 (PR #12). **Este repositório segue com o fork
-`jonales/Cobalt`:** os defeitos do motor são corrigidos no fork, junto com o usuário, e o commit
-fixado em `scripts/install-cobalt.sh` sobe quando a correção entra. A variante com whatsmeow (Go)
+conversando entre si), migrou para o fork 0.1.0 (PR #12) e foi validado ao vivo com o fork em
+2026-11-13 (ADR 0007 aceita). **O fork `jonales/Cobalt` é a versão oficial do motor:** os defeitos
+são corrigidos no fork (branch a partir do `master`, PR com merge commit, nunca squash), junto com
+o usuário, e o commit fixado em `scripts/install-cobalt.sh` sobe quando a correção entra. A variante com whatsmeow (Go)
 vive em outro repositório (`jonales/msgforge-whatsmeow`); o spike comparativo está na ADR 0009.
 Roteiro ao vivo: `docs/VALIDACAO-COBALT-FORK.md`. Na nuvem não dá para testar ao vivo (o proxy
 bloqueia `web.whatsapp.com`).
