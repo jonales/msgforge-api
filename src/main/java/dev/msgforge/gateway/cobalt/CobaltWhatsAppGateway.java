@@ -230,7 +230,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         if (sessions.exists(id)) {
             restored = loadSaved(web, connection).orElse(null);
             if (restored == null) {
-                // Marcador sem pasta (volume perdido, ou sessão do formato antigo): pede QR de novo
+                // Pasta sem sessão registrada (volume perdido, ou sessão do formato antigo): pede QR de novo
                 log.warn("[cobalt] {}: sessão salva não encontrada em disco; será preciso conectar de novo", name);
                 sessions.delete(id);
             }
@@ -238,7 +238,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         if (restored != null) {
             connection.api = restored;   // sessão salva: reconecta sem QR
         } else {
-            var options = configure(newConnection(web), connection);
+            var options = history(configure(newConnection(web), connection), instance.getHistorySync());
             if (phoneNumberForPairing != null) {
                 connection.api = options.unregistered(pairingNumber(phoneNumberForPairing),
                         new LinkedWhatsAppClientVerificationHandler.Web.PairingCode() {
@@ -303,7 +303,14 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 log.warn("[cobalt] {}: o WhatsApp pediu a passkey do aparelho; abra no celular: {}", name, url));
     }
 
-    /** Sessão salva na pasta da instância, já configurada; vazio quando não há sessão registrada. */
+    /**
+     * Sessão salva na pasta da instância, já configurada; vazio quando não há sessão registrada.
+     *
+     * <p>Se a sessão existe mas o motor falha ao abri-la, lança {@link GatewayException} e não
+     * mexe em nada: tratar isso como "sem sessão" apagaria o marcador e começaria um QR novo na
+     * mesma pasta, por cima da sessão boa. Um defeito do motor viraria um novo scan; assim, a
+     * próxima versão do motor ainda restaura a sessão.
+     */
     private Optional<LinkedWhatsAppClient> loadSaved(LinkedWhatsAppClientBuilder.Client.Web web, Connection connection) {
         try {
             return web.loadLatestConnection()
@@ -311,10 +318,24 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                     .map(LinkedWhatsAppClientBuilder.Options.Web.class::cast)
                     .flatMap(options -> configure(options, connection).registered());
         } catch (IOException | RuntimeException e) {
-            log.warn("[cobalt] {}: sessão salva ilegível ({}); será tratada como ausente",
+            log.error("[cobalt] {}: sessão salva não pôde ser aberta ({}); a sessão foi mantida, sem QR novo",
                     connection.instanceName, rootMessage(e));
-            return Optional.empty();
+            throw new GatewayException("A sessão salva não pôde ser aberta pelo motor: " + rootMessage(e)
+                    + ". Ela foi mantida; faça logout para descartá-la e conectar de novo.", e);
         }
+    }
+
+    /**
+     * Histórico pedido no pareamento. Só vale para uma sessão nova: o WhatsApp manda o histórico
+     * uma vez, quando o aparelho é vinculado.
+     */
+    private static LinkedWhatsAppClientBuilder.Options.Web history(LinkedWhatsAppClientBuilder.Options.Web options,
+                                                                   dev.msgforge.instance.HistorySync historySync) {
+        return switch (historySync == null ? dev.msgforge.instance.HistorySync.NONE : historySync) {
+            case NONE -> options.discardHistory();
+            case RECENT -> options.defaultHistory();
+            case FULL -> options.fullHistory();
+        };
     }
 
     private static LinkedWhatsAppClientBuilder.Options.Web newConnection(LinkedWhatsAppClientBuilder.Client.Web web) {
@@ -484,15 +505,27 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 connection.closingOnPurpose = true;
             }
         }
-        if (connection != null) {
-            call(() -> {
-                connection.api.logout();
-                return null;
-            }, "logout");
+        try {
+            if (connection != null && connection.loggedIn) {
+                call(() -> {
+                    connection.api.logout();
+                    return null;
+                }, "logout");
+            } else if (connection != null) {
+                // Nunca logou (QR ou código pendente): não há aparelho para desvincular, só o socket
+                // e o laço de QR para encerrar
+                close(instance.getId(), connection);
+            }
+        } catch (RuntimeException e) {
+            // O aparelho pode continuar em "Aparelhos conectados" no celular; a limpeza local segue
+            log.warn("[cobalt] {}: logout no WhatsApp falhou ({}); a sessão local é apagada assim mesmo",
+                    instance.getName(), rootMessage(e));
+            close(instance.getId(), connection);
+        } finally {
+            deleteSession(instance.getId());
+            events.publishEvent(new GatewayEvent.ConnectionUpdated(instance.getName(), ConnectionState.CLOSE,
+                    REASON_LOGGED_OUT));
         }
-        deleteSession(instance.getId());
-        events.publishEvent(new GatewayEvent.ConnectionUpdated(instance.getName(), ConnectionState.CLOSE,
-                REASON_LOGGED_OUT));
     }
 
     /** Apaga o marcador e a pasta da sessão. */

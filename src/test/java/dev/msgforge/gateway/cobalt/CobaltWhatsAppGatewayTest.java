@@ -156,6 +156,54 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void unreadableSavedSessionIsKeptInsteadOfStartingAFreshQr() throws Exception {
+        var gateway = gateway(false, 1024);
+        var instance = instance("ilegivel");
+        sessions.save(instance.getId(), CobaltWhatsAppGateway.SESSION_MARKER);
+        // Um arquivo no lugar da pasta da sessão: o motor não consegue abri-la
+        var sessionPath = gateway.sessionDirectory(instance.getId());
+        java.nio.file.Files.writeString(sessionPath, "não é uma pasta");
+
+        assertThatThrownBy(() -> gateway.connect(instance, null))
+                .isInstanceOf(dev.msgforge.gateway.WhatsAppGateway.GatewayException.class)
+                .hasMessageContaining("mantida");
+
+        // Antes, o marcador era apagado e um QR novo começava por cima da sessão
+        assertThat(sessions.exists(instance.getId())).isTrue();
+        assertThat(java.nio.file.Files.readString(sessionPath)).isEqualTo("não é uma pasta");
+        assertThat(gateway.activeConnections()).isZero();
+    }
+
+    @Test
+    void logoutOfAPendingQrConnectionClosesItWithoutWaitingForTheWhatsApp() throws Exception {
+        try (var proxy = silentProxy()) {
+            var properties = new MsgforgeProperties("http://localhost", null,
+                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false),
+                    null, "cobalt",
+                    new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
+                            "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));
+            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties);
+            var instance = instance("pendente");
+            try {
+                gateway.connect(instance, null);   // fica esperando o QR: nunca loga
+                assertThat(gateway.activeConnections()).isEqualTo(1);
+
+                var start = System.nanoTime();
+                gateway.logout(instance);
+
+                // Antes, a exclusão de uma instância nesse estado deixava o cliente vivo gerando QR
+                assertThat(gateway.activeConnections()).isZero();
+                assertThat((System.nanoTime() - start) / 1_000_000).as("não espera o timeout de envio").isLessThan(2900);
+                assertThat(java.nio.file.Files.exists(gateway.sessionDirectory(instance.getId()))).isFalse();
+                assertThat(events).filteredOn(ConnectionUpdated.class::isInstance)
+                        .extracting(e -> ((ConnectionUpdated) e).state()).last().isEqualTo(ConnectionState.CLOSE);
+            } finally {
+                gateway.destroy();
+            }
+        }
+    }
+
+    @Test
     void sendingWithoutConnectionIsABadRequest() {
         var gateway = gateway(false, 1024);
         assertThatThrownBy(() -> gateway.sendText(instance("vendas"),

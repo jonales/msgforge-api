@@ -16,7 +16,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && ffmpeg -hide_banner -version | head -n 1
-RUN useradd -r -u 1001 msgforge \
+# Home própria (-m): o Cobalt guarda em ~/.cobalt o cache das bibliotecas nativas que a mídia usa;
+# sem ela, todo envio de mídia falha com AccessDeniedException: /home/msgforge
+RUN useradd -r -m -d /home/msgforge -u 1001 msgforge \
     && mkdir -p /data/cobalt && chown msgforge /data/cobalt
 # Sessões do Cobalt (uma pasta por instância): monte um volume aqui para sobreviverem ao container
 VOLUME /data/cobalt

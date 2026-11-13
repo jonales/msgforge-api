@@ -34,6 +34,9 @@ public class ManagerController {
 
     static final int CONVERSATION_PAGE_SIZE = 30;
 
+    static final List<String> HISTORY_OPTIONS = Arrays.stream(dev.msgforge.instance.HistorySync.values())
+            .map(Enum::name).toList();
+
     private final InstanceService instances;
     private final WebhookService webhooks;
     private final MessageService messages;
@@ -62,6 +65,7 @@ public class ManagerController {
     @GetMapping({"", "/"})
     public String list(Model model) {
         model.addAttribute("instances", rows());
+        model.addAttribute("historyOptions", HISTORY_OPTIONS);
         return "manager/instances";
     }
 
@@ -74,9 +78,10 @@ public class ManagerController {
 
     @PostMapping("/instances")
     public String create(@RequestParam String instanceName, @RequestParam(required = false) String number,
-                         RedirectAttributes flash) {
+                         @RequestParam(required = false) String historySync, RedirectAttributes flash) {
         var name = instanceName.trim();
         var created = instances.create(new CreateInstanceRequest(name, null, false, blankToNull(number), null, null));
+        instances.setHistorySync(name, dev.msgforge.instance.HistorySync.parse(historySync));
         flash.addFlashAttribute("success", "manager.flash.created");
         // O token só aparece uma vez, logo após a criação
         flash.addFlashAttribute("createdToken", created.hash());
@@ -92,6 +97,7 @@ public class ManagerController {
         model.addAttribute("live", live(name));
         model.addAttribute("webhook", webhooks.find(name).map(WebhookView::of).orElse(WebhookView.EMPTY));
         model.addAttribute("eventNames", EVENT_NAMES);
+        model.addAttribute("historyOptions", HISTORY_OPTIONS);
         return "manager/instance";
     }
 
@@ -104,7 +110,11 @@ public class ManagerController {
 
     @PostMapping("/instances/{name}/connect")
     public String connect(@PathVariable String name, @RequestParam(required = false) String number,
-                          RedirectAttributes flash) {
+                          @RequestParam(required = false) String historySync, RedirectAttributes flash) {
+        if (historySync != null) {
+            // Vale a partir deste pareamento: guarda antes de criar a conexão
+            instances.setHistorySync(name, dev.msgforge.instance.HistorySync.parse(historySync));
+        }
         // O QR anterior pode ter expirado (ex.: reconexão com sessão salva, que não gera QR novo)
         qrCodes.forget(name);
         var result = instances.connect(name, blankToNull(number));

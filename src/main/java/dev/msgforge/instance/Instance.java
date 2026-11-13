@@ -35,6 +35,10 @@ public class Instance {
     @Column(name = "connection_state", nullable = false)
     private String connectionState;
 
+    @Column(name = "history_sync", nullable = false, length = 10)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    private HistorySync historySync;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -50,6 +54,7 @@ public class Instance {
         this.integration = integration;
         this.number = number;
         this.connectionState = ConnectionState.CLOSE.value();
+        this.historySync = HistorySync.NONE;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
@@ -67,10 +72,14 @@ public class Instance {
     public String getOwnerJid() { return ownerJid; }
     public String getProfileName() { return profileName; }
     public ConnectionState getConnectionState() { return ConnectionState.from(connectionState); }
+    public HistorySync getHistorySync() { return historySync; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 
     public void setConnectionState(ConnectionState state) { this.connectionState = state.value(); }
     public void setOwnerJid(String ownerJid) { this.ownerJid = ownerJid; }
     public void setProfileName(String profileName) { this.profileName = profileName; }
+    public void setHistorySync(HistorySync historySync) {
+        this.historySync = java.util.Objects.requireNonNull(historySync, "historySync");
+    }
 }

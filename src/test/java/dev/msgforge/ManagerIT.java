@@ -144,6 +144,32 @@ class ManagerIT extends IntegrationTest {
     }
 
     @Test
+    void historySyncDefaultsToNoneAndConnectSavesTheChoice() throws Exception {
+        var name = createInstance();
+        assertThat(instances.findByName(name)).get().extracting(i -> i.getHistorySync())
+                .isEqualTo(dev.msgforge.instance.HistorySync.NONE);
+        mvc.perform(asManager(GET("/manager/instances/" + name)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.containsString("name=\"historySync\"")))
+                .andExpect(content().string(Matchers.containsString("aria-describedby=\"history-hint\"")));
+
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/connect")).with(csrf())
+                        .param("historySync", "FULL"))
+                .andExpect(redirectedUrl("/manager/instances/" + name));
+        assertThat(instances.findByName(name)).get().extracting(i -> i.getHistorySync())
+                .isEqualTo(dev.msgforge.instance.HistorySync.FULL);
+
+        // Criar já com a escolha; valor desconhecido vira o padrão
+        var other = uniqueName("tela");
+        mvc.perform(asManager(POST("/manager/instances")).with(csrf())
+                        .param("instanceName", other).param("historySync", "RECENT"))
+                .andExpect(redirectedUrl("/manager/instances/" + other));
+        assertThat(instances.findByName(other)).get().extracting(i -> i.getHistorySync())
+                .isEqualTo(dev.msgforge.instance.HistorySync.RECENT);
+        assertThat(dev.msgforge.instance.HistorySync.parse("talvez")).isEqualTo(dev.msgforge.instance.HistorySync.NONE);
+    }
+
+    @Test
     void webhookFormSavesThroughTheService() throws Exception {
         var name = createInstance();
         mvc.perform(asManager(POST("/manager/instances/" + name + "/webhook")).with(csrf())

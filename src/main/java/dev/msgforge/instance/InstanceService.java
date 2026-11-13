@@ -82,6 +82,18 @@ public class InstanceService {
         return connect(get(instanceName), number);
     }
 
+    /**
+     * Guarda quanto histórico a instância pede no próximo pareamento (Manager). Não reconecta:
+     * uma sessão já conectada continua como está.
+     */
+    public void setHistorySync(String instanceName, HistorySync historySync) {
+        tx.executeWithoutResult(status -> {
+            var instance = get(instanceName);
+            instance.setHistorySync(historySync);
+            instances.save(instance);
+        });
+    }
+
     /** O estado (connecting/open) vem dos eventos do gateway, não daqui: um login rápido já pode ter chegado. */
     private QrCode connect(Instance instance, String number) {
         var result = gateway.connect(instance, number);
@@ -129,9 +141,9 @@ public class InstanceService {
 
     public void delete(String instanceName) {
         var instance = get(instanceName);
-        if (currentState(instance) != ConnectionState.CLOSE || sessions.exists(instance.getId())) {
-            gateway.logout(instance);
-        }
+        // Sempre: uma conexão com QR pendente pode estar com o estado "close" e sem sessão salva, e
+        // continuaria viva (gerando QR para uma instância apagada) se o gateway não fosse avisado
+        gateway.logout(instance);
         instances.delete(instance);   // a sessão sai junto (FK ON DELETE CASCADE)
         state.evict(instanceName);
     }

@@ -18,6 +18,13 @@ O Cobalt roda dentro da própria aplicação (Java), sem serviço extra. O motor
 Uma variante desta mesma API com o motor whatsmeow (Go), num serviço separado, segue em
 paralelo no repositório [jonales/msgforge-whatsmeow](https://github.com/jonales/msgforge-whatsmeow).
 
+## Histórico das conversas no pareamento
+
+Cada instância escolhe, no Manager (card "Conectar" ou ao criar), quanto histórico pede ao
+WhatsApp quando o aparelho é vinculado: **sem histórico** (padrão, conexão mais rápida),
+**recente** (o que o WhatsApp manda por padrão) ou **completo** (até 365 dias). A escolha só vale
+no próximo pareamento: para mudar numa instância conectada, desconecte e conecte de novo.
+
 ## Antes de usar um número real
 
 - Use um número de teste: a conexão não é oficial e pode levar ao banimento.

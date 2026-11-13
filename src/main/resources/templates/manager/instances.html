@@ -19,6 +19,13 @@
                 <span th:text="#{manager.create.number}">Número (opcional)</span>
                 <input name="number" inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
             </label>
+            <label>
+                <span th:text="#{manager.history.label}">Histórico das conversas</span>
+                <select name="historySync">
+                    <option th:each="option : ${historyOptions}" th:value="${option}"
+                            th:selected="${option == 'NONE'}" th:text="#{'manager.history.' + ${option}}">Sem histórico</option>
+                </select>
+            </label>
             <button type="submit" class="primary" th:text="#{manager.create.submit}">Criar</button>
         </form>
     </section>
