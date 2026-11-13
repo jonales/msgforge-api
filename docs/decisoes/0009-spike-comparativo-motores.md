@@ -32,6 +32,10 @@ Mesmos números de teste, mesmos critérios. As sondas rodaram em containers iso
 | Versão do WhatsApp Web | contorno nosso | método quebrado (fixar à mão) | atualizada pela biblioteca |
 | Manutenção | parada desde 2025 | não publicada, 4 meses parada | commits semanais |
 
+Depois do spike (2026-11-13), o fork resolveu as três prioridades: o aviso no WhatsApp Web (o `ts`
+da lista de aparelhos no ICDC), a mensagem de aparelho vinculado e os recibos; também o restart
+sem QR. Resultados em `docs/VALIDACAO-COBALT-FORK.md`.
+
 O Cobalt 0.1.0 também tem bugs na própria API: `Options.Web.name()` faz cast para `Mobile`, e
 `registered()` passa um handler nulo, então reabrir uma sessão salva falha.
 

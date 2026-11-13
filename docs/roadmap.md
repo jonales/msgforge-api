@@ -5,7 +5,7 @@
 - [x] Motor real (Cobalt 0.1.0, fork): QR/pareamento, sessão salva, envio, recebimento e status
 - [x] Manager v1: login, instâncias, QR ao vivo, webhook, mensagem de teste
 - [x] Manager: conversas e mensagens de cada instância (lidas do histórico)
-- [ ] Validar o motor Cobalt 0.1.0 ao vivo ([VALIDACAO-COBALT-FORK.md](VALIDACAO-COBALT-FORK.md))
+- [x] Validar o motor Cobalt 0.1.0 ao vivo ([VALIDACAO-COBALT-FORK.md](VALIDACAO-COBALT-FORK.md))
 - [x] Mais tipos de envio: áudio de voz, localização, contato, reação, enquete
 - [ ] Figurinha (sticker), botões e listas
 - [x] Chat e perfil: números no WhatsApp, marcar como lida, presença, foto, perfil e alterações
