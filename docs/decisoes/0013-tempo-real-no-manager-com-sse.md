@@ -1,6 +1,6 @@
 # 0013: Tempo real no Manager com Server-Sent Events
 
-**Status:** proposta (2026-11-13). Trata do próprio Manager. Entregar eventos ao vivo para os
+**Status:** aceita (2026-11-13). Trata do próprio Manager. Entregar eventos ao vivo para os
 sistemas dos clientes (WebSocket ou SSE na API) é outra decisão, que aparece como "Em breve".
 
 ## Contexto

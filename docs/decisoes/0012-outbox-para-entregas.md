@@ -1,6 +1,6 @@
 # 0012: Outbox no PostgreSQL para entregas de eventos e notificações
 
-**Status:** proposta (2026-11-13). Substitui, quando implementada, a fila em memória da ADR 0006
+**Status:** aceita (2026-11-13). Substitui, quando implementada, a fila em memória da ADR 0006
 para a entrega; mantém a ordem por instância (0006) e a entrega depois do commit, a partir de um
 snapshot (0004).
 

@@ -1,6 +1,6 @@
 # 0011: Notificações por e-mail (SMTP), com canais extensíveis
 
-**Status:** proposta (2026-11-13). Depende da ADR 0012 (outbox) para a entrega e da ADR 0010 para
+**Status:** aceita (2026-11-13). Depende da ADR 0012 (outbox) para a entrega e da ADR 0010 para
 os destinatários.
 
 ## Contexto

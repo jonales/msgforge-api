@@ -21,7 +21,8 @@ Quatro perfis usam o Manager (`/manager`), muitas vezes a mesma pessoa em moment
   conectar o próprio número (escanear o QR) e ver se está conectado, com o mínimo de acesso.
 
 O gestor organiza seus clientes em **organizações**: cada organização tem suas instâncias e seus
-usuários, cada um com um papel (ADR 0010).
+usuários. Os papéis não são fixos: cada organização monta os seus a partir de um catálogo de
+permissões, e o gestor pode deixar o próprio cliente administrar os usuários dele (ADR 0010).
 
 ## Product Purpose
 
@@ -80,8 +81,9 @@ ajuda.
 - Validação ao vivo do motor em `docs/VALIDACAO-COBALT-FORK.md`, com duas instâncias de teste.
 - Não há depoimentos, clientes citáveis, métricas públicas ou preços. Não inventar.
 
-- **Acesso e notificações (planejado, ADRs 0010 a 0013):** login por e-mail e senha com papéis
-  (admin, gestor, operador, atendente, cliente) por organização; link de conexão de acesso mínimo
+- **Acesso e notificações (planejado, ADRs 0010 a 0013):** login por e-mail e senha; papéis
+  definidos por cada organização a partir de um catálogo fixo de permissões, com papéis-modelo
+  (gestor, operador, atendente, cliente) e escopo opcional por instância; link de conexão de acesso mínimo
   para o cliente; e-mail por SMTP para convite, redefinição de senha e alertas (instância
   desconectada, webhook falhando); entregas pela outbox; telas ao vivo por SSE.
 
