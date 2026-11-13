@@ -184,6 +184,10 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
 - Modelos de tela (`ManagerViews`) precisam ser **públicos**: o SpEL do Thymeleaf não chama
   métodos de records não públicos. Erro de renderização não passa pelo
   `ManagerExceptionHandler` (vira página 500); teste cada tela no `ManagerIT`.
+- Tempo real (ADR 0013): SSE em `/manager/stream/...` (`ManagerStreamController`/`ManagerStreams`)
+  envia os **mesmos fragmentos** do polling (`sse-swap`, extensão `sse` vendorizada). Origem só pelo
+  `ManagerBus` (hoje local; Redis pub/sub para multi-nó). O polling fica como reserva
+  (`data-poll` + `static/manager/manager.js`); `ManagerStreamIT` cobre o stream.
 - E2E: suba a aplicação (stub) e rode `node scripts/e2e/manager.js [pasta-screenshots]`
   (login → criar → conectar → webhook → erro → excluir → sair; falha se o console tiver erro,
   inclusive de CSP).

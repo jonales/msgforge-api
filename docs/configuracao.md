@@ -35,6 +35,30 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 Em produção atrás de HTTPS, ligue também `SERVER_SERVLET_SESSION_COOKIE_SECURE=true` (cookie do
 Manager).
 
+## Manager atrás de um proxy (tempo real)
+
+O Manager recebe as atualizações ao vivo (status, QR, conversas) por Server-Sent Events nas rotas
+`/manager/stream/...` (ADR 0013). São respostas longas, que precisam chegar ao navegador evento a
+evento. A aplicação já envia `X-Accel-Buffering: no`, que o nginx respeita. Em outro proxy, ou se
+o cabeçalho for removido, desligue o buffering e a compressão dessa rota e aumente o tempo de
+leitura (a aplicação manda uma batida a cada 25 s e fecha o stream a cada 15 min). No nginx:
+
+```nginx
+location /manager/stream/ {
+    proxy_pass http://msgforge:8080;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_buffering off;
+    proxy_cache off;
+    gzip off;
+    proxy_read_timeout 1h;
+}
+```
+
+Se o stream não abrir ou cair (rede, proxy que recusa, mais de 4 abas na mesma sessão), a tela
+volta ao polling de antes. Com um proxy que abre o stream mas segura os eventos, a tela só se
+atualiza na busca de segurança, a cada minuto: é o sinal de que falta desligar o buffering.
+
 ## Atrás de proxy reverso (nginx, Traefik)
 
 Os limites de tentativas (chave da API e login do Manager) contam por IP. Atrás de um proxy, a
