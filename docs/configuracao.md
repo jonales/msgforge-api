@@ -4,7 +4,9 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 
 | Variável | Padrão | Para quê |
 |---|---|---|
-| `AUTHENTICATION_API_KEY` | `troque-esta-chave` | Chave global da API e login do Manager |
+| `AUTHENTICATION_API_KEY` | **obrigatória** | Chave global da API e login do Manager; 32+ caracteres (ex.: `openssl rand -hex 32`). A padrão (`troque-esta-chave`) só sobe no perfil `dev` |
+| `SPRING_PROFILES_ACTIVE` | vazio | `dev` aceita a chave padrão ou fraca (com aviso no log); o `mvn spring-boot:run` já usa `dev`. Nunca em produção |
+| `TRUSTED_PROXIES` | vazio | Proxies reversos confiáveis, em CIDR separados por vírgula (um IP só: `/32`): só deles o `X-Forwarded-For` é aceito. Vazio = cabeçalho ignorado |
 | `AUTHENTICATION_MAX_FAILURES` | `30` | Erros de chave da API por IP em 15 min antes do 429 (0 desliga) |
 | `SERVER_URL` | `http://localhost:8080` | URL pública, enviada nos eventos |
 | `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL local | Banco (migrations Flyway automáticas) |
@@ -27,3 +29,33 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 
 Em produção atrás de HTTPS, ligue também `SERVER_SERVLET_SESSION_COOKIE_SECURE=true` (cookie do
 Manager).
+
+## Atrás de proxy reverso (nginx, Traefik)
+
+Os limites de tentativas (chave da API e login do Manager) contam por IP. Atrás de um proxy, a
+conexão chega sempre do IP do proxy: sem configuração, todos os clientes dividem um IP só, e quem
+erra a chave de propósito bloqueia todo mundo (o 429 vale até com a chave certa).
+
+Para contar pelo IP real, liste em `TRUSTED_PROXIES` os endereços de onde o proxy conecta na
+aplicação, em CIDR (um IP só leva `/32`) e separados por vírgula:
+
+```
+TRUSTED_PROXIES=172.18.0.0/16            # rede Docker do proxy (docker network inspect <rede>)
+TRUSTED_PROXIES=10.0.0.5/32,10.0.0.6/32  # proxies em IPs fixos
+```
+
+O `X-Forwarded-For` (e o `X-Forwarded-Proto`) só é aceito quando a conexão vem de um desses
+endereços; de qualquer outro, é ignorado. Na cadeia `X-Forwarded-For`, o IP do cliente é o
+primeiro, da direita para a esquerda, que não está na lista: um valor forjado pelo cliente à
+esquerda não vale. Por isso o proxy precisa **acrescentar** o IP do cliente ao cabeçalho:
+
+- **nginx:** `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;` e
+  `proxy_set_header X-Forwarded-Proto $scheme;`.
+- **Traefik:** já envia o `X-Forwarded-For` acrescentado. Se houver outro balanceador na frente
+  dele, configure `forwardedHeaders.trustedIPs` no entrypoint do Traefik com o IP desse
+  balanceador; sem isso, o Traefik descarta o cabeçalho recebido (o que é seguro).
+
+Não ponha em `TRUSTED_PROXIES` uma faixa de onde clientes também conectam direto (por exemplo, a
+rede inteira quando a porta da aplicação está publicada): esses clientes poderiam forjar o IP. Com
+a porta publicada pelo Docker, a conexão direta pode chegar pelo gateway da rede (`172.x.0.1`);
+publique a porta só para o proxy ou deixe esse IP fora da lista.

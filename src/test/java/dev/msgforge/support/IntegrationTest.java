@@ -32,7 +32,7 @@ import tools.jackson.databind.json.JsonMapper;
 @ExtendWith(RequiresInfrastructure.class)
 public abstract class IntegrationTest {
 
-    public static final String API_KEY = "it-global-key";
+    public static final String API_KEY = "it-global-key-0123456789abcdefghijklmnop";   // >= 32: sobe fora do perfil dev
 
     protected static final WebhookReceiver webhooks = new WebhookReceiver();
     private static final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
@@ -73,6 +73,11 @@ public abstract class IntegrationTest {
     public record Response(int status, JsonNode body) {}
 
     protected Response call(String method, String path, String apiKey, String jsonBody) {
+        return call(method, path, apiKey, jsonBody, java.util.Map.of());
+    }
+
+    protected Response call(String method, String path, String apiKey, String jsonBody,
+                            java.util.Map<String, String> headers) {
         var builder = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .method(method, jsonBody == null
                         ? HttpRequest.BodyPublishers.noBody()
@@ -81,6 +86,7 @@ public abstract class IntegrationTest {
         if (apiKey != null) {
             builder.header("apikey", apiKey);
         }
+        headers.forEach(builder::header);
         try {
             var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             var body = response.body().isBlank() ? null : json.readTree(response.body());

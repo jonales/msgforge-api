@@ -125,7 +125,13 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   mesma `FailureWindow` do login do Manager): passou de `AUTHENTICATION_MAX_FAILURES` em 15 min,
   429 em tudo, **inclusive com a chave certa** (senão o 200 entregaria a chave). Num IT que esgota
   o limite, use contexto próprio (`@TestPropertySource`), como o `ApiKeyLimitIT`: todos os ITs
-  chamam de 127.0.0.1.
+  chamam de 127.0.0.1 (e dois ITs com as mesmas propriedades dividem o contexto e o bloqueio).
+  - `ApiKeyStartupCheck`: fora do perfil `dev` a aplicação **não sobe** com a chave padrão, vazia
+    ou com menos de 32 caracteres (o `mvn spring-boot:run` já usa `dev`; os ITs usam chave longa).
+    Tokens de instância novos também exigem 32+ caracteres (os antigos continuam valendo).
+  - IP real atrás de proxy: `RemoteIpValve` do Tomcat (`forward-headers-strategy: native`), que só
+    aceita o `X-Forwarded-For` de `TRUSTED_PROXIES` (CIDRs; vazio = ignora). Os limitadores
+    continuam lendo `getRemoteAddr()`.
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
   Violação de constraint vira 400 (pelo nome da constraint); exceções do Spring com status
   (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.

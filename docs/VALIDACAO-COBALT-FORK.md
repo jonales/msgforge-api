@@ -28,7 +28,7 @@ cp .env.example .env
 No `.env`, ajuste:
 
 ```
-AUTHENTICATION_API_KEY=troque-esta-chave
+AUTHENTICATION_API_KEY=<saída de: openssl rand -hex 32>
 MSGFORGE_GATEWAY=cobalt
 LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG
 ```
@@ -56,7 +56,7 @@ Esperado: bem menos que os ~60 s da 0.0.10.
 
 ```bash
 curl -X POST http://localhost:8080/message/sendText/teste \
-  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
+  -H "apikey: $AUTHENTICATION_API_KEY" -H "Content-Type: application/json" \
   -d '{"number":"55DDDNUMERO_DO_B","text":"teste 1"}'
 ```
 
@@ -87,14 +87,14 @@ Pelo terminal, a mesma conferência:
 
 ```bash
 curl -X POST http://localhost:8080/chat/findMessages/teste \
-  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" -d '{}'
+  -H "apikey: $AUTHENTICATION_API_KEY" -H "Content-Type: application/json" -d '{}'
 ```
 
 ## 5. Mídia
 
 ```bash
 curl -X POST http://localhost:8080/message/sendMedia/teste \
-  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
+  -H "apikey: $AUTHENTICATION_API_KEY" -H "Content-Type: application/json" \
   -d '{"number":"55DDDNUMERO_DO_B","mediatype":"image","mimetype":"image/png","caption":"foto","media":"https://www.w3.org/Icons/w3c_home.png"}'
 ```
 

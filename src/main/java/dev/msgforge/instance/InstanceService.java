@@ -28,6 +28,12 @@ import org.springframework.transaction.support.TransactionTemplate;
 @Service
 public class InstanceService {
 
+    /**
+     * Tamanho mínimo de um token escolhido pelo cliente. Vale só para tokens novos: os que já
+     * estão no banco continuam aceitos. O gerado automaticamente (UUID, 36 caracteres) já cumpre.
+     */
+    public static final int MIN_TOKEN_LENGTH = 32;
+
     private final InstanceRepository instances;
     private final InstanceStateService state;
     private final WebhookService webhooks;
@@ -66,6 +72,9 @@ public class InstanceService {
         var token = request.token() == null || request.token().isBlank()
                 ? UUID.randomUUID().toString().toUpperCase()
                 : request.token();
+        if (token.length() < MIN_TOKEN_LENGTH) {
+            throw new BadRequestException("token must have at least " + MIN_TOKEN_LENGTH + " characters");
+        }
         if (token.equals(properties.authentication().apiKey()) || instances.existsByToken(token)) {
             throw new BadRequestException("This token is already in use.");
         }

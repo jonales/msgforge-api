@@ -1,6 +1,6 @@
 // E2E do Manager (Playwright). Uso: subir a aplicação (stub) em :8080 e rodar
 //   node scripts/e2e/manager.js [pasta-de-screenshots]
-// Requer Node + o pacote playwright (já vem nas sessões em nuvem). Chave: MSGFORGE_E2E_KEY ou troque-esta-chave.
+// Requer Node + o pacote playwright (já vem nas sessões em nuvem). Chave: MSGFORGE_E2E_KEY ou troque-esta-chave (perfil dev).
 const { chromium } = require('playwright');
 (async () => {
   const shots = process.argv[2] || require('os').tmpdir();
