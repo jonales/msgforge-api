@@ -2,6 +2,8 @@
 
 **Status:** aceita (2026-11). Complementa o 0004, que continua valendo: snapshot e entrega
 depois do commit.
+Substituída em parte pela 0012 (entrega pela outbox); o `OrderedExecutor` fica como recuo
+(`OUTBOX_ENABLED=false`).
 
 ## Contexto
 Desde o 0004, cada evento era entregue numa virtual thread própria. Com o retry de webhook,

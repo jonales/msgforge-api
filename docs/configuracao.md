@@ -12,7 +12,12 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `MSGFORGE_GATEWAY` | `stub` | Motor do WhatsApp: `stub` ou `cobalt` |
 | `WEBHOOK_GLOBAL_ENABLED`, `WEBHOOK_GLOBAL_URL` | desligado | Webhook que recebe os eventos de todas as instâncias |
 | `WEBHOOK_REQUEST_TIMEOUT_MS`, `WEBHOOK_RETRY_*` | 10 s, 5 tentativas | Timeout e retry exponencial dos webhooks |
-| `WEBHOOK_MAX_PENDING_PER_INSTANCE` | `1000` | Teto de entregas na fila de cada instância |
+| `WEBHOOK_MAX_PENDING_PER_INSTANCE` | `1000` | Teto de entregas na fila em memória de cada instância (só com `OUTBOX_ENABLED=false`) |
+| `OUTBOX_ENABLED` | `true` | Grava cada entrega (webhook, global, RabbitMQ) na tabela `outbox` antes de entregar, e uma queda do processo não perde eventos (ADR 0012). `false` volta à fila em memória; as linhas pendentes ficam na tabela até religar |
+| `OUTBOX_RETENTION_HOURS` | `24` | Apaga as entregas feitas mais velhas que isso, a cada 10 min (0 guarda para sempre). As que falharam de vez (`MORTO`) ficam |
+| `OUTBOX_POLL_INTERVAL_MS` | `1000` | Varredura periódica da outbox, além do sinal de linha nova e do `LISTEN/NOTIFY` entre nós |
+| `OUTBOX_MAX_IN_FLIGHT` | `64` | Entregas simultâneas por nó |
+| `OUTBOX_LEASE_SECONDS` | `60` | Prazo de uma entrega em curso; vencido (o nó caiu), ela volta para a fila. Nunca fica abaixo de 3x `WEBHOOK_REQUEST_TIMEOUT_MS` |
 | `WEBHOOK_BLOCK_PRIVATE_NETWORKS` | `false` | Recusa webhooks de instância para IPs internos (SSRF) |
 | `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
 | `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome do aparelho (Cobalt), aplicado só ao parear uma conexão nova; a sessão salva mantém o nome do perfil sincronizado |
