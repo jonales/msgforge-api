@@ -73,6 +73,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     `DatabaseSessionSerializer` e o shim do aspose) foram removidos: o motor resolve versão do
     WhatsApp Web, fila offline e cache de números. Se um desses sintomas voltar, confira o motor
     antes de recriar o contorno.
+  - Nome: no Cobalt, o nome do aparelho (`CONFIG_SESSION_PHONE_CLIENT`) e o nome do perfil ocupam
+    o mesmo campo, que vai como `pushName` no login. Só a conexão nova recebe o nome do aparelho;
+    a sessão restaurada mantém o nome do perfil sincronizado (`setting_pushName`).
   - Histórico no pareamento: `Instance.historySync` (`NONE` padrão das novas, `RECENT`, `FULL`),
     escolhido no Manager (card "Conectar" e criar) e aplicado só ao criar a conexão nova
     (`discardHistory`/`defaultHistory`/`fullHistory` do Cobalt). Não é rota da API (settings
@@ -214,15 +217,12 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt ao vivo, pendências** (rodada de 2026-11-12/13 com dois números; resolvidos no
-   motor: resolve de 30 s, restart pedindo QR, ack 479 para conta Business, sessão Signal que não se
-   fixava, mensagem de aparelho vinculado não decifrada, imagem, queda da JVM na mídia e fila
-   offline travada pelos stories, o aviso "Não foi possível confirmar seu código de segurança"
-   no WhatsApp Web de quem recebe, a nota de voz que não baixava e o áudio comum que falhava).
-   Abertos: (a) O `pushName` enviado é o nome do aparelho, e após restaurar a sessão o
-   `profileName` vem nulo. (b) O Cobalt não atende `receipt type=retry`. (c) Exceção solta de
-   `NodeTimeout` (`fb:thrift_iq`) numa thread sem nome. A suíte do motor tem 16 falhas e 93 erros
-   que já existem no `master`.
+5. **Cobalt ao vivo** (rodada de 2026-11-12/13 com dois números): tudo o que o teste ao vivo achou
+   foi corrigido no motor (resolve de 30 s, restart pedindo QR, ack 479 em conta Business, sessão
+   Signal, aparelho vinculado, mídia e áudio, fila offline, aviso de código de segurança no Web,
+   nome do perfil sobrescrito pelo do aparelho ao restaurar, retry e exceção solta no login). O
+   retry (`receipt type=retry`) segue o `getTargetChat` do WhatsApp Web, mas ainda não foi
+   observado ao vivo. A suíte do motor tem 16 falhas e 93 erros que já existem no `master`.
 6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 
