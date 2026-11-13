@@ -191,7 +191,10 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
   - [x] histórico no pareamento por instância (rádios no card "Conectar", select no criar)
   - [x] mensagens: conversas e conversa aberta, lidas do histórico (`/manager/instances/{n}/messages`,
     atualiza por htmx; o envio de teste do Manager também vai para o histórico)
-- Próximas ideias (não planejadas): webhook global, envio de mídia.
+- Planejado (fase 0 desenhada em 2026-11-13): redesenho do Manager, organizações, usuários e papéis,
+  link de conexão para o cliente, e-mail (SMTP) e alertas, outbox e telas ao vivo por SSE. Produto
+  em `PRODUCT.md` (raiz); decisões nas ADRs 0010 a 0013; fases em `docs/roadmap.md`. Integrações e
+  canais sem backend aparecem como "Em breve", nunca como botão que falha.
 
 ## Estado atual e backlog
 
