@@ -238,7 +238,10 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         if (restored != null) {
             connection.api = restored;   // sessão salva: reconecta sem QR
         } else {
-            var options = history(configure(newConnection(web), connection), instance.getHistorySync());
+            // Só a conexão nova recebe o nome do aparelho: na sessão salva, o mesmo campo guarda o nome
+            // do perfil (vindo da sincronização), que vai como pushName no login
+            var options = history(configure(newConnection(web).name(config.deviceName()), connection),
+                    instance.getHistorySync());
             if (phoneNumberForPairing != null) {
                 connection.api = options.unregistered(pairingNumber(phoneNumberForPairing),
                         new LinkedWhatsAppClientVerificationHandler.Web.PairingCode() {
@@ -347,20 +350,21 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     }
 
     /**
-     * Nome do aparelho, proxy e tratamento de erros. Antes do login, uma falha de conexão encerra a
-     * tentativa (DISCONNECT), como o connect que falhava na versão anterior: o evento de desconexão
+     * Proxy e tratamento de erros, para conexão nova e sessão salva. O nome do aparelho fica de fora:
+     * no Cobalt, ele ocupa o mesmo campo do nome do perfil, e sobrescrevê-lo ao restaurar fazia as
+     * mensagens saírem com o nome do aparelho e o {@code profileName} vir nulo. Antes do login, uma
+     * falha de conexão encerra a tentativa (DISCONNECT), como o connect que falhava na versão anterior: o evento de desconexão
      * publica o CLOSE e libera quem espera o QR. Depois do login, os erros só vão para o log e o
      * Cobalt segue (ele mesmo reconecta quando a rede volta).
      */
     private LinkedWhatsAppClientBuilder.Options.Web configure(LinkedWhatsAppClientBuilder.Options.Web options,
                                                              Connection connection) {
-        options.name(config.deviceName())
-                .errorHandler((api, error) -> {
-                    log.warn("[cobalt] {}: erro: {}", connection.instanceName, error.toString());
-                    return !connection.loggedIn && error instanceof WhatsAppConnectionException
-                            ? WhatsAppLinkedClientErrorResult.DISCONNECT
-                            : WhatsAppLinkedClientErrorResult.DISCARD;
-                });
+        options.errorHandler((api, error) -> {
+            log.warn("[cobalt] {}: erro: {}", connection.instanceName, error.toString());
+            return !connection.loggedIn && error instanceof WhatsAppConnectionException
+                    ? WhatsAppLinkedClientErrorResult.DISCONNECT
+                    : WhatsAppLinkedClientErrorResult.DISCARD;
+        });
         if (config.proxy() != null && !config.proxy().isBlank()) {
             options.proxy(WhatsAppClientProxy.of(URI.create(config.proxy())));
         }

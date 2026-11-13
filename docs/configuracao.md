@@ -15,7 +15,7 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `WEBHOOK_MAX_PENDING_PER_INSTANCE` | `1000` | Teto de entregas na fila de cada instância |
 | `WEBHOOK_BLOCK_PRIVATE_NETWORKS` | `false` | Recusa webhooks de instância para IPs internos (SSRF) |
 | `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
-| `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome exibido em "Aparelhos conectados" (Cobalt) |
+| `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome do aparelho (Cobalt), aplicado só ao parear uma conexão nova; a sessão salva mantém o nome do perfil sincronizado |
 | `COBALT_PROXY` | vazio | Proxy para a conexão com o WhatsApp (Cobalt) |
 | `DATABASE_SAVE_DATA_NEW_MESSAGE` | `true` | Grava as mensagens no banco (histórico de `/chat/findMessages`) |
 | `HISTORY_RETENTION_DAYS` | `0` | Apaga do histórico as mensagens mais velhas que isso, de hora em hora (0 guarda para sempre) |
