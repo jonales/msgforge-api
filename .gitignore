@@ -14,3 +14,6 @@ graphify-out/*
 
 # Hooks locais de ferramentas (ex.: skill impeccable para o Copilot); dependem de scripts em $HOME
 .github/hooks/
+
+# plantão local (fila, saídas e handoffs do agente com LLM local)
+.agente-local/
