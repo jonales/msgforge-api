@@ -1,38 +1,43 @@
 # Plantão local (LLM no Ollama)
 
-Um agente com LLM local que trabalha **junto** com os agentes do Claude e **assume** os passos
-marcados como locais quando o Claude bate no limite de uso, para o projeto não parar.
+Agente com LLM local que trabalha **junto** com os agentes do Claude: refina pedidos antes de
+chegarem ao Claude, roda testes, faz revisão prévia e ajustes pequenos, e **assume** os passos
+marcados como locais quando o Claude bate no limite de uso.
 
 ```bash
-nohup python3 -I scripts/agente-local/plantao.py > .agente-local/nohup.out 2>&1 &   # sobe
-pkill -f agente-local/plantao.py                                                    # para
-cat .agente-local/estado.json; tail .agente-local/plantao.log                       # como está
+nohup python3 -I scripts/agente-local/plantao.py >> .agente-local/nohup.out 2>&1 &   # sobe
+pkill -f agente-local/plantao.py                                                     # para
 ```
 
-Requer o Ollama em `localhost:11434`. Modelos por variável: `PLANTAO_MODELO_TEXTO` e
-`PLANTAO_MODELO_CODIGO` (padrão `qwen2.5:7b`; para código, um modelo de código maior, como o
-`qwen2.5-coder:14b`, rende bem mais).
+Modelos (variáveis `PLANTAO_MODELO_TEXTO` e `PLANTAO_MODELO_CODIGO`): `qwen2.5:7b` para resumos;
+`qwen2.5-coder:14b`, se instalado, para refinar, perguntar, revisar e alterar código.
 
-## Modos
-- **Conjunto** (normal): processa a fila em `.agente-local/fila/` (resumos, testes, revisão
-  prévia de diff), liberando o Claude do trabalho braçal.
-- **Limite:** ligado quando o último erro `rate_limit` nos transcritos do Claude Code deste
-  projeto é mais novo que a última resposta do Claude e ainda não passou o horário de volta.
-  Nesse modo ele também colhe os passos `[local:...]` dos `HANDOFF.md` dos worktrees. Para ligar à
-  mão: `touch .agente-local/forcar`.
+## Passar tarefas (`tarefa.py`)
 
-## Tarefas (`.agente-local/fila/<id>.json`)
-| tipo | campos | o que faz |
-|---|---|---|
-| `resumo` | `pergunta`, `arquivos` | responde sobre os arquivos |
-| `testes` | `pasta` (worktree), `comando` (`mvn-test`, `mvn-test-classe` + `params.classe`, `mvn-compile`) | roda e analisa as falhas |
-| `revisao` | `pasta`, `base` | revisão prévia do `git diff base...HEAD` contra o `CLAUDE.md` |
-| `patch` | `pasta`, `instrucao`, `arquivos`, `verificacao` | aplica blocos busca/troca num worktree novo `local/<id>`; commit local só se a verificação passar |
+```bash
+T=scripts/agente-local/tarefa.py
+python3 -I $T refinar "pedido cru"                  # especificação pronta para o Claude
+python3 -I $T pergunta "como o X decide Y?"         # responde a partir do código das classes citadas
+python3 -I $T resumo "o que resumir" -a docs/x.md
+python3 -I $T revisao --ref minha-branch            # revisão prévia do diff contra origin/main
+python3 -I $T testes [--ref main] [--classe XTest | --it XIT]
+python3 -I $T patch "alteração pequena" -a src/.../X.java [--verificacao mvn-test-classe --classe XTest]
+python3 -I $T status | ver [id] | licoes
+python3 -I $T nota <id> "o que ele errou e como deve ser"   # ensina (vai para .agente-local/licoes.md)
+```
 
-`"so_no_limite": true` faz a tarefa esperar o modo limite. Resultados em `.agente-local/saida/`.
+Saídas em `.agente-local/saida/<id>.md`. Cada saída é **rascunho**: o Claude (ou você) revisa.
 
-## Passagem (HANDOFF)
-Cada agente do Claude mantém `<worktree>/.agente-local/HANDOFF.md`:
+## Como ele aprende
+Não há treino do modelo. O aprendizado são as **lições** (`.agente-local/licoes.md`), que entram
+em todas as tarefas como regras, e o **contexto** que o plantão monta: o grafo do código
+(`graphify query`, atualizado sozinho quando fica mais velho que o `main`) e o fonte das classes
+citadas pelo nome. Toda saída termina com a conferência dos caminhos citados (✓ existe, ✗ não).
+
+## Modo limite e passagem (HANDOFF)
+Quando o último erro `rate_limit` nos transcritos do Claude Code deste projeto é mais novo que a
+última resposta do Claude e ainda não passou o horário de volta, o plantão também executa os
+passos `[local:...]` dos `HANDOFF.md` dos worktrees. Para forçar: `touch .agente-local/forcar`.
 
 ```markdown
 ## Estado
@@ -43,9 +48,11 @@ O que está pronto e testado, branch, último commit.
 - [ ] passo que só o Claude faz (sem marca)
 ```
 
-## Limites e segurança
-- Nunca faz push, merge nem mexe no checkout principal; comandos só da lista `COMANDOS`, sem
-  shell; rede só para o Ollama local.
-- O que ele produz é **rascunho**: o Claude (ou você) revisa antes de aproveitar.
-- Um modelo de 7B não substitui o Claude em código de arquitetura. Ele mantém o andamento em
-  testes, revisão prévia, resumos e ajustes pequenos.
+## Segurança e limites
+- Rede só para o Ollama local. Nunca faz push, merge nem mexe no checkout principal: testes e
+  patches rodam em worktrees próprios (`.claude/worktrees/local-<id>`, branch `local/<id>` só
+  quando há commit). Comandos só da lista `COMANDOS`, sem shell.
+- Se o runner do Ollama travar em "Stopping...", o plantão encerra só o runner e tenta de novo.
+- Tarefa que falha volta uma vez para a fila; na segunda, vai para `falhou/`.
+- Um modelo local não substitui o Claude em decisões de arquitetura: ele prepara, confere e
+  executa o mecânico.
