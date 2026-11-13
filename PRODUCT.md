@@ -17,6 +17,11 @@ Quatro perfis usam o Manager (`/manager`), muitas vezes a mesma pessoa em moment
 - **Dono ou gestor:** acompanha quantas instâncias existem, quantas mensagens passam e se o
   serviço está saudável.
 - **Atendente:** conversa com clientes pelo próprio Manager (ver "Capabilities and Constraints").
+- **Cliente do gestor:** a empresa para quem o gestor opera números. Muitas vezes só precisa
+  conectar o próprio número (escanear o QR) e ver se está conectado, com o mínimo de acesso.
+
+O gestor organiza seus clientes em **organizações**: cada organização tem suas instâncias e seus
+usuários, cada um com um papel (ADR 0010).
 
 ## Product Purpose
 
@@ -75,6 +80,11 @@ ajuda.
 - Validação ao vivo do motor em `docs/VALIDACAO-COBALT-FORK.md`, com duas instâncias de teste.
 - Não há depoimentos, clientes citáveis, métricas públicas ou preços. Não inventar.
 
+- **Acesso e notificações (planejado, ADRs 0010 a 0013):** login por e-mail e senha com papéis
+  (admin, gestor, operador, atendente, cliente) por organização; link de conexão de acesso mínimo
+  para o cliente; e-mail por SMTP para convite, redefinição de senha e alertas (instância
+  desconectada, webhook falhando); entregas pela outbox; telas ao vivo por SSE.
+
 ## Product Principles
 
 1. **Decisão no momento em que importa:** o que muda o resultado de uma ação (histórico ao conectar,
@@ -85,6 +95,10 @@ ajuda.
    botão que falha.
 4. **Serve do integrador ao atendente:** o caminho comum é curto para quem não é técnico; detalhes
    técnicos (tokens, eventos, JIDs) ficam a um clique, sem atrapalhar.
+5. **Acesso mínimo por padrão:** cada pessoa vê e faz só o que o papel dela pede; o cliente que só
+   conecta o número recebe um link para isso, e nada mais.
+6. **Avisar antes de alguém reclamar:** o que para de funcionar (conexão, entrega de eventos) gera
+   alerta para quem cuida, sem enxurrada.
 
 ## Accessibility & Inclusion
 

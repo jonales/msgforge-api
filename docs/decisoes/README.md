@@ -20,3 +20,7 @@ Uma decisão aceita não é editada; se ela mudar, crie um ADR novo que a substi
 | [0007](0007-motor-whatsapp-cobalt.md) | Motor do WhatsApp: Cobalt, pelo `jonales/cobalt-2` (versão oficial) | aceita |
 | [0008](0008-historico-de-mensagens.md) | Histórico de mensagens no PostgreSQL, gravado pelos eventos do motor | aceita |
 | [0009](0009-spike-comparativo-motores.md) | Spike comparativo de motores; este repositório segue com o fork do Cobalt | aceita |
+| [0010](0010-organizacoes-usuarios-e-papeis.md) | Organizações, usuários e papéis no Manager, e link de conexão para o cliente | proposta |
+| [0011](0011-notificacoes-e-email.md) | Notificações por e-mail (SMTP), com canais extensíveis | proposta |
+| [0012](0012-outbox-para-entregas.md) | Outbox no PostgreSQL para entregas de eventos e notificações | proposta |
+| [0013](0013-tempo-real-no-manager-com-sse.md) | Tempo real no Manager com Server-Sent Events | proposta |

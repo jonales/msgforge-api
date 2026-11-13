@@ -13,4 +13,21 @@
 - [x] Histórico de chat no banco (buscar mensagens e conversas, ADR 0008)
 - [x] `ffmpeg` na imagem Docker (duração de áudio/vídeo, voz em OGG/Opus)
 - [ ] Armazenamento de mídia (S3/MinIO)
+
+## Manager, acesso e notificações (planejamento de 2026-11-13)
+
+Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
+
+- [x] **Fase 0, desenho:** `PRODUCT.md` e ADRs 0010 (organizações, usuários e papéis), 0011
+  (notificações e e-mail), 0012 (outbox) e 0013 (tempo real com SSE)
+- [ ] **Fase 1, fundação:** outbox no PostgreSQL (entregas que sobrevivem a queda) e SSE no Manager
+- [ ] **Fase 2, acesso:** organizações, usuários, papéis, login por e-mail, convite e redefinição
+  de senha (SMTP), auditoria mínima
+- [ ] **Fase 3, telas:** redesenho do Manager (lista, nova instância guiada com histórico no fluxo,
+  visão geral, conversas, comportamento da conta, eventos agrupados com teste e últimas entregas,
+  zona de perigo) e integrações e canais futuros como "Em breve"
+- [ ] **Fase 4, link de conexão:** página isolada do QR para o cliente, enviada por e-mail
+- [ ] **Fase 5, alertas:** desconexão, sessão encerrada, webhook falhando, resumo do gestor
+- [ ] Depois: 2FA, chaves de API com escopo por organização, proxy e comportamento por instância,
+  WebSocket/SQS/Kafka para clientes
 - [ ] Testes de contrato automatizados da API
