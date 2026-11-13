@@ -134,7 +134,7 @@ reporta phash divergente; bootstrap de login em paralelo).
   `DatabaseSessionSerializer`, `CobaltSessionCodec` e o shim do `aspose-words`.
 - **Rodada com o fork (2026-11-12/13):** todos os itens do roteiro (`docs/VALIDACAO-COBALT-FORK.md`)
   passaram, inclusive o aviso de código de segurança no celular e no WhatsApp Web (corrigido no
-  ICDC do fork, jonales/Cobalt#4). Falta só testar áudio. Pela regra do roteiro, a ADR pode passar
+  ICDC do fork, jonales/Cobalt#4) e o áudio (voz e arquivo, corrigidos no transcodificador do fork). Pela regra do roteiro, a ADR pode passar
   a "aceita"; a decisão é do usuário.
 - **Aceite:** o roteiro de `docs/spikes/cobalt-0.1/README.md` com a API inteira (Docker), em
   especial o aviso de código de segurança, o tempo de login, os status e a mídia (o

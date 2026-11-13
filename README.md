@@ -6,7 +6,7 @@ RabbitMQ. Um painel web, o **Manager**, opera tudo pelo navegador.
 
 > **Motor: Cobalt 0.1.0 (Java)**, do fork [jonales/Cobalt](https://github.com/jonales/Cobalt),
 > rodando dentro da própria aplicação. Validado ao vivo em 2026-11-13 com dois números: texto,
-> imagem, status, aparelhos vinculados e sessão restaurada; áudio ainda não testado
+> imagem, áudio (voz e arquivo), status, aparelhos vinculados e sessão restaurada
 > ([roteiro e resultados](docs/VALIDACAO-COBALT-FORK.md)).
 
 ## O que faz

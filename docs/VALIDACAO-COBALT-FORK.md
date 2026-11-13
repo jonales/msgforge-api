@@ -139,7 +139,8 @@ PR jonales/Cobalt#4).
 | 5 | Imagem com legenda chega | ✅ PNG e JPEG |
 | 6 | Volta sem QR após restart | ✅ ~2 s |
 | — | Fila offline com stories de contatos | ✅ |
-| — | Áudio (MP3/OGG) | não testado; o ffmpeg nativo do fork não tem esses demuxers |
+| — | Nota de voz (MP3, OGG/Opus, `encoding: false`) | ✅ baixa e toca desde o `4795130` (antes chegava e não baixava) |
+| — | Áudio como arquivo (`sendMedia`, MP3) | ✅ baixa e toca desde o `bc2dec2` (antes, 500 no envio) |
 
 **O aviso no WhatsApp Web** vinha do `deviceListMetadata` (ICDC), que vai em toda mensagem com o
 `ts` da lista de aparelhos do remetente. O fork mandava o horário da consulta (e em
@@ -149,6 +150,11 @@ um log de diagnóstico mostrou o `ts` igual ao horário do envio nas duas contas
 zerado em todos os aparelhos; com os três fixes (segundos, `key-index` do `<device-list>`, `ts`
 assinado), o ICDC volta e o aviso não aparece. A condição foi conferida no JS público do WhatsApp
 Web (`WAWebHandleAdvKeyIndexResultApi`, `WAWebUsyncDevice`, `WAWebIdentityIcdcApi`).
+
+**O áudio** tinha dois bugs no transcodificador do fork (ffmpeg nativo, que lê MP3 e OGG). A nota
+de voz era gerada com o *granule* do OGG/Opus a 16 kHz, e não a 48 kHz: o arquivo dizia durar um
+terço do real e o WhatsApp não o baixava. O áudio comum ia ao codificador AAC em quadros de
+tamanho variável e falhava quando precisava de reamostragem.
 
 **Para diagnosticar o motor:** `COBALT_LOG_LEVEL=WARNING` (ou `DEBUG`) no `.env` liga os logs
 internos do Cobalt, que ficam desligados sem essa variável.
