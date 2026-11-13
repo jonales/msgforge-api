@@ -47,6 +47,15 @@ class WebhookSenderTest {
     }
 
     @Test
+    void retryDelayDoublesUpToTheCeiling() {
+        assertThat(sender.maxAttempts()).isEqualTo(3);
+        assertThat(sender.retryDelayMs(1)).isEqualTo(10);
+        assertThat(sender.retryDelayMs(2)).isEqualTo(20);
+        assertThat(sender.retryDelayMs(3)).isEqualTo(40);
+        assertThat(sender.retryDelayMs(30)).isEqualTo(40);
+    }
+
+    @Test
     void doesNotRetryClientErrors() {
         receiver.respondWith(path -> 404);
 

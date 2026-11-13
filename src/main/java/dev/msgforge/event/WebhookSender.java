@@ -50,33 +50,66 @@ public class WebhookSender {
         return deliver(url, event, body, headers);
     }
 
+    /** Resultado de uma tentativa só (usada pela outbox, que agenda as novas tentativas). */
+    public sealed interface Attempt {
+        record Delivered() implements Attempt {}
+
+        /** Erro de rede, 408, 429 ou 5xx: vale tentar de novo. */
+        record Retry(String reason) implements Attempt {}
+
+        /** Recusa definitiva (outro 4xx, ou rede privada bloqueada): não adianta repetir. */
+        record Failed(String reason) implements Attempt {}
+    }
+
+    /**
+     * Uma tentativa, sem espera nem retry. O corpo já vem serializado (snapshot gravado na outbox).
+     *
+     * @param checkPrivateNetwork aplica a checagem de rede privada mesmo que a proteção deste nó
+     *                            esteja desligada (a decisão foi tomada quando o evento aconteceu)
+     */
+    public Attempt attempt(String url, String event, byte[] body, Map<String, String> headers,
+                           boolean checkPrivateNetwork) {
+        if (checkPrivateNetwork) {
+            var refusal = guard.inspect(url);
+            if (refusal.isPresent()) {
+                log.warn("Webhook {} para {} bloqueado: {}", event, url, refusal.get());
+                return new Attempt.Failed("blocked: " + refusal.get());
+            }
+        }
+        return post(url, body, headers);
+    }
+
+    /** Total de tentativas da política de retry (WEBHOOK_RETRY_MAX_ATTEMPTS). */
+    public int maxAttempts() {
+        return Math.max(1, retry.maxAttempts());
+    }
+
+    /** Espera antes da tentativa seguinte, depois de {@code failedAttempts} falhas (1, 2, ...). */
+    public long retryDelayMs(int failedAttempts) {
+        long delay = Math.max(0, retry.initialDelayMs());
+        for (int i = 1; i < failedAttempts && delay < retry.maxDelayMs(); i++) {
+            delay = delay * 2;
+        }
+        return Math.min(delay, Math.max(0, retry.maxDelayMs()));
+    }
+
     /** @return true se algum envio recebeu 2xx */
     private boolean deliver(String url, String event, Object body, Map<String, String> headers) {
         var bytes = json.writeValueAsBytes(body);
-        var attempts = Math.max(1, retry.maxAttempts());
-        var delay = Math.max(0, retry.initialDelayMs());
+        var attempts = maxAttempts();
 
         for (int attempt = 1; attempt <= attempts; attempt++) {
+            var result = post(url, bytes, headers);
             String failure;
-            try {
-                var status = http.post().uri(url)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .headers(h -> headers.forEach(h::set))
-                        .body(bytes)
-                        .retrieve()
-                        .onStatus(HttpStatusCode::isError, (request, response) -> {})
-                        .toBodilessEntity()
-                        .getStatusCode();
-                if (status.is2xxSuccessful()) {
+            switch (result) {
+                case Attempt.Delivered _ -> {
                     return true;
                 }
-                if (!retryable(status)) {
-                    log.warn("Webhook {} para {} recusado com {} (sem retry)", event, url, status.value());
+                case Attempt.Failed f -> {
+                    log.warn("Webhook {} para {} recusado com {} (sem retry)", event, url, f.reason());
                     return false;
                 }
-                failure = "HTTP " + status.value();
-            } catch (RestClientException e) {
-                failure = e.getMessage();
+                case Attempt.Retry r -> failure = r.reason();
             }
 
             if (attempt == attempts) {
@@ -84,12 +117,32 @@ public class WebhookSender {
                 return false;
             }
             log.debug("Webhook {} para {} falhou (tentativa {}/{}): {}", event, url, attempt, attempts, failure);
-            if (!sleep(delay)) {
+            if (!sleep(retryDelayMs(attempt))) {
                 return false;
             }
-            delay = Math.min(delay * 2, retry.maxDelayMs());
         }
         return false;
+    }
+
+    private Attempt post(String url, byte[] bytes, Map<String, String> headers) {
+        try {
+            var status = http.post().uri(url)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .headers(h -> headers.forEach(h::set))
+                    .body(bytes)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, (request, response) -> {})
+                    .toBodilessEntity()
+                    .getStatusCode();
+            if (status.is2xxSuccessful()) {
+                return new Attempt.Delivered();
+            }
+            return retryable(status)
+                    ? new Attempt.Retry("HTTP " + status.value())
+                    : new Attempt.Failed("HTTP " + status.value());
+        } catch (RestClientException e) {
+            return new Attempt.Retry(String.valueOf(e.getMessage()));
+        }
     }
 
     static boolean retryable(HttpStatusCode status) {

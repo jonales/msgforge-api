@@ -58,6 +58,13 @@ msgforge:
   rabbitmq:
     enabled: ${RABBITMQ_ENABLED:false}
     exchange: ${RABBITMQ_EXCHANGE_NAME:msgforge_exchange}
+  # Outbox das entregas (ADR 0012); false volta à fila em memória
+  outbox:
+    enabled: ${OUTBOX_ENABLED:true}
+    retention-hours: ${OUTBOX_RETENTION_HOURS:24}
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+    max-in-flight: ${OUTBOX_MAX_IN_FLIGHT:64}
+    lease-seconds: ${OUTBOX_LEASE_SECONDS:60}
   gateway: ${MSGFORGE_GATEWAY:stub}
   history:
     enabled: ${DATABASE_SAVE_DATA_NEW_MESSAGE:true}
