@@ -4,7 +4,7 @@ API REST para WhatsApp em **Java 25 + Spring Boot 4.1**. Crie instâncias (núme
 QR code ou código de pareamento, envie e receba mensagens e receba os eventos por webhook ou
 RabbitMQ. Um painel web, o **Manager**, opera tudo pelo navegador.
 
-> **Motor: Cobalt 0.1.0 (Java)**, do fork [jonales/Cobalt](https://github.com/jonales/Cobalt),
+> **Motor: Cobalt 0.1.0 (Java)**, de [jonales/cobalt-2](https://github.com/jonales/cobalt-2),
 > rodando dentro da própria aplicação. Validado ao vivo em 2026-11-13 com dois números: texto,
 > imagem, áudio (voz e arquivo), status, aparelhos vinculados e sessão restaurada
 > ([roteiro e resultados](docs/VALIDACAO-COBALT-FORK.md)).

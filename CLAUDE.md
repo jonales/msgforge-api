@@ -32,7 +32,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   `StubWhatsAppGateway` (`MSGFORGE_GATEWAY=stub`, padrão) e `gateway/cobalt/CobaltWhatsAppGateway`
   (`MSGFORGE_GATEWAY=cobalt`, ADR 0007). Nada fora de `gateway/cobalt/` pode importar classes do
   Cobalt (`com.github.auties00.cobalt.*`).
-  - **Motor: Cobalt 0.1.0 do fork `jonales/Cobalt`** (`cobalt-lib`), fora do Maven Central:
+  - **Motor: Cobalt 0.1.0 de `jonales/cobalt-2`** (`cobalt-lib`), fora do Maven Central:
     `scripts/install-cobalt.sh` instala o commit fixado no script (o CI, o Dockerfile e o hook de
     sessão rodam o script antes da build). Para testar outra versão do motor, troque o commit no
     script. API bloqueante (sem `CompletableFuture`): o gateway chama o Cobalt por `call(...)`, com
@@ -51,7 +51,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     pedir pairing code recomeça. O `connect()` do Cobalt bloqueia no handshake e roda numa thread
     virtual própria; antes do login, um erro de conexão vira `DISCONNECT` no tratador de erros
     (fecha a instância e libera quem espera o QR).
-  - Regras herdadas do teste ao vivo (valem também para o fork):
+  - Regras herdadas do teste ao vivo (valem também para o `cobalt-2`):
     - "Logada" é o `Connection.loggedIn` (evento de login), nunca o socket aberto.
     - Todo envio passa por `resolve` (consulta o número e usa o JID devolvido: no Brasil, o número
       com o 9 resolve sem ele; sem JID, 400 `{exists: false}`).
@@ -62,7 +62,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
       então `sendMessage`.
     - O WhatsApp pode pedir a passkey do aparelho numa sessão conectada ("checkpoint"); o link vai
       para o log (`passkeyCheckpoint`).
-    - Mídia passa pelo transcodificador do fork (ffmpeg nativo), que lê MP3, OGG e WAV. Nota de
+    - Mídia passa pelo transcodificador do motor (ffmpeg nativo), que lê MP3, OGG e WAV. Nota de
       voz (`ptt`) sai em OGG/Opus a 16 kHz; o granule precisa estar em 48 kHz, ou o WhatsApp não
       baixa o áudio. Áudio comum vira AAC em quadros de `frame_size` fixo.
     - Toda mensagem leva o `deviceListMetadata` (ICDC) com o `ts` da lista de aparelhos do
@@ -70,7 +70,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
       o horário da consulta, o WhatsApp Web de quem recebe mostrava "Não foi possível confirmar
       seu código de segurança" a cada mensagem (o whatsmeow nem envia o campo).
   - Os contornos da 0.0.10 (`WebVersion`, `OfflineQueueGuard`, `RawNodes`, `UsersCache`,
-    `DatabaseSessionSerializer` e o shim do aspose) foram removidos: o fork resolve versão do
+    `DatabaseSessionSerializer` e o shim do aspose) foram removidos: o motor resolve versão do
     WhatsApp Web, fila offline e cache de números. Se um desses sintomas voltar, confira o motor
     antes de recriar o contorno.
   - Histórico no pareamento: `Instance.historySync` (`NONE` padrão das novas, `RECENT`, `FULL`),
@@ -194,12 +194,15 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
 
 O roadmap está em `docs/roadmap.md`. As Fases 1.5 e 1.6 terminaram. **Fase 2:** o
 `CobaltWhatsAppGateway` foi validado ao vivo com a 0.0.10 em 2026-11-12 (duas instâncias locais
-conversando entre si) e migrou para o fork 0.1.0 (PR #12). **Este repositório segue com o fork
-`jonales/Cobalt`:** os defeitos do motor são corrigidos no fork, junto com o usuário, e o commit
-fixado em `scripts/install-cobalt.sh` sobe quando a correção entra. A variante com whatsmeow (Go)
-vive em outro repositório (`jonales/msgforge-whatsmeow`); o spike comparativo está na ADR 0009.
-Roteiro ao vivo: `docs/VALIDACAO-COBALT-FORK.md`. Na nuvem não dá para testar ao vivo (o proxy
-bloqueia `web.whatsapp.com`).
+conversando entre si), migrou para o fork 0.1.0 (PR #12) e foi validado ao vivo com o fork em
+2026-11-13 (ADR 0007 aceita). **O `jonales/cobalt-2` é a versão oficial do motor** (repositório
+independente, derivado do Cobalt; o antigo fork `jonales/Cobalt` foi arquivado em 2026-11-13): os
+defeitos são corrigidos no `jonales/cobalt-2` (branch a partir do `master`, PR com merge commit,
+nunca squash), junto com o usuário, e o commit fixado em `scripts/install-cobalt.sh` sobe quando a
+correção entra. A variante com whatsmeow (Go) vive em outro repositório
+(`jonales/msgforge-whatsmeow`); o spike comparativo está na ADR 0009. Roteiro ao vivo:
+`docs/VALIDACAO-COBALT-FORK.md`. Na nuvem não dá para testar ao vivo (o proxy bloqueia
+`web.whatsapp.com`).
 
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
@@ -211,14 +214,14 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    não é necessário.
 4. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
    padrão.
-5. **Cobalt ao vivo, pendências** (fork, rodada de 2026-11-12/13 com dois números; resolvidos no
-   fork: resolve de 30 s, restart pedindo QR, ack 479 para conta Business, sessão Signal que não se
+5. **Cobalt ao vivo, pendências** (rodada de 2026-11-12/13 com dois números; resolvidos no
+   motor: resolve de 30 s, restart pedindo QR, ack 479 para conta Business, sessão Signal que não se
    fixava, mensagem de aparelho vinculado não decifrada, imagem, queda da JVM na mídia e fila
    offline travada pelos stories, o aviso "Não foi possível confirmar seu código de segurança"
    no WhatsApp Web de quem recebe, a nota de voz que não baixava e o áudio comum que falhava).
    Abertos: (a) O `pushName` enviado é o nome do aparelho, e após restaurar a sessão o
    `profileName` vem nulo. (b) O Cobalt não atende `receipt type=retry`. (c) Exceção solta de
-   `NodeTimeout` (`fb:thrift_iq`) numa thread sem nome. A suíte do fork tem 16 falhas e 93 erros
+   `NodeTimeout` (`fb:thrift_iq`) numa thread sem nome. A suíte do motor tem 16 falhas e 93 erros
    que já existem no `master`.
 6. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.

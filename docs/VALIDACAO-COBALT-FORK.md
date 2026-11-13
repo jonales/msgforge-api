@@ -1,6 +1,6 @@
 # Validação ao vivo: motor Cobalt 0.1.0 (fork)
 
-Roteiro para validar, com celulares de verdade, o Cobalt 0.1.0 do fork `jonales/Cobalt` (commit
+Roteiro para validar, com celulares de verdade, o Cobalt 0.1.0 de `jonales/cobalt-2` (commit
 fixado em `scripts/install-cobalt.sh`). Rode de novo a cada commit novo do fork.
 Não dá para rodar na nuvem: o proxy bloqueia o WhatsApp. Leva uns 30 minutos.
 

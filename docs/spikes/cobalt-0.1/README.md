@@ -1,4 +1,4 @@
-# Teste do Cobalt 0.1.0 (fork `jonales/Cobalt`)
+# Teste do Cobalt 0.1.0 (fork `jonales/Cobalt`, hoje `jonales/cobalt-2`)
 
 Programa mínimo, fora do Msgforge, para decidir se migramos o motor da 0.0.10 para a 0.1.0.
 A pergunta principal: **o aviso "Não foi possível confirmar seu código de segurança" some?**
@@ -10,7 +10,7 @@ Precisa de JDK 25 e Maven. A 0.1.0 não está no Maven Central: instale o fork l
 já tem os ajustes do PR jonales/Cobalt#1):
 
 ```bash
-git clone https://github.com/jonales/Cobalt.git
+git clone https://github.com/jonales/cobalt-2.git
 cd Cobalt
 mvn -DskipTests -Dmaven.javadoc.skip=true install      # ~2 min
 ```

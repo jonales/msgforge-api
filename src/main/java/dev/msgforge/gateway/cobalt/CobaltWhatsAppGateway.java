@@ -89,7 +89,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 /**
- * Motor real do WhatsApp sobre o Cobalt 0.1.0 do fork {@code jonales/Cobalt} (ADR 0007), ativo com
+ * Motor real do WhatsApp sobre o Cobalt 0.1.0 de {@code jonales/cobalt-2} (ADR 0007), ativo com
  * {@code MSGFORGE_GATEWAY=cobalt}.
  *
  * <p>Uma conexão do Cobalt por instância. A sessão fica em disco, numa pasta por instância

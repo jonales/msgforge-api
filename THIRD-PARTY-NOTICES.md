@@ -7,8 +7,9 @@ trazem os próprios avisos dentro dos seus artefatos.
 ## Motor do WhatsApp
 
 ### Cobalt
-- Uso: motor `MSGFORGE_GATEWAY=cobalt` (ADR 0007), a partir do fork
-  https://github.com/jonales/Cobalt (commit fixado em `scripts/install-cobalt.sh`).
+- Uso: motor `MSGFORGE_GATEWAY=cobalt` (ADR 0007), a partir de https://github.com/jonales/cobalt-2
+  (commit fixado em `scripts/install-cobalt.sh`), derivado do Cobalt
+  (https://github.com/Auties00/Cobalt).
 - Copyright (c) 2021 Alessandro Autiero.
 - Licença: MIT.
 

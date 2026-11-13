@@ -6,12 +6,12 @@ O motor é a parte que fala o protocolo do WhatsApp. Ele fica atrás de uma inte
 | `MSGFORGE_GATEWAY` | O que faz |
 |---|---|
 | `stub` (padrão) | Simula o WhatsApp: tudo funciona (instâncias, envio, eventos), mas nada sai de verdade. Bom para desenvolver e integrar sistemas. |
-| `cobalt` | Conexão real pelo Cobalt 0.1.0, do fork [jonales/Cobalt](https://github.com/jonales/Cobalt) (instalado por `scripts/install-cobalt.sh`). A sessão fica em disco, uma pasta por instância (`COBALT_SESSION_DIR`). Valide ao vivo antes de produção (abaixo). |
+| `cobalt` | Conexão real pelo Cobalt 0.1.0, de [jonales/cobalt-2](https://github.com/jonales/cobalt-2) (instalado por `scripts/install-cobalt.sh`). A sessão fica em disco, uma pasta por instância (`COBALT_SESSION_DIR`). Valide ao vivo antes de produção (abaixo). |
 
 ## Cobalt: o motor deste repositório
 
 O Cobalt roda dentro da própria aplicação (Java), sem serviço extra. O motor é mantido no fork
-[jonales/Cobalt](https://github.com/jonales/Cobalt): ajustes de protocolo vão para lá, e
+[jonales/cobalt-2](https://github.com/jonales/cobalt-2): ajustes de protocolo vão para lá, e
 `scripts/install-cobalt.sh` fixa o commit usado na build. A decisão está no
 [ADR 0007](decisoes/0007-motor-whatsapp-cobalt.md).
 
