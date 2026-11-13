@@ -21,6 +21,7 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `HISTORY_RETENTION_DAYS` | `0` | Apaga do histórico as mensagens mais velhas que isso, de hora em hora (0 guarda para sempre) |
 | `COBALT_SESSION_DIR` | `~/.msgforge/cobalt` (`/data/cobalt` na imagem) | Pasta das sessões do Cobalt, uma subpasta por instância; monte um volume |
 | `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE` | desligado | `DEBUG` registra os nós do protocolo do Cobalt (só atributos), para diagnóstico |
+| `COBALT_LOG_LEVEL` | desligado | Liga os logs internos do Cobalt (`WARNING`, `INFO`, `DEBUG`...), para diagnóstico do motor |
 | `FFMPEG_PATH` | `ffmpeg` | Binário do ffmpeg (já vem na imagem Docker); sem ele, a voz vai sem conversão |
 | `MEDIA_TRANSCODE_TIMEOUT_MS` | `60000` | Limite de uma conversão de áudio |
 
