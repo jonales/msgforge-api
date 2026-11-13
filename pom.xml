@@ -141,6 +141,12 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- mvn spring-boot:run sobe no perfil dev, que aceita a chave padrão (ApiKeyStartupCheck) -->
+                    <profiles>
+                        <profile>dev</profile>
+                    </profiles>
+                </configuration>
             </plugin>
             <!-- mvn test: só unitários (*Test). mvn verify: também os de integração (*IT). -->
             <plugin>

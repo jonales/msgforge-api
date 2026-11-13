@@ -8,7 +8,12 @@ OpenAPI da instância em execução fica em `/docs`.
 
 O header `apikey` leva a chave global (acesso a tudo) ou o token da instância (acesso só às rotas
 dela). Chave errada repetida a partir do mesmo IP leva a 429 por alguns minutos
-(`AUTHENTICATION_MAX_FAILURES`, ver [configuracao.md](configuracao.md)).
+(`AUTHENTICATION_MAX_FAILURES`, ver [configuracao.md](configuracao.md)); atrás de proxy, o IP é o
+do cliente informado por um proxy confiável (`TRUSTED_PROXIES`).
+
+O `token` escolhido no `/instance/create` precisa ter pelo menos 32 caracteres (senão, 400). Sem
+`token`, a instância recebe um gerado (UUID, 36 caracteres), devolvido no campo `hash`. Tokens
+criados antes dessa regra continuam valendo.
 
 ## Rotas
 
@@ -58,16 +63,16 @@ Os erros seguem um formato único: `{"status": 400, "error": "Bad Request", "res
 ```bash
 # Criar uma instância já pedindo o QR code
 curl -X POST http://localhost:8080/instance/create \
-  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
+  -H "apikey: $AUTHENTICATION_API_KEY" -H "Content-Type: application/json" \
   -d '{"instanceName":"vendas","qrcode":true}'
 
 # Enviar texto
 curl -X POST http://localhost:8080/message/sendText/vendas \
-  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
+  -H "apikey: $AUTHENTICATION_API_KEY" -H "Content-Type: application/json" \
   -d '{"number":"5561999999999","text":"Olá do Msgforge"}'
 
 # Receber os eventos num webhook (uma URL por evento: /messages-upsert, /connection-update...)
 curl -X POST http://localhost:8080/webhook/set/vendas \
-  -H "apikey: troque-esta-chave" -H "Content-Type: application/json" \
+  -H "apikey: $AUTHENTICATION_API_KEY" -H "Content-Type: application/json" \
   -d '{"webhook":{"url":"https://meu-sistema.exemplo/hook","byEvents":true,"events":["MESSAGES_UPSERT","CONNECTION_UPDATE"]}}'
 ```

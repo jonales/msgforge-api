@@ -1,5 +1,11 @@
 server:
   port: ${SERVER_PORT:8080}
+  # IP real atrás de proxy (docs/configuracao.md): o X-Forwarded-For só vale quando a conexão vem
+  # de um IP/CIDR de TRUSTED_PROXIES. Vazio (padrão) = nenhum proxy confiável, cabeçalho ignorado.
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      internal-proxies: ${TRUSTED_PROXIES:}
   servlet:
     session:
       cookie:
