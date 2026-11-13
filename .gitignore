@@ -11,3 +11,6 @@ sessions/
 graphify-out/*
 !graphify-out/memory/
 !graphify-out/reflections/
+
+# Hooks locais de ferramentas (ex.: skill impeccable para o Copilot); dependem de scripts em $HOME
+.github/hooks/
