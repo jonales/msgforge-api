@@ -705,4 +705,48 @@ class ManagerIT extends IntegrationTest {
                 .contains("OpenAI").contains("Dify").contains("Flowise").contains("n8n")
                 .doesNotContain("<a ").doesNotContain("<button").doesNotContain("href=");
     }
+
+    @Test
+    void themeChoiceIsKeptInACookieAndRenderedOnTheHtmlTag() throws Exception {
+        // Sem escolha: segue o sistema, sem data-theme; o seletor fica no menu da conta, sem script inline
+        var page = html("/manager");
+        assertThat(page).doesNotContain("data-theme=").contains("action=\"/manager/theme\"")
+                .contains("value=\"system\"").contains("value=\"light\"").contains("value=\"dark\"")
+                .contains("aria-pressed=\"true\"").doesNotContain("onclick").doesNotContain("<script>");
+
+        var saved = mvc.perform(asManager(POST("/manager/theme")).with(csrf())
+                        .param("theme", "dark").param("back", "/manager/server"))
+                .andExpect(redirectedUrl("/manager/server"))
+                .andReturn().getResponse().getHeader("Set-Cookie");
+        assertThat(saved).startsWith("msgforge_theme=dark;").contains("Path=/manager").contains("HttpOnly")
+                .contains("SameSite=Strict").contains("Max-Age=31536000");
+
+        var dark = new jakarta.servlet.http.Cookie("msgforge_theme", "dark");
+        mvc.perform(asManager(GET("/manager")).cookie(dark))
+                .andExpect(content().string(containsString("data-theme=\"dark\"")));
+        // A tela de login (sem sessão) também chega pintada com o tema escolhido
+        mvc.perform(GET("/manager/login").cookie(new jakarta.servlet.http.Cookie("msgforge_theme", "light")))
+                .andExpect(content().string(containsString("data-theme=\"light\"")));
+        // Cookie adulterado vale como Sistema
+        mvc.perform(asManager(GET("/manager")).cookie(new jakarta.servlet.http.Cookie("msgforge_theme", "\"><x")))
+                .andExpect(content().string(Matchers.not(containsString("data-theme="))));
+
+        // Voltar para o Sistema apaga o cookie
+        var cleared = mvc.perform(asManager(POST("/manager/theme")).with(csrf()).cookie(dark).param("theme", "system"))
+                .andExpect(redirectedUrl("/manager"))
+                .andReturn().getResponse().getHeader("Set-Cookie");
+        assertThat(cleared).startsWith("msgforge_theme=;").contains("Max-Age=0");
+    }
+
+    @Test
+    void themeChangeOnlyReturnsToManagerPagesAndNeedsCsrfAndSession() throws Exception {
+        for (var outside : List.of("https://exemplo.com", "//exemplo.com/manager", "/manager//exemplo.com",
+                "/api/instance", "/manager\\evil", "/managerx")) {
+            mvc.perform(asManager(POST("/manager/theme")).with(csrf()).param("theme", "light").param("back", outside))
+                    .andExpect(redirectedUrl("/manager"));
+        }
+        mvc.perform(asManager(POST("/manager/theme")).param("theme", "light")).andExpect(status().isForbidden());
+        mvc.perform(POST("/manager/theme").with(csrf()).param("theme", "light"))
+                .andExpect(redirectedUrl("/manager/login"));
+    }
 }

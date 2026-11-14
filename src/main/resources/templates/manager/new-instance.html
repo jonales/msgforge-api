@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <!-- Nova instância guiada, passos 1 a 3 (NewInstanceController). Cada passo é uma página: voltar e
      recarregar funcionam sem JavaScript. O título da aba leva o passo, para o leitor de tela. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.wizard.stepOf(${step}, ${totalSteps})} + ': ' + #{'manager.wizard.step.' + ${step}} + ' · ' + #{manager.wizard.title})}"></head>

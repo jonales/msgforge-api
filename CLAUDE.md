@@ -232,6 +232,12 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
 - Modelos de tela (`ManagerViews`) precisam ser **públicos**: o SpEL do Thymeleaf não chama
   métodos de records não públicos. Erro de renderização não passa pelo
   `ManagerExceptionHandler` (vira página 500); teste cada tela no `ManagerIT`.
+- Tema (Sistema, Claro, Escuro): cookie `msgforge_theme` gravado pelo `ThemeController`
+  (POST `/manager/theme`, menu da conta). O `<html>` de cada tela leva o `data-theme` pelo
+  `ManagerTheme` (`th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}"`;
+  o bean direto no `th:data-theme`/`th:attr` cai na restrição do Thymeleaf). Sem cookie, segue o
+  `prefers-color-scheme`. Tokens pastel no `:root` do `manager.css`, contraste AA medido; o bloco
+  escuro existe duas vezes (pelo sistema e escolhido) e os dois precisam ficar iguais.
 - Tempo real (ADR 0013): SSE em `/manager/stream/...` (`ManagerStreamController`/`ManagerStreams`)
   envia os **mesmos fragmentos** do polling (`sse-swap`, extensão `sse` vendorizada). Origem só pelo
   `ManagerBus` (hoje local; Redis pub/sub para multi-nó). O polling fica como reserva

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <!-- Instância que não existe ou que a pessoa não vê: a mesma página (404) nos dois casos. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.notFound.title})}"></head>
 <body>
