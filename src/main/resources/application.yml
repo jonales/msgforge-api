@@ -75,6 +75,10 @@ msgforge:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
     max-in-flight: ${OUTBOX_MAX_IN_FLIGHT:64}
     lease-seconds: ${OUTBOX_LEASE_SECONDS:60}
+  # Manager (ADR 0010): a chave global entra no Manager como admin da plataforma. Sem usuários, ela
+  # sempre entra (primeiro acesso); com MANAGER_KEY_LOGIN=false, só nesse caso.
+  manager:
+    key-login: ${MANAGER_KEY_LOGIN:true}
   # Cifra dos segredos guardados no banco, como a senha do proxy da instância (ADR 0014)
   secrets:
     encryption-key: ${SECRETS_ENCRYPTION_KEY:}

@@ -46,11 +46,18 @@ public class Instance {
     @jakarta.persistence.Embedded
     private InstanceProxy proxy;
 
+    /** Organização dona da instância (ADR 0010). A API cria sempre na organização padrão. */
+    @Column(name = "organization_id", nullable = false)
+    private UUID organizationId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /** Mesmo id de {@code dev.msgforge.access.Organization.DEFAULT_ID} (criada pela migration). */
+    public static final UUID DEFAULT_ORGANIZATION = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     protected Instance() {}
 
@@ -63,6 +70,7 @@ public class Instance {
         this.connectionState = ConnectionState.CLOSE.value();
         this.historySync = HistorySync.NONE;
         this.settings = InstanceSettings.DEFAULTS;
+        this.organizationId = DEFAULT_ORGANIZATION;
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
@@ -74,6 +82,7 @@ public class Instance {
 
     public UUID getId() { return id; }
     public String getName() { return name; }
+    public UUID getOrganizationId() { return organizationId; }
     public String getToken() { return token; }
     public String getIntegration() { return integration; }
     public String getNumber() { return number; }

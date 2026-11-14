@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(#{manager.users.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container access-page">
+    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+    <div class="page-head">
+        <h1 th:text="#{manager.users.title}">Usuários</h1>
+        <a class="button" th:if="${canManageRoles}" th:href="@{/manager/roles(org=${organization.id})}"
+           th:text="#{manager.users.toRoles}">Papéis</a>
+    </div>
+    <p class="muted lead" th:text="#{manager.users.intro(${organization.name})}">Quem entra no Manager.</p>
+
+    <!-- Troca de organização, só quando a pessoa gerencia mais de uma -->
+    <form class="org-switch inline-form" method="get" th:action="@{/manager/users}" th:if="${organizations.size() > 1}">
+        <label for="org"><span th:text="#{manager.access.organization}">Organização</span>
+            <select id="org" name="org">
+                <option th:each="o : ${organizations}" th:value="${o.id}" th:text="${o.name}"
+                        th:selected="${o.id == organization.id}">Padrão</option>
+            </select>
+        </label>
+        <button type="submit" th:text="#{manager.access.switch}">Trocar</button>
+    </form>
+
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <div class="flash success" role="status" th:if="${createdEmail}"
+         th:text="#{manager.users.createdHint(${createdEmail})}">Passe a senha.</div>
+
+    <p class="flash warning" role="note" th:text="#{manager.users.scopeNote}">Por enquanto o papel não filtra as instâncias.</p>
+
+    <section class="card" aria-labelledby="members-title">
+        <h2 id="members-title" th:text="#{manager.users.members}">Pessoas</h2>
+        <p class="muted" th:if="${#lists.isEmpty(members)}" th:text="#{manager.users.empty}">Ninguém ainda.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(members)}">
+            <table class="people">
+                <thead>
+                <tr>
+                    <th scope="col" th:text="#{manager.users.col.email}">E-mail</th>
+                    <th scope="col" th:text="#{manager.users.col.role}">Papel</th>
+                    <th scope="col" th:text="#{manager.users.col.status}">Situação</th>
+                    <th scope="col" th:text="#{manager.users.col.lastLogin}">Último acesso</th>
+                    <th scope="col"><span class="visually-hidden" th:text="#{manager.users.col.actions}">Ações</span></th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="m : ${members}">
+                    <td>
+                        <span class="email" th:text="${m.email}">ana@exemplo.com</span>
+                        <span class="tag tag-neutral" th:if="${m.platformAdmin}" th:text="#{manager.users.admin}">admin</span>
+                        <span class="muted small" th:if="${m.self}" th:text="#{manager.users.you}">(você)</span>
+                    </td>
+                    <td th:attr="data-label=#{manager.users.col.role}">
+                        <form class="role-change" method="post" th:if="${m.manageable and !m.self}"
+                              th:action="@{/manager/users/{id}/role(id=${m.userId})}">
+                            <input type="hidden" name="org" th:value="${organization.id}">
+                            <label class="visually-hidden" th:for="'role-' + ${m.userId}"
+                                   th:text="#{manager.users.roleOf(${m.email})}">Papel de ana</label>
+                            <select name="roleId" th:id="'role-' + ${m.userId}">
+                                <option th:each="r : ${roles}" th:if="${r.grantable or r.id == m.roleId}"
+                                        th:value="${r.id}" th:text="${r.name}" th:selected="${r.id == m.roleId}">Gestor</option>
+                            </select>
+                            <button type="submit" th:text="#{manager.users.changeRole}">Trocar</button>
+                        </form>
+                        <span th:unless="${m.manageable and !m.self}" th:text="${m.roleName}">Gestor</span>
+                    </td>
+                    <td th:attr="data-label=#{manager.users.col.status}"><span class="badge" th:classappend="${m.status == 'ATIVO'} ? 'open' : 'close'"
+                              th:text="#{'manager.users.status.' + ${m.status}}">Ativo</span></td>
+                    <td th:attr="data-label=#{manager.users.col.lastLogin}"><span th:text="${m.lastLogin} ?: #{manager.users.never}">nunca</span></td>
+                    <td>
+                        <form method="post" th:if="${m.manageable and !m.self}"
+                              th:action="@{/manager/users/{id}/status(id=${m.userId})}">
+                            <input type="hidden" name="org" th:value="${organization.id}">
+                            <input type="hidden" name="blocked" th:value="${!m.blocked()}">
+                            <button type="submit" th:classappend="${m.blocked()} ? '' : 'danger'"
+                                    th:attr="aria-label=${m.blocked()} ? #{manager.users.unblockOf(${m.email})} : #{manager.users.blockOf(${m.email})}"
+                                    th:text="${m.blocked()} ? #{manager.users.unblock} : #{manager.users.block}">Bloquear</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card" aria-labelledby="new-user-title">
+        <h2 id="new-user-title" th:text="#{manager.users.new}">Novo usuário</h2>
+        <div class="flash error" role="alert" th:if="${formError}" th:text="#{${formError}}">erro</div>
+        <form method="post" th:action="@{/manager/users}" class="new-user">
+            <input type="hidden" name="org" th:value="${organization.id}">
+            <div class="field-row">
+                <label for="new-email"><span th:text="#{manager.users.email}">E-mail</span>
+                    <input id="new-email" name="email" type="email" required maxlength="254" autocomplete="off"
+                           spellcheck="false" autocapitalize="none" th:value="${form.email}">
+                </label>
+                <label for="new-role"><span th:text="#{manager.users.role}">Papel</span>
+                    <select id="new-role" name="roleId" required>
+                        <option th:each="r : ${roles}" th:if="${r.grantable}" th:value="${r.id}" th:text="${r.name}"
+                                th:selected="${r.id == form.roleId}">Operador</option>
+                    </select>
+                </label>
+            </div>
+            <div class="field">
+                <label for="new-password"><span th:text="#{manager.users.password}">Senha inicial</span>
+                    <input id="new-password" name="password" type="password" required autocomplete="new-password"
+                           th:attr="minlength=${passwordMin}" maxlength="72" aria-describedby="new-password-hint">
+                </label>
+                <p class="hint" id="new-password-hint" th:text="#{manager.users.passwordHint(${passwordMin})}">10+.</p>
+            </div>
+            <label class="toggle" for="new-admin" th:if="${platformAdmin}">
+                <span class="toggle-text">
+                    <strong th:text="#{manager.users.platformAdmin}">Administrador da plataforma</strong>
+                    <span class="small muted" th:text="#{manager.users.platformAdminHint}">Acesso total.</span>
+                </span>
+                <input id="new-admin" class="switch" type="checkbox" name="platformAdmin" value="true"
+                       th:checked="${form.platformAdmin}">
+            </label>
+            <div class="form-actions">
+                <button type="submit" class="primary" th:text="#{manager.users.create}">Criar usuário</button>
+                <span class="muted small"><span class="tag" th:text="#{manager.soon}">Em breve</span>
+                    <span th:text="#{manager.users.inviteSoon}">Convite por e-mail.</span></span>
+            </div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

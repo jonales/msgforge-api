@@ -58,11 +58,6 @@ public class ManagerController {
         this.history = history;
     }
 
-    @GetMapping("/login")
-    public String login() {
-        return "manager/login";
-    }
-
     // ------------------------------------------------------------ lista
 
     /** A busca e o filtro da lista só aparecem acima disto: com poucas instâncias, atrapalham. */

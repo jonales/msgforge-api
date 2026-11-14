@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(#{manager.roles.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container access-page">
+    <p class="breadcrumb">
+        <a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a>
+        <th:block th:if="${canManageUsers}"> ·
+            <a th:href="@{/manager/users(org=${organization.id})}" th:text="#{manager.users.title}">Usuários</a>
+        </th:block>
+    </p>
+    <div class="page-head">
+        <h1 th:text="#{manager.roles.title}">Papéis</h1>
+        <a class="button primary" th:href="@{/manager/roles/new(org=${organization.id})}"
+           th:text="#{manager.roles.new}">Novo papel</a>
+    </div>
+    <p class="muted lead" th:text="#{manager.roles.intro(${organization.name})}">Cada papel é um conjunto de permissões.</p>
+
+    <form class="org-switch inline-form" method="get" th:action="@{/manager/roles}" th:if="${organizations.size() > 1}">
+        <label for="org"><span th:text="#{manager.access.organization}">Organização</span>
+            <select id="org" name="org">
+                <option th:each="o : ${organizations}" th:value="${o.id}" th:text="${o.name}"
+                        th:selected="${o.id == organization.id}">Padrão</option>
+            </select>
+        </label>
+        <button type="submit" th:text="#{manager.access.switch}">Trocar</button>
+    </form>
+
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+
+    <section class="card">
+        <p class="muted" th:if="${#lists.isEmpty(roles)}" th:text="#{manager.roles.empty}">Nenhum papel.</p>
+        <ul class="role-list" th:unless="${#lists.isEmpty(roles)}">
+            <li th:each="r : ${roles}">
+                <div class="role-head">
+                    <h2 class="role-name" th:text="${r.name}">Gestor</h2>
+                    <span class="muted small" th:text="#{manager.roles.usedBy(${r.users})}">2 pessoas</span>
+                    <a class="button" th:href="@{/manager/roles/{id}(id=${r.id},org=${organization.id})}"
+                       th:text="${r.editable} ? #{manager.roles.edit} : #{manager.roles.view}"
+                       th:attr="aria-label=(${r.editable} ? #{manager.roles.edit} : #{manager.roles.view}) + ': ' + ${r.name}">Editar</a>
+                </div>
+                <p class="muted small" th:if="${#lists.isEmpty(r.permissions)}" th:text="#{manager.roles.noPermissions}">Sem permissões.</p>
+                <ul class="permission-chips" th:unless="${#lists.isEmpty(r.permissions)}">
+                    <li th:each="p : ${r.permissions}" th:text="#{'manager.permission.' + ${p}}">Ver status</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+</main>
+</body>
+</html>

@@ -23,6 +23,11 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
 - [x] **Fase 1, fundação:** outbox no PostgreSQL (entregas que sobrevivem a queda) e SSE no Manager
 - [ ] **Fase 2, acesso:** organizações, usuários, papéis, login por e-mail, convite e redefinição
   de senha (SMTP), auditoria mínima
+  - [x] fatias 1 e 2 (ADR 0010, seção "Fase 2"): modelo (organizações, usuários, papéis, catálogo
+    de permissões), login por e-mail e senha, chave global no primeiro acesso, telas de usuários e
+    papéis
+  - [ ] convite e redefinição por e-mail, auditoria, escopo por instância na tela, filtro das
+    telas e do SSE pelas permissões (fatia 5)
 - [ ] **Fase 3, telas:** redesenho do Manager (lista, nova instância guiada com histórico no fluxo,
   visão geral, conversas, comportamento da conta, eventos agrupados com teste e últimas entregas,
   zona de perigo) e integrações e canais futuros como "Em breve"
