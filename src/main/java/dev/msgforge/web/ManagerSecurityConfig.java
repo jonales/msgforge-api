@@ -42,7 +42,7 @@ public class ManagerSecurityConfig {
         http.securityMatcher("/manager", "/manager/**")
                 .authenticationProvider(managerAuthentication)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/manager/login", "/manager/manager.css", "/manager/manager.js",
+                        .requestMatchers("/manager/login", "/manager/manager.css", "/manager/manager.js", "/manager/favicon.svg",
                                 "/manager/vendor/**").permitAll()
                         .anyRequest().hasRole(ROLE))
                 .formLogin(form -> form

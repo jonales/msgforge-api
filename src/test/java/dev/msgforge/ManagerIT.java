@@ -1,6 +1,7 @@
 package dev.msgforge;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -64,6 +65,9 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(GET("/manager/vendor/htmx-2.0.11.min.js")).andExpect(status().isOk());
         mvc.perform(GET("/manager/vendor/htmx-ext-sse-2.2.4.min.js")).andExpect(status().isOk());
         mvc.perform(GET("/manager/manager.js")).andExpect(status().isOk());
+        // Sem ícone declarado, o navegador pede /favicon.ico, que cai na API (401) e suja o console
+        mvc.perform(GET("/manager/favicon.svg")).andExpect(status().isOk());
+        mvc.perform(GET("/manager/login")).andExpect(content().string(containsString("/manager/favicon.svg")));
         mvc.perform(GET("/manager/stream/instances")).andExpect(status().is3xxRedirection());
         // Um token de instância não abre o Manager
         mvc.perform(GET("/manager").header("apikey", API_KEY)).andExpect(status().is3xxRedirection());
