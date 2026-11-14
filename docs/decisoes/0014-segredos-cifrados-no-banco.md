@@ -1,6 +1,6 @@
 # 0014: Segredos cifrados no banco (senha do proxy da instância)
 
-**Status:** proposta (2026-11-13).
+**Status:** aceita (2026-11-13).
 
 ## Contexto
 O `POST /instance/create` aceita o proxy da instância (`proxyHost`, `proxyPort`, `proxyProtocol`,
