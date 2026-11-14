@@ -10,6 +10,8 @@
     tarefa.py ver [id]                             # mostra a saída (sem id: a mais recente)
     tarefa.py nota <id> "lição"                    # ensina o plantão (vai para licoes.md)
     tarefa.py licoes                               # lista o que ele já aprendeu
+    tarefa.py consumo                              # estimativa do plano do Claude na janela de 5 h
+    tarefa.py fila [horas]                         # gera já a fila de pendências (padrão 10 h)
 """
 import argparse
 import datetime as dt
@@ -92,6 +94,9 @@ s = sub.add_parser("nota")
 s.add_argument("id")
 s.add_argument("texto")
 sub.add_parser("licoes")
+sub.add_parser("consumo")
+s = sub.add_parser("fila")
+s.add_argument("horas", nargs="?", type=float, default=10.0)
 a = p.parse_args()
 
 if a.cmd in ("refinar", "pergunta", "resumo"):
@@ -114,5 +119,18 @@ elif a.cmd == "ver":
     ver(a.id)
 elif a.cmd == "nota":
     nota(a.id, a.texto)
+elif a.cmd in ("consumo", "fila"):
+    import importlib.util
+    nome = "consumo" if a.cmd == "consumo" else "fila_pendencias"
+    spec = importlib.util.spec_from_file_location(nome, os.path.join(os.path.dirname(os.path.abspath(__file__)), nome + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if a.cmd == "consumo":
+        e = mod.estimar()
+        print(f"janela desde {e['inicio']:%d/%m %H:%M}: {e['usado'] / 1e6:.1f} M de ~{e['orcamento'] / 1e6:.1f} M "
+              f"({e['fracao']:.0%}); a fila automática sai em 90%")
+    else:
+        qtd, horas, rodadas = mod.gerar(a.horas)
+        print(f"{qtd} tarefas na fila, ~{horas:.1f} h")
 elif a.cmd == "licoes":
     print(open(LICOES, encoding="utf-8").read() if os.path.exists(LICOES) else "nenhuma lição ainda")
