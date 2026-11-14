@@ -18,6 +18,24 @@ class ContractNamingTest {
         assertEquals("/messages-upsert", EventType.MESSAGES_UPSERT.urlSuffix());
         assertEquals("connection.update", EventType.CONNECTION_UPDATE.payloadName());
         assertEquals("qrcode.updated", EventType.QRCODE_UPDATED.payloadName());
+        assertEquals("application.startup", EventType.APPLICATION_STARTUP.payloadName());
+        assertEquals("messages.set", EventType.MESSAGES_SET.payloadName());
+        assertEquals("messages.delete", EventType.MESSAGES_DELETE.payloadName());
+        assertEquals("contacts.upsert", EventType.CONTACTS_UPSERT.payloadName());
+        assertEquals("presence.update", EventType.PRESENCE_UPDATE.payloadName());
+        assertEquals("chats.delete", EventType.CHATS_DELETE.payloadName());
+        assertEquals("groups.upsert", EventType.GROUPS_UPSERT.payloadName());
+        assertEquals("call", EventType.CALL.payloadName());
+        assertEquals("/call", EventType.CALL.urlSuffix());
+    }
+
+    @Test
+    void groupEventNamesFollowTheContractNotTheEnum() {
+        // webhook.events usa GROUP_UPDATE, mas o evento sai como groups.update (nome do Baileys)
+        assertEquals("groups.update", EventType.GROUP_UPDATE.payloadName());
+        assertEquals("/groups-update", EventType.GROUP_UPDATE.urlSuffix());
+        assertEquals("group-participants.update", EventType.GROUP_PARTICIPANTS_UPDATE.payloadName());
+        assertEquals("/group-participants-update", EventType.GROUP_PARTICIPANTS_UPDATE.urlSuffix());
     }
 
     @Test

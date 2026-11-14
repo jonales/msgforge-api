@@ -63,7 +63,7 @@ class CobaltWhatsAppGatewayTest {
     private CobaltWhatsAppGateway gateway(boolean blockPrivateNetworks, long mediaMaxBytes) {
         var properties = new MsgforgeProperties("http://localhost", null,
                 new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10,
-                        blockPrivateNetworks),
+                        blockPrivateNetworks, java.util.List.of()),
                 null, "cobalt",
                 new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), sessionDir.toString()));
         return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties, SECRETS);
@@ -181,7 +181,7 @@ class CobaltWhatsAppGatewayTest {
     void concurrentConnectsShareOnePendingConnection() throws Exception {
         try (var proxy = silentProxy()) {
             var properties = new MsgforgeProperties("http://localhost", null,
-                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false),
+                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false, java.util.List.of()),
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
                             "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));
@@ -230,7 +230,7 @@ class CobaltWhatsAppGatewayTest {
     void logoutOfAPendingQrConnectionClosesItWithoutWaitingForTheWhatsApp() throws Exception {
         try (var proxy = silentProxy()) {
             var properties = new MsgforgeProperties("http://localhost", null,
-                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false),
+                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10, false, java.util.List.of()),
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
                             "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));

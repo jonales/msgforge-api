@@ -1,5 +1,7 @@
 package dev.msgforge.config;
 
+import java.util.List;
+import java.util.Locale;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -27,6 +29,8 @@ public record MsgforgeProperties(
      *                              descartado (com log), para limitar a memória
      * @param blockPrivateNetworks recusa webhooks de instância que resolvem para IP privado,
      *                             loopback ou link-local (proteção contra SSRF)
+     * @param globalEvents eventos entregues ao webhook global (nomes do contrato, como em
+     *                     {@code webhook.events}); vazio = todos
      */
     public record Webhook(
             String globalUrl,
@@ -34,7 +38,13 @@ public record MsgforgeProperties(
             @DefaultValue("10000") long requestTimeoutMs,
             @DefaultValue Retry retry,
             @DefaultValue("1000") int maxPendingPerInstance,
-            @DefaultValue("false") boolean blockPrivateNetworks) {}
+            @DefaultValue("false") boolean blockPrivateNetworks,
+            @DefaultValue List<String> globalEvents) {
+
+        public Webhook {
+            globalEvents = normalize(globalEvents);
+        }
+    }
 
     /**
      * @param maxAttempts    total de tentativas (1 = sem retry)
@@ -46,7 +56,25 @@ public record MsgforgeProperties(
             @DefaultValue("1000") long initialDelayMs,
             @DefaultValue("30000") long maxDelayMs) {}
 
-    public record RabbitMq(boolean enabled, String exchange) {}
+    /** @param events eventos publicados no RabbitMQ (nomes do contrato); vazio = todos */
+    public record RabbitMq(boolean enabled, String exchange, @DefaultValue List<String> events) {
+
+        public RabbitMq {
+            events = normalize(events);
+        }
+    }
+
+    /** Nomes em maiúsculas e sem espaços (aceita "messages.upsert" e "messages_upsert"). */
+    private static List<String> normalize(List<String> events) {
+        if (events == null) {
+            return List.of();
+        }
+        return events.stream()
+                .map(String::trim)
+                .filter(e -> !e.isEmpty())
+                .map(e -> e.replace('.', '_').replace('-', '_').toUpperCase(Locale.ROOT))
+                .toList();
+    }
 
     /**
      * Motor Cobalt ({@code MSGFORGE_GATEWAY=cobalt}).

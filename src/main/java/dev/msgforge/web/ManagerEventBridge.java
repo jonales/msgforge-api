@@ -39,8 +39,12 @@ class ManagerEventBridge {
             case MessageReceived r -> new ManagerUpdate(name, Change.MESSAGES,
                     r.data().get("key") instanceof Map<?, ?> key ? text(key.get("remoteJid")) : null);
             case MessageStatusUpdated s -> new ManagerUpdate(name, Change.MESSAGES, text(s.data().get("remoteJid")));
+            // Os demais (contatos, conversas, grupos, presença, chamadas) não mudam nenhuma tela
+            default -> null;
         };
-        bus.publish(update);
+        if (update != null) {
+            bus.publish(update);
+        }
     }
 
     private static String text(Object value) {

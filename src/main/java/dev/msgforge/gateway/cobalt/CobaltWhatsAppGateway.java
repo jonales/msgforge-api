@@ -23,6 +23,7 @@ import com.github.auties00.cobalt.wire.linked.chat.group.GroupMetadata;
 import com.github.auties00.cobalt.wire.linked.call.CallEndReason;
 import com.github.auties00.cobalt.wire.linked.call.IncomingCall;
 import com.github.auties00.cobalt.wire.linked.chat.group.GroupMetadataEditBuilder;
+import com.github.auties00.cobalt.wire.linked.contact.Contact;
 import com.github.auties00.cobalt.wire.linked.contact.ContactStatus;
 import com.github.auties00.cobalt.wire.linked.media.MediaProvider;
 import com.github.auties00.cobalt.wire.linked.message.LinkedMessageContainer;
@@ -76,6 +77,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -149,6 +151,14 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         final InstanceSettings settings;
         /** Proxy da instância; null = o global ({@code COBALT_PROXY}) ou conexão direta. */
         final WhatsAppClientProxy proxy;
+        /**
+         * Conversas e contatos já anunciados (CHATS_UPSERT, CONTACTS_UPSERT) nesta conexão: o Cobalt
+         * repete a lista inteira a cada login, e só os novos saem de novo.
+         */
+        final Set<String> announcedChats = ConcurrentHashMap.newKeySet();
+        final Set<String> announcedContacts = ConcurrentHashMap.newKeySet();
+        /** Chamadas tocando (id → oferta), para completar o CALL de fim com conversa, grupo e vídeo. */
+        final Map<String, GatewayEvent.CallReceived> calls = new ConcurrentHashMap<>();
 
         Connection(String instanceName, boolean pairing, InstanceSettings settings, WhatsAppClientProxy proxy) {
             this.instanceName = instanceName;
@@ -437,6 +447,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         api.addNodeReceivedListener((whatsapp, node) -> {
             connection.lids.observe(node);
             statuses.received(node);
+            guarded(name, "notificação de grupo", () ->
+                    CobaltEvents.groupNotification(name, node, connection.lids).forEach(events::publishEvent));
         });
         api.addNewMessageListener((whatsapp, info) -> {
             if (!(info instanceof ChatMessageInfo message)) {
@@ -448,6 +460,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 wire.debug("{}: nova mensagem chat={} ignorada pela configuração", name, chat);
                 return;
             }
+            guarded(name, "mensagem apagada", () -> CobaltEvents.revoke(name, message, connection.lids)
+                    .ifPresent(events::publishEvent));
             try {
                 var data = CobaltMessageMapper.upsert(message, id, connection.lids);
                 wire.debug("{}: nova mensagem id={} chat={} -> {}", name, message.key().id().orElse(null),
@@ -474,6 +488,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 log.warn("[cobalt] {}: falha ao converter o status: {}", name, e.toString());
             }
         });
+        registerContractListeners(id, connection);
         if (wire.isDebugEnabled()) {
             // Árvore de nomes e atributos (ex.: enc{type=pkmsg}); o conteúdo cifrado nunca é registrado
             api.addNodeReceivedListener((whatsapp, node) -> wire.debug("{}: <- {}", name, outline(node)));
@@ -521,6 +536,74 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 log.warn("[cobalt] {}: falha ao responder a chamada {}: {}", connection.instanceName,
                         incoming.callId(), rootMessage(e));
             }
+        }
+    }
+
+    /**
+     * Contatos, conversas, presença, histórico e chamadas (eventos do contrato além das mensagens).
+     * Os callbacks rodam em threads virtuais do Cobalt; uma falha de conversão só vai para o log.
+     */
+    private void registerContractListeners(UUID id, Connection connection) {
+        var name = connection.instanceName;
+        var api = connection.api;
+        api.addContactsListener((whatsapp, contacts) -> guarded(name, "contatos", () ->
+                publishContacts(connection, contacts)));
+        api.addNewContactListener((whatsapp, contact) -> guarded(name, "contato novo", () ->
+                publishContacts(connection, List.of(contact))));
+        api.addContactPresenceListener((whatsapp, chat, participant) -> guarded(name, "presença", () -> {
+            var contact = whatsapp.store().contactStore().findContactByJid(participant).orElse(null);
+            events.publishEvent(CobaltEvents.presence(name, chat, participant, contact, connection.lids));
+        }));
+        api.addChatsListener((whatsapp, chats) -> guarded(name, "conversas", () -> {
+            var fresh = chats.stream()
+                    .filter(chat -> chat.jid().hasUserServer() || chat.jid().hasLidServer()
+                            || chat.jid().hasGroupOrCommunityServer())
+                    .map(chat -> new GatewayEvent.Chat(connection.lids.apply(chat.jid()), chat.name().orElse(null),
+                            chat.unreadCount().isPresent() ? chat.unreadCount().getAsInt() : null))
+                    .filter(chat -> connection.announcedChats.add(chat.jid()))
+                    .toList();
+            if (!fresh.isEmpty()) {
+                events.publishEvent(new GatewayEvent.ChatsUpserted(name, fresh));
+            }
+        }));
+        api.addWebAppStateActionListener((whatsapp, action, index) -> guarded(name, "app state", () ->
+                CobaltEvents.appState(name, action, index, connection.lids).ifPresent(events::publishEvent)));
+        api.addWebHistorySyncMessagesListener((whatsapp, chats, last) -> guarded(name, "histórico", () -> {
+            var messages = chats.stream()
+                    .flatMap(chat -> chat.messages())
+                    .flatMap(message -> CobaltMessageMapper.upsert(message, id, connection.lids).stream())
+                    .toList();
+            if (!messages.isEmpty()) {
+                events.publishEvent(new GatewayEvent.MessagesSynced(name, messages));
+            }
+        }));
+        api.addCallListener((whatsapp, call) -> guarded(name, "chamada", () -> {
+            var offer = CobaltEvents.offer(name, call, connection.lids);
+            connection.calls.put(offer.id(), offer);
+            events.publishEvent(offer);
+        }));
+        api.addCallEndedListener((whatsapp, callId, from, reason) -> guarded(name, "fim de chamada", () ->
+                events.publishEvent(CobaltEvents.ended(name, callId, from, reason, connection.calls.remove(callId),
+                        connection.lids))));
+    }
+
+    private void publishContacts(Connection connection, java.util.Collection<Contact> contacts) {
+        var fresh = contacts.stream()
+                .filter(contact -> contact.jid().hasUserServer() || contact.jid().hasLidServer())
+                .map(contact -> CobaltEvents.contact(contact, connection.lids))
+                .filter(contact -> connection.announcedContacts.add(contact.jid()))
+                .toList();
+        if (!fresh.isEmpty()) {
+            events.publishEvent(new GatewayEvent.ContactsUpserted(connection.instanceName, fresh));
+        }
+    }
+
+    /** Converte e publica sem deixar a exceção subir para o Cobalt. */
+    private static void guarded(String instanceName, String what, Runnable task) {
+        try {
+            task.run();
+        } catch (RuntimeException e) {
+            log.warn("[cobalt] {}: falha ao converter {}: {}", instanceName, what, e.toString());
         }
     }
 

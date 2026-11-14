@@ -37,7 +37,7 @@ class OutboxWorkerTest {
     private final Outbox outbox = mock(Outbox.class);
     private final RabbitTemplate rabbit = mock(RabbitTemplate.class);
     private final MsgforgeProperties properties = new MsgforgeProperties("http://localhost", null,
-            new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(3, 10, 40), 1000, false),
+            new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(3, 10, 40), 1000, false, java.util.List.of()),
             null, "stub", null);
     private final WebhookSender sender = new WebhookSender(
             RestClient.builder().requestFactory(HttpClientConfig.requestFactory(2000)).build(),

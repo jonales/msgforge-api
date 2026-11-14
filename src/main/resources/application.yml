@@ -54,6 +54,8 @@ msgforge:
   webhook:
     global-url: ${WEBHOOK_GLOBAL_URL:}
     global-enabled: ${WEBHOOK_GLOBAL_ENABLED:false}
+    # Eventos do webhook global (separados por vírgula, nomes do contrato); vazio = todos
+    global-events: ${WEBHOOK_GLOBAL_EVENTS:}
     request-timeout-ms: ${WEBHOOK_REQUEST_TIMEOUT_MS:10000}
     retry:
       max-attempts: ${WEBHOOK_RETRY_MAX_ATTEMPTS:5}
@@ -64,6 +66,8 @@ msgforge:
   rabbitmq:
     enabled: ${RABBITMQ_ENABLED:false}
     exchange: ${RABBITMQ_EXCHANGE_NAME:msgforge_exchange}
+    # Eventos publicados (separados por vírgula, nomes do contrato); vazio = todos
+    events: ${RABBITMQ_EVENTS:}
   # Outbox das entregas (ADR 0012); false volta à fila em memória
   outbox:
     enabled: ${OUTBOX_ENABLED:true}
