@@ -223,6 +223,11 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     nunca volta para a tela e, em branco, a guardada fica)
   - [x] mensagens: conversas e conversa aberta, lidas do histórico (`/manager/instances/{n}/messages`,
     atualiza por htmx; o envio de teste do Manager também vai para o histórico)
+  - [x] nova instância guiada (`NewInstanceController`): `/manager/instances/new` → `/new/connection`
+    (QR ou código, com número) → `/new/history` (cria e conecta) → `/{n}/connect` (QR ao vivo, o
+    mesmo trecho `instance :: live`). Uma página por passo, rascunho na sessão: voltar e recarregar
+    funcionam sem JS. Nunca conectada (`ownerJid` nulo) aparece como "Aguardando conexão" e o painel
+    retoma. Os nomes `new` e `table` ficam reservados no Manager (rotas fixas em `/manager/instances/`).
 - Planejado (fase 0 desenhada em 2026-11-13): redesenho do Manager, organizações, usuários e papéis,
   link de conexão para o cliente, e-mail (SMTP) e alertas, outbox e telas ao vivo por SSE. Produto
   em `PRODUCT.md` (raiz); decisões nas ADRs 0010 a 0013; fases em `docs/roadmap.md`. Integrações e

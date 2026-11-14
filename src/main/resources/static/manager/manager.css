@@ -85,6 +85,7 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .badge.open { color: var(--accent); }
 .badge.connecting { color: var(--badge-wait); }
 .badge.close { color: var(--muted); }
+.badge.pending { color: var(--badge-wait); border-style: dashed; }
 
 .flash { padding: 10px 12px; border-radius: 8px; margin: 0 0 12px; }
 .flash.success { background: var(--ok-bg); color: var(--ok-text); }
@@ -115,9 +116,12 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .bubble .text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .bubble .author { font-weight: 600; }
 .bubble .meta { align-self: flex-end; }
-a.button { display: inline-block; padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius);
-           text-decoration: none; color: inherit; }
+/* Link com cara de botão: mesma altura e forma do <button> */
+a.button { display: inline-flex; align-items: center; min-height: 40px; padding: 9px 16px; border: 1px solid var(--border);
+           border-radius: 8px; background: var(--surface); text-decoration: none; color: var(--text); }
 a.button:hover { border-color: var(--accent); }
+a.button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+a.button.primary:hover { filter: brightness(1.08); }
 
 /* Configurações da instância: interruptores com descrição, erros junto do campo, proxy recolhido */
 .toggles { padding: 4px 12px; }
@@ -162,3 +166,86 @@ label > .field-error, .field-error { display: block; margin: 4px 0 0; font-size:
 .disclosure[open] > summary::before { transform: rotate(45deg); }
 .disclosure > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .summary-title { font-weight: 600; }
+
+/* Só para leitor de tela */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+.page-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    margin: 4px 0 var(--gap); }
+.page-head h1 { margin: 0; }
+
+/* Nova instância guiada: uma coluna estreita, um assunto por passo */
+.wizard { max-width: 680px; }
+.wizard h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+.wizard h1:focus { outline: none; }
+/* O foco no título é programático (anúncio do passo); o título não é um controle */
+.wizard .card > p.muted { margin: 0 0 16px; max-width: 62ch; }
+.wizard > p.muted { margin: 0 0 16px; max-width: 70ch; }
+.wizard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
+.wizard-actions form { margin: 0; }
+
+.steps { margin: 4px 0 16px; }
+.steps-count { margin: 0 0 8px; font-size: .85rem; font-weight: 600; color: var(--muted); }
+.steps ol { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.steps li { display: flex; padding-top: 8px; border-top: 3px solid var(--border); font-size: .9rem; color: var(--muted); }
+.steps li > a, .steps li > .step-item { display: flex; align-items: center; gap: 8px; }
+.steps li > a { min-height: 32px; color: inherit; text-decoration: none; border-radius: 6px; }
+.steps li > a:hover span:not(.step-mark) { text-decoration: underline; text-underline-offset: 3px; }
+.steps li.done { border-top-color: var(--accent); color: var(--text); }
+.steps li.current { border-top-color: var(--accent); color: var(--text); font-weight: 600; }
+.step-mark { display: inline-grid; place-items: center; flex: none; width: 24px; height: 24px; border-radius: 50%;
+    border: 1px solid currentColor; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.steps li.current .step-mark { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+/* Feito: a marca vira um visto desenhado (o número continua para o leitor de tela no texto do passo) */
+.steps li.done .step-mark { position: relative; color: transparent; border-color: var(--accent); }
+.steps li.done .step-mark::after { content: ""; position: absolute; left: 8px; top: 4px; width: 5px; height: 10px;
+    border-right: 2px solid var(--accent); border-bottom: 2px solid var(--accent); transform: rotate(45deg); }
+@media (max-width: 480px) {
+    .steps ol { gap: 6px; }
+    .steps li { font-size: .78rem; }
+    .steps li > a, .steps li > .step-item { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+
+.method-choices .method-number { margin: 4px 0 6px 30px; }
+/* Com :has(), o número só aparece com "Código de pareamento" marcado */
+@supports selector(:has(*)) {
+    .method-choices:not(:has(#method-pairing:checked)) .method-number { display: none; }
+}
+
+.tag-neutral { margin-left: 6px; background: var(--ok-bg); color: var(--ok-text); vertical-align: 1px; }
+.choice strong .tag { font-weight: 600; }
+
+.summary { display: grid; gap: 6px; margin: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; }
+.summary > div { display: grid; grid-template-columns: 7rem 1fr; gap: 8px; align-items: baseline; }
+.summary dt { color: var(--muted); font-size: .85rem; }
+.summary dd { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+
+/* Conexão (painel e passo 4): QR ao lado do passo a passo; empilha no celular */
+.qr-layout { display: grid; grid-template-columns: auto 1fr; gap: 20px 28px; align-items: start; }
+@media (max-width: 640px) { .qr-layout { grid-template-columns: 1fr; } }
+.qr { min-width: 0; max-width: 300px; }
+.qr img { display: block; animation: qr-in .25s ease-out; }
+@keyframes qr-in { from { opacity: .35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qr img { animation: none; } }
+.pairing-box { display: flex; flex-direction: column; gap: 4px; margin: 0 0 8px; padding: 12px 16px;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.renew { margin: 10px 0 0; max-width: 300px; }
+.renew span { display: block; }
+.howto h3 { font-size: .95rem; margin: 0 0 8px; }
+.howto ol { margin: 0; padding-left: 1.3rem; display: grid; gap: 6px; max-width: 52ch; }
+.live-success { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.live-success .saved { font-weight: 600; }
+/* No próprio painel, o link para o painel sobra */
+.instance-panel .live-panel-link { display: none; }
+/* Passo 4: conectada, "gerar outro código" e "conectar depois" saem de cena */
+@supports selector(:has(*)) {
+    .connect-page:has(#live[data-announce-key="open"]) .retry { display: none; }
+}
+
+.resume { border-color: var(--badge-wait); }
+.resume h2 { margin-bottom: .3rem; }
+.resume p { margin: 0 0 12px; }
+
+::selection { background: var(--accent); color: var(--accent-text); }
+.wizard-actions + .retry { margin-top: 8px; }

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<!-- Nova instância guiada, passos 1 a 3 (NewInstanceController). Cada passo é uma página: voltar e
+     recarregar funcionam sem JavaScript. O título da aba leva o passo, para o leitor de tela. -->
+<head th:replace="~{manager/fragments/layout :: head(#{manager.wizard.stepOf(${step}, ${totalSteps})} + ': ' + #{'manager.wizard.step.' + ${step}} + ' · ' + #{manager.wizard.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container wizard" th:with="fieldErr=${fieldError}">
+    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <nav th:replace="~{manager/fragments/layout :: steps(${step}, ${totalSteps}, ${createdName == null})}"></nav>
+
+    <!-- Voltar do navegador depois de criar: a instância existe, as escolhas não mudam mais -->
+    <section class="card" th:if="${createdName}" aria-labelledby="step-title">
+        <h1 id="step-title" tabindex="-1" data-step-heading th:text="#{manager.wizard.created.title}">Instância já criada</h1>
+        <p th:text="#{manager.wizard.created.text(${createdName})}">Já criada.</p>
+        <div class="wizard-actions">
+            <a class="button primary" th:href="@{/manager/instances/{n}/connect(n=${createdName})}"
+               th:text="#{manager.wizard.created.resume}">Continuar a conexão</a>
+            <a class="button" th:href="@{/manager/instances/new}" th:text="#{manager.wizard.created.another}">Criar outra</a>
+        </div>
+    </section>
+
+    <!-- Passo 1: nome -->
+    <section class="card" th:if="${step == 1}" aria-labelledby="step-title">
+        <h1 id="step-title" tabindex="-1" data-step-heading aria-describedby="steps-count"
+            th:text="#{manager.wizard.name.title}">Dê um nome à instância</h1>
+        <p class="muted" th:text="#{manager.wizard.name.intro}">O nome entra nas rotas da API.</p>
+        <form th:action="@{/manager/instances/new}" method="post" novalidate>
+            <label for="instanceName">
+                <span th:text="#{manager.wizard.name.label}">Nome</span>
+                <input id="instanceName" name="instanceName" type="text" required maxlength="100" autocomplete="off"
+                       spellcheck="false" autocapitalize="off" autofocus pattern="[A-Za-z0-9_\-]{1,100}"
+                       th:value="${typedName}" th:placeholder="#{manager.create.namePlaceholder}"
+                       th:attr="aria-invalid=${fieldErr != null} ? 'true' : null,aria-describedby='instanceName-hint' + (${fieldErr != null} ? ' instanceName-error' : '')">
+                <span class="field-error" id="instanceName-error" th:if="${fieldErr}" th:text="#{${fieldErr}}">Erro</span>
+                <span class="hint" id="instanceName-hint" th:text="#{manager.wizard.name.hint}">Letras e números.</span>
+            </label>
+            <div class="wizard-actions">
+                <button type="submit" class="primary" th:text="#{manager.wizard.continue}">Continuar</button>
+                <a class="button" th:href="@{/manager}" th:text="#{manager.wizard.cancel}">Cancelar</a>
+            </div>
+        </form>
+    </section>
+
+    <!-- Passo 2: QR code ou código de pareamento -->
+    <section class="card" th:if="${step == 2 and createdName == null}" aria-labelledby="step-title">
+        <h1 id="step-title" tabindex="-1" data-step-heading aria-describedby="steps-count"
+            th:text="#{manager.wizard.connection.title}">Como conectar o WhatsApp</h1>
+        <p class="muted" th:text="#{manager.wizard.connection.intro}">Escolha como autorizar.</p>
+        <form th:action="@{/manager/instances/new/connection}" method="post" novalidate>
+            <fieldset class="choices method-choices">
+                <legend th:text="#{manager.wizard.connection.legend}">Forma de conexão</legend>
+                <label class="choice" for="method-qr">
+                    <input type="radio" id="method-qr" name="method" value="qr" th:checked="${typedMethod != 'pairing'}">
+                    <span>
+                        <strong th:text="#{manager.wizard.method.qr}">QR code</strong>
+                        <span class="muted small" th:text="#{manager.wizard.method.qr.desc}">Com a câmera.</span>
+                    </span>
+                </label>
+                <label class="choice" for="method-pairing">
+                    <input type="radio" id="method-pairing" name="method" value="pairing" th:checked="${typedMethod == 'pairing'}">
+                    <span>
+                        <strong th:text="#{manager.wizard.method.pairing}">Código de pareamento</strong>
+                        <span class="muted small" th:text="#{manager.wizard.method.pairing.desc}">Digitando um código.</span>
+                    </span>
+                </label>
+                <!-- Só para o código. Sem :has() no navegador, o campo fica sempre à vista -->
+                <label class="method-number" for="number">
+                    <span th:text="#{manager.wizard.number.label}">Número do WhatsApp</span>
+                    <input id="number" name="number" type="text" inputmode="tel" autocomplete="tel" th:value="${typedNumber}"
+                           th:placeholder="#{manager.create.numberPlaceholder}" th:autofocus="${fieldErr != null}"
+                           th:attr="aria-invalid=${fieldErr != null} ? 'true' : null,aria-describedby='number-hint' + (${fieldErr != null} ? ' number-error' : '')">
+                    <span class="field-error" id="number-error" th:if="${fieldErr}" th:text="#{${fieldErr}}">Erro</span>
+                    <span class="hint" id="number-hint" th:text="#{manager.wizard.number.hint}">Com DDI e DDD.</span>
+                </label>
+            </fieldset>
+            <div class="wizard-actions">
+                <button type="submit" class="primary" th:text="#{manager.wizard.continue}">Continuar</button>
+                <a class="button" th:href="@{/manager/instances/new}" th:text="#{manager.wizard.back}">Voltar</a>
+            </div>
+        </form>
+    </section>
+
+    <!-- Passo 3: histórico, com o padrão seguro já marcado. Criar já conecta. -->
+    <section class="card" th:if="${step == 3 and createdName == null}" aria-labelledby="step-title">
+        <h1 id="step-title" tabindex="-1" data-step-heading aria-describedby="steps-count"
+            th:text="#{manager.wizard.history.title}">Histórico das conversas</h1>
+        <p class="muted" th:text="#{manager.wizard.history.intro}">Quanto das conversas antigas.</p>
+        <form th:action="@{/manager/instances/new/history}" method="post">
+            <fieldset class="choices" aria-describedby="history-warning">
+                <legend th:text="#{manager.history.label}">Histórico das conversas</legend>
+                <label class="choice" th:each="option : ${historyOptions}" th:for="'history-' + ${option}">
+                    <input type="radio" name="historySync" th:id="'history-' + ${option}" th:value="${option}"
+                           th:checked="${option == 'NONE'}">
+                    <span>
+                        <strong>
+                            <span th:text="#{'manager.history.' + ${option}}">Sem histórico</span>
+                            <span class="tag tag-neutral" th:if="${option == 'NONE'}" th:text="#{manager.wizard.history.default}">Padrão</span>
+                        </strong>
+                        <span class="muted small" th:text="#{'manager.history.' + ${option} + '.desc'}">Descrição</span>
+                    </span>
+                </label>
+            </fieldset>
+            <p class="flash warning" id="history-warning" th:text="#{manager.wizard.history.warning}">Não se desfaz.</p>
+
+            <dl class="summary" th:attr="aria-label=#{manager.wizard.summary}">
+                <div>
+                    <dt th:text="#{manager.wizard.summary.name}">Nome</dt>
+                    <dd><code th:text="${draft.name}">vendas</code>
+                        <a th:href="@{/manager/instances/new}" class="small">
+                            <span th:text="#{manager.wizard.summary.change}">Alterar</span><span class="visually-hidden" th:text="' ' + #{manager.wizard.summary.name}"></span></a></dd>
+                </div>
+                <div>
+                    <dt th:text="#{manager.wizard.summary.method}">Conexão</dt>
+                    <dd><span th:text="${draft.pairing()} ? #{manager.wizard.method.pairing} + ' (' + ${draft.number} + ')' : #{manager.wizard.method.qr}">QR code</span>
+                        <a th:href="@{/manager/instances/new/connection}" class="small">
+                            <span th:text="#{manager.wizard.summary.change}">Alterar</span><span class="visually-hidden" th:text="' ' + #{manager.wizard.summary.method}"></span></a></dd>
+                </div>
+            </dl>
+
+            <div class="wizard-actions">
+                <button type="submit" class="primary"
+                        th:text="${draft.pairing()} ? #{manager.wizard.create.pairing} : #{manager.wizard.create.qr}">Criar e gerar o QR code</button>
+                <a class="button" th:href="@{/manager/instances/new/connection}" th:text="#{manager.wizard.back}">Voltar</a>
+            </div>
+        </form>
+    </section>
+</main>
+</body>
+</html>

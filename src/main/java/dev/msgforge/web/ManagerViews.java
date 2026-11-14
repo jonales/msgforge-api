@@ -14,30 +14,58 @@ public final class ManagerViews {
 
     private ManagerViews() {}
 
-    public record InstanceRow(String name, String state, String number, String profileName, Instant createdAt) {
+    /** {@code paired}: o WhatsApp já conectou alguma vez (há número logado), mesmo que agora esteja fora. */
+    public record InstanceRow(String name, String state, String number, String profileName, Instant createdAt,
+                              boolean paired) {
 
         static InstanceRow of(Instance instance, ConnectionState state) {
             return new InstanceRow(instance.getName(), state.value(), numberOf(instance), instance.getProfileName(),
-                    instance.getCreatedAt());
+                    instance.getCreatedAt(), everPaired(instance));
+        }
+
+        /** O selo da lista: quem nunca conectou aparece como "aguardando conexão" ({@code pending}). */
+        public String badge() {
+            return badgeOf(state, paired);
         }
     }
 
     public record InstanceDetail(String name, String state, String number, String profileName, String integration,
-                          Instant createdAt, String historySync) {
+                          Instant createdAt, String historySync, boolean paired) {
 
         static InstanceDetail of(Instance instance, ConnectionState state) {
             return new InstanceDetail(instance.getName(), state.value(), numberOf(instance),
                     instance.getProfileName(), instance.getIntegration(), instance.getCreatedAt(),
-                    instance.getHistorySync().name());
+                    instance.getHistorySync().name(), everPaired(instance));
         }
 
         public boolean open() {
             return "open".equals(state);
         }
+
+        /** Criada e ainda sem conexão: o painel oferece retomar a conexão guiada. */
+        public boolean pending() {
+            return !paired && !open();
+        }
     }
 
-    /** Estado + QR para o trecho da página que se atualiza sozinho. */
-    public record Live(String name, String state, String qrCode, String qrImage, String pairingCode) {
+    /**
+     * Estado + QR para o trecho da página que se atualiza sozinho. {@code updatedAt}: hora (HH:mm:ss) em
+     * que o código atual chegou, para a renovação do QR ficar visível.
+     */
+    public record Live(String name, String state, String qrCode, String qrImage, String pairingCode,
+                       String updatedAt) {
+
+        private static final java.time.format.DateTimeFormatter CLOCK =
+                java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss").withZone(java.time.ZoneId.systemDefault());
+
+        static Live withoutCode(String name, String state) {
+            return new Live(name, state, null, null, null, null);
+        }
+
+        static Live withCode(String name, String state, String qrCode, String qrImage, String pairingCode,
+                             Instant updatedAt) {
+            return new Live(name, state, qrCode, qrImage, pairingCode, CLOCK.format(updatedAt));
+        }
 
         public boolean open() {
             return "open".equals(state);
@@ -45,6 +73,25 @@ public final class ManagerViews {
 
         public boolean hasCode() {
             return qrCode != null || pairingCode != null;
+        }
+
+        /** Com código de pareamento, o passo a passo é o de digitar o código, e não o de ler o QR. */
+        public boolean pairing() {
+            return pairingCode != null;
+        }
+
+        /**
+         * O que o leitor de tela anuncia quando o trecho troca ({@code manager.js}): muda só quando o
+         * código ou o estado mudam, para a renovação do QR não repetir a tela inteira.
+         */
+        public String announceKey() {
+            if (open()) {
+                return "open";
+            }
+            if (hasCode()) {
+                return "code:" + Integer.toHexString(java.util.Objects.hash(qrCode, pairingCode));
+            }
+            return state;
         }
     }
 
@@ -105,6 +152,14 @@ public final class ManagerViews {
         public String summary() {
             return enabled && !host.isEmpty() ? protocol + "://" + host + ":" + port : null;
         }
+    }
+
+    private static boolean everPaired(Instance instance) {
+        return instance.getOwnerJid() != null;
+    }
+
+    private static String badgeOf(String state, boolean paired) {
+        return paired || "open".equals(state) ? state : "pending";
     }
 
     /** "5561999999999@s.whatsapp.net" → "5561999999999"; sem número conectado, o informado na criação. */

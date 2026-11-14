@@ -79,6 +79,7 @@ public class ManagerController {
         return "manager/instances :: table";
     }
 
+    /** Criação direta, sem os passos (a tela usa a guiada, {@link NewInstanceController}). */
     @PostMapping("/instances")
     public String create(@RequestParam String instanceName, @RequestParam(required = false) String number,
                          @RequestParam(required = false) String historySync, RedirectAttributes flash) {
@@ -127,7 +128,8 @@ public class ManagerController {
 
     @PostMapping("/instances/{name}/connect")
     public String connect(@PathVariable String name, @RequestParam(required = false) String number,
-                          @RequestParam(required = false) String historySync, RedirectAttributes flash) {
+                          @RequestParam(required = false) String historySync,
+                          @RequestParam(required = false) String next, RedirectAttributes flash) {
         if (historySync != null) {
             // Vale a partir deste pareamento: guarda antes de criar a conexão
             instances.setHistorySync(name, dev.msgforge.instance.HistorySync.parse(historySync));
@@ -137,6 +139,10 @@ public class ManagerController {
         var result = instances.connect(name, blankToNull(number));
         // Se o gateway devolveu o código atual (conexão já pendente), ele não é republicado como evento
         qrCodes.remember(name, result.code(), result.pairingCode(), result.base64());
+        // Da conexão guiada (gerar outro QR): volta para ela, e não para o painel
+        if ("wizard".equals(next)) {
+            return "redirect:" + NewInstanceController.connectPage(name);
+        }
         flash.addFlashAttribute("success", "manager.flash.connecting");
         return redirectTo(name);
     }
