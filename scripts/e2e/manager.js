@@ -71,8 +71,10 @@ const { chromium } = require('playwright');
 
   await page.goto(base + '/manager');
   await page.waitForSelector('text=' + name);
+  // Nunca conectada: a ação principal da linha é continuar a conexão guiada
+  await page.waitForSelector('#instances-table a.button.primary[href$="/manager/instances/' + name + '/connect"]');
   await page.screenshot({ path: shots + '/3-lista.png' });
-  step('lista mostra a instância');
+  step('lista mostra a instância, com "Continuar a conexão"');
 
   const mobile = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   await mobile.context().addCookies(await page.context().cookies());
@@ -80,6 +82,10 @@ const { chromium } = require('playwright');
   const overflow = await mobile.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   await mobile.screenshot({ path: shots + '/4-celular.png', fullPage: true });
   step('celular 390px, rolagem horizontal: ' + overflow);
+  await mobile.goto(base + '/manager');
+  const listOverflow = await mobile.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  await mobile.screenshot({ path: shots + '/4b-lista-celular.png', fullPage: true });
+  step('lista no celular 390px, rolagem horizontal: ' + listOverflow);
 
   await page.goto(base + '/manager/instances/' + name);
   await page.check('input[name=confirm]'); await page.click('button.danger');

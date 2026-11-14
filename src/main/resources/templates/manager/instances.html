@@ -1,45 +1,156 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<!-- Página inicial do Manager: a lista de instâncias, com uma ação principal por estado. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.instances.title})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
-<main class="container">
+<main class="container home">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <p class="flash success" th:if="${deletedName}" th:text="#{manager.flash.deletedName(${deletedName})}"></p>
 
-    <div class="page-head">
-        <h1 th:text="#{manager.instances.title}">Instâncias</h1>
-        <a class="button primary" th:href="@{/manager/instances/new}" th:text="#{manager.instances.new}">Nova instância</a>
+    <div class="page-head home-head">
+        <div class="home-title">
+            <h1 th:text="#{manager.instances.title}">Instâncias</h1>
+            <p class="lede" th:text="#{manager.home.lede}">Cada instância é um número de WhatsApp ligado à API.</p>
+        </div>
+        <a class="button primary button-lg" th:href="@{/manager/instances/new}">
+            <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
+                <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span th:text="#{manager.instances.new}">Nova instância</span>
+        </a>
     </div>
 
-    <section class="card">
+    <!-- Busca e filtro só com muitas instâncias. Ficam fora do trecho ao vivo, para o texto digitado
+         sobreviver às trocas; nascem escondidos e o manager.js os mostra (sem JS, nada que não funcione). -->
+    <form class="list-tools" th:if="${showSearch}" data-list-filter hidden role="search"
+          th:attr="aria-label=#{manager.home.search.label},data-count-text=#{manager.home.search.count}">
+        <label for="instance-search" class="list-search">
+            <span th:text="#{manager.home.search.label}">Buscar</span>
+            <input type="search" id="instance-search" autocomplete="off" spellcheck="false"
+                   th:placeholder="#{manager.home.search.placeholder}">
+        </label>
+        <label for="instance-filter" class="list-filter">
+            <span th:text="#{manager.home.filter.label}">Estado</span>
+            <select id="instance-filter">
+                <option value="" th:text="#{manager.home.filter.all}">Todos</option>
+                <option value="attention" th:text="#{manager.home.filter.attention}">Precisam de ação</option>
+                <option value="open" th:text="#{manager.home.filter.open}">Conectadas</option>
+                <option value="pending" th:text="#{manager.home.filter.pending}">Aguardando conexão</option>
+                <option value="connecting" th:text="#{manager.home.filter.connecting}">Conectando</option>
+                <option value="close" th:text="#{manager.home.filter.close}">Desconectadas</option>
+            </select>
+        </label>
+        <p id="filter-status" class="muted small filter-status" role="status"></p>
+    </form>
+
+    <section class="card list-card">
         <!-- Ao vivo pelo SSE (evento "table"); o polling de 5 s é a reserva (manager.js) -->
         <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances}">
         <div th:fragment="table" id="instances-table" sse-swap="table" data-poll
              th:attr="hx-get=@{/manager/instances/table}" hx-trigger="every 5s" hx-swap="outerHTML">
-            <p class="muted" th:if="${#lists.isEmpty(instances)}" th:text="#{manager.instances.empty}">Nenhuma</p>
-            <table th:unless="${#lists.isEmpty(instances)}">
+
+            <div class="empty-state" th:if="${#lists.isEmpty(instances)}">
+                <h2 th:text="#{manager.home.empty.title}">Crie a primeira instância</h2>
+                <p th:text="#{manager.home.empty.text}">Uma instância liga um número de WhatsApp à API.</p>
+                <ol class="empty-steps">
+                    <li th:each="i : ${#numbers.sequence(1, 4)}" th:text="#{'manager.wizard.step.' + ${i}}">Nome</li>
+                </ol>
+                <a class="button primary button-lg" th:href="@{/manager/instances/new}"
+                   th:text="#{manager.home.empty.cta}">Criar a primeira instância</a>
+            </div>
+
+            <th:block th:unless="${#lists.isEmpty(instances)}"
+                      th:with="total=${#lists.size(instances)},
+                               connected=${#lists.size(instances.?[badge() == 'open'])},
+                               attention=${#lists.size(instances.?[needsAction()])}">
+            <p class="list-summary">
+                <span th:text="#{manager.home.summary.total(${total})}">3 instâncias</span>
+                <span th:text="#{manager.home.summary.open(${connected})}">2 conectadas</span>
+                <span class="attention" th:if="${attention > 0}"
+                      th:text="#{manager.home.summary.attention(${attention})}">1 precisa de ação</span>
+            </p>
+            <table class="instances">
+                <caption class="visually-hidden" th:text="#{manager.home.caption}">Instâncias e estado da conexão</caption>
                 <thead>
                 <tr>
-                    <th th:text="#{manager.col.name}">Nome</th>
-                    <th th:text="#{manager.col.state}">Estado</th>
-                    <th th:text="#{manager.col.number}">Número</th>
-                    <th th:text="#{manager.col.profile}">Perfil</th>
+                    <th scope="col" th:text="#{manager.home.col.instance}">Instância</th>
+                    <th scope="col" th:text="#{manager.col.number}">Número</th>
+                    <th scope="col" th:text="#{manager.col.state}">Estado</th>
+                    <th scope="col"><span class="visually-hidden" th:text="#{manager.home.col.action}">Ação</span></th>
                 </tr>
                 </thead>
                 <tbody>
-                <tr th:each="row : ${instances}">
-                    <td><a th:href="@{/manager/instances/{n}(n=${row.name})}" th:text="${row.name}">vendas</a></td>
-                    <!-- Nunca conectada: "Aguardando conexão" no lugar de Conectando/Desconectada; o estado
-                         de fato fica em data-state -->
-                    <td><span th:class="'badge ' + ${row.badge()}" th:data-state="${row.state}"
-                              th:text="#{'manager.state.' + ${row.badge()}}">open</span></td>
-                    <td th:text="${row.number} ?: '—'">5561...</td>
-                    <td th:text="${row.profileName} ?: '—'">Fulano</td>
+                <tr th:each="row : ${instances}" data-instance
+                    th:attr="data-badge=${row.badge()},data-attention=${row.needsAction()} ? 'true' : null,
+                             data-search=${#strings.toLowerCase(row.name + ' ' + (row.number ?: '') + ' ' + (row.profileName ?: ''))}">
+                    <td class="cell-name">
+                        <a class="instance-name" th:href="@{/manager/instances/{n}(n=${row.name})}" th:text="${row.name}">vendas</a>
+                        <span class="profile" th:if="${row.profileName}" th:text="${row.profileName}">Loja</span>
+                    </td>
+                    <td class="cell-number" th:classappend="${row.number} ? '' : 'no-number'" th:attr="data-label=#{manager.col.number}">
+                        <span th:if="${row.number}" class="number" th:text="${row.number}">5561999999999</span>
+                        <span th:unless="${row.number}" class="muted" th:text="#{manager.home.noNumber}">Sem número</span>
+                    </td>
+                    <td class="cell-state">
+                        <!-- Nunca conectada: "Aguardando conexão" no lugar de Conectando/Desconectada; o estado
+                             de fato fica em data-state -->
+                        <span th:class="'badge ' + ${row.badge()}" th:data-state="${row.state}"
+                              th:text="#{'manager.state.' + ${row.badge()}}">open</span>
+                        <span class="delivery-warn" th:if="${row.deliveryFailing}">
+                            <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="14" height="14">
+                                <path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                                <path d="M8 6.2v3.6M8 11.6v.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                            </svg>
+                            <span th:text="#{manager.home.deliveryFailing}">Webhook falhando, tentando de novo</span>
+                        </span>
+                    </td>
+                    <td class="cell-action" th:switch="${row.action()}">
+                        <a th:case="'open'" class="button action" th:href="@{/manager/instances/{n}(n=${row.name})}">
+                            <span th:text="#{manager.home.action.open}">Abrir</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
+                        <a th:case="'resume'" class="button primary action" th:href="@{/manager/instances/{n}/connect(n=${row.name})}">
+                            <span th:text="#{manager.home.action.resume}">Continuar a conexão</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
+                        <a th:case="'follow'" class="button action" th:href="@{/manager/instances/{n}(n=${row.name})}">
+                            <span th:text="#{manager.home.action.follow}">Ver conexão</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
+                        <a th:case="*" class="button primary action" th:href="@{/manager/instances/{n}(n=${row.name})} + '#connect'">
+                            <span th:text="#{manager.home.action.reconnect}">Reconectar</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
+                    </td>
                 </tr>
                 </tbody>
             </table>
+            </th:block>
         </div>
+        </div>
+        <p id="filter-empty" class="muted filter-empty" hidden th:if="${showSearch}" th:text="#{manager.home.search.none}">Nenhuma instância com esse filtro.</p>
+    </section>
+
+    <!-- Sem backend ainda: só aparecem, sem link nem botão (PRODUCT.md, "Em breve") -->
+    <section class="soon" aria-labelledby="soon-title">
+        <div class="soon-head">
+            <h2 id="soon-title" th:text="#{manager.soon.title}">Canais e integrações</h2>
+            <p class="muted small" th:text="#{manager.soon.text}">Hoje o Msgforge conecta pelo WhatsApp.</p>
+        </div>
+        <div class="soon-groups">
+            <div class="soon-group">
+                <h3 th:text="#{manager.soon.channels}">Canais</h3>
+                <ul class="soon-list">
+                    <li th:each="item : ${soonChannels}">
+                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Cloud API oficial</span>
+                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Canal</span>
+                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="soon-group">
+                <h3 th:text="#{manager.soon.integrations}">Integrações</h3>
+                <ul class="soon-list">
+                    <li th:each="item : ${soonIntegrations}">
+                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Typebot</span>
+                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Bots</span>
+                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
+                    </li>
+                </ul>
+            </div>
         </div>
     </section>
 </main>

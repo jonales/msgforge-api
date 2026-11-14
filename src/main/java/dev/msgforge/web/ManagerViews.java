@@ -14,18 +14,41 @@ public final class ManagerViews {
 
     private ManagerViews() {}
 
-    /** {@code paired}: o WhatsApp já conectou alguma vez (há número logado), mesmo que agora esteja fora. */
+    /**
+     * Linha da lista de instâncias. {@code paired}: o WhatsApp já conectou alguma vez (há número logado),
+     * mesmo que agora esteja fora. {@code deliveryFailing}: o webhook da instância tem entrega em nova
+     * tentativa na outbox ({@code DeliveryHealth}).
+     */
     public record InstanceRow(String name, String state, String number, String profileName, Instant createdAt,
-                              boolean paired) {
+                              boolean paired, boolean deliveryFailing) {
 
-        static InstanceRow of(Instance instance, ConnectionState state) {
+        static InstanceRow of(Instance instance, ConnectionState state, boolean deliveryFailing) {
             return new InstanceRow(instance.getName(), state.value(), numberOf(instance), instance.getProfileName(),
-                    instance.getCreatedAt(), everPaired(instance));
+                    instance.getCreatedAt(), everPaired(instance), deliveryFailing);
         }
 
         /** O selo da lista: quem nunca conectou aparece como "aguardando conexão" ({@code pending}). */
         public String badge() {
             return badgeOf(state, paired);
+        }
+
+        /**
+         * A ação principal da linha, uma por estado: {@code open} (abrir o painel), {@code resume}
+         * (continuar a conexão guiada), {@code follow} (acompanhar uma reconexão em curso) e
+         * {@code reconnect} (conectar de novo quem caiu).
+         */
+        public String action() {
+            return switch (badge()) {
+                case "open" -> "open";
+                case "pending" -> "resume";
+                case "connecting" -> "follow";
+                default -> "reconnect";
+            };
+        }
+
+        /** Pede atenção (destaque do botão): só o que espera alguém agir. */
+        public boolean needsAction() {
+            return "resume".equals(action()) || "reconnect".equals(action());
         }
     }
 

@@ -77,3 +77,57 @@
     });
     document.addEventListener('htmx:afterSettle', announce);
 })();
+
+// Página inicial: busca e filtro da lista (só aparecem com muitas instâncias). Ficam fora do trecho
+// ao vivo; depois de cada troca (SSE ou polling) o filtro é aplicado de novo às linhas novas.
+(function () {
+    'use strict';
+
+    var tools = null;
+
+    function apply() {
+        if (!tools) {
+            return;
+        }
+        var term = tools.querySelector('#instance-search').value.trim().toLowerCase();
+        var state = tools.querySelector('#instance-filter').value;
+        var rows = document.querySelectorAll('#instances-table tr[data-instance]');
+        var shown = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var row = rows[i];
+            var byText = term === '' || (row.getAttribute('data-search') || '').indexOf(term) !== -1;
+            var byState = state === ''
+                || (state === 'attention' ? row.hasAttribute('data-attention') : row.getAttribute('data-badge') === state);
+            row.hidden = !(byText && byState);
+            if (!row.hidden) {
+                shown++;
+            }
+        }
+        var filtering = term !== '' || state !== '';
+        var empty = document.getElementById('filter-empty');
+        if (empty) {
+            empty.hidden = !(filtering && shown === 0 && rows.length > 0);
+        }
+        var status = document.getElementById('filter-status');
+        var text = filtering
+            ? (tools.getAttribute('data-count-text') || '').replace('{0}', shown).replace('{1}', rows.length)
+            : '';
+        if (status && status.textContent !== text) {
+            status.textContent = text;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        tools = document.querySelector('[data-list-filter]');
+        if (!tools) {
+            return;
+        }
+        tools.hidden = false;
+        tools.addEventListener('input', apply);
+        tools.addEventListener('change', apply);
+        // Enter na busca não recarrega a página: o filtro já está aplicado
+        tools.addEventListener('submit', function (evt) { evt.preventDefault(); });
+        apply();
+    });
+    document.addEventListener('htmx:afterSettle', apply);
+})();
