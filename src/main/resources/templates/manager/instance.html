@@ -3,7 +3,7 @@
 <head th:replace="~{manager/fragments/layout :: head(${instance.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
-<main class="container">
+<main class="container instance-panel">
     <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <div class="flash warning" role="status" th:if="${createdToken}">
@@ -12,6 +12,13 @@
     <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
 
     <h1 th:text="${instance.name}">vendas</h1>
+    <!-- Criada pela conexão guiada e abandonada antes de ler o QR: retoma do passo onde parou -->
+    <section class="card resume" th:if="${instance.pending()}" aria-labelledby="pending-title">
+        <h2 id="pending-title" th:text="#{manager.pending.title}">Ainda não conectada</h2>
+        <p class="muted" th:text="#{manager.pending.text}">Termine a conexão.</p>
+        <a class="button primary" th:href="@{/manager/instances/{n}/connect(n=${instance.name})}"
+           th:text="#{manager.pending.resume}">Continuar a conexão</a>
+    </section>
     <p><a class="button" th:href="@{/manager/instances/{n}/messages(n=${instance.name})}" th:text="#{manager.messages.open}">Mensagens</a></p>
     <p class="muted">
         <span th:text="#{manager.col.number}">Número</span>: <span th:text="${instance.number} ?: '—'"></span>
@@ -20,28 +27,52 @@
     </p>
 
     <!-- Trecho vivo: estado + QR. Chega pelo SSE (evento "live"); o polling (3 s enquanto não
-         conecta, 15 s depois) é a reserva quando o stream não está aberto (manager.js) -->
+         conecta, 15 s depois) é a reserva quando o stream não está aberto (manager.js). A conexão
+         guiada (connect.html) usa o mesmo trecho. -->
     <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances/{n}(n=${instance.name})}">
-    <section class="card" th:fragment="live" id="live" sse-swap="live" data-poll
+    <section class="card" th:fragment="live" id="live" sse-swap="live" data-poll aria-labelledby="live-title"
              th:attr="hx-get=@{/manager/instances/{n}/live(n=${live.name})},hx-trigger=(${live.open()} ? 'every 15s' : 'every 3s')"
+             th:with="announce=${live.open()} ? 'open' : (${live.hasCode()} ? 'code' : (${live.state == 'connecting'} ? 'waiting' : 'close'))"
+             th:data-announce="#{'manager.connection.announce.' + ${announce}}"
+             th:data-announce-key="${live.announceKey()}"
              hx-swap="outerHTML">
-        <h2 th:text="#{manager.connection.title}">Conexão</h2>
+        <h2 id="live-title" th:text="#{manager.connection.title}">Conexão</h2>
         <p><span th:class="'badge ' + ${live.state}" th:text="#{'manager.state.' + ${live.state}}">close</span></p>
 
-        <div th:if="${live.hasCode()}" class="qr">
-            <img th:if="${live.qrImage}" th:src="${live.qrImage}" th:alt="#{manager.connection.qrAlt}" width="280" height="280">
-            <p th:if="${live.qrImage == null and live.qrCode != null}" class="muted">
-                <span th:text="#{manager.connection.qrTextOnly}">QR sem imagem</span><br><code th:text="${live.qrCode}"></code>
-            </p>
-            <p th:if="${live.pairingCode}">
-                <span th:text="#{manager.connection.pairing}">Código</span>
-                <strong class="pairing" th:text="${live.pairingCode}">ABCD-1234</strong>
-            </p>
-            <p class="muted" th:text="#{manager.connection.scanHint}">Escaneie</p>
+        <div th:if="${live.hasCode()}" class="qr-layout">
+            <div class="qr">
+                <th:block th:unless="${live.pairing()}">
+                    <img th:if="${live.qrImage}" th:src="${live.qrImage}" th:alt="#{manager.connection.qrAlt}" width="280" height="280">
+                    <p th:if="${live.qrImage == null and live.qrCode != null}" class="muted small">
+                        <span th:text="#{manager.connection.qrTextOnly}">QR sem imagem</span><br><code th:text="${live.qrCode}"></code>
+                    </p>
+                </th:block>
+                <p th:if="${live.pairing()}" class="pairing-box">
+                    <span class="muted small" th:text="#{manager.connection.pairing}">Código</span>
+                    <strong class="pairing" th:text="${live.pairingCode}">ABCD-1234</strong>
+                </p>
+                <p class="renew small">
+                    <span th:text="${live.pairing()} ? #{manager.connection.renewPairing} : #{manager.connection.renewQr}">Renova sozinho.</span>
+                    <span class="muted" th:if="${live.updatedAt}" th:text="#{manager.connection.updatedAt(${live.updatedAt})}">Gerado às 10:00:00.</span>
+                </p>
+            </div>
+            <div class="howto">
+                <h3 th:text="${live.pairing()} ? #{manager.connection.pairingSteps} : #{manager.connection.qrSteps}">Como ler</h3>
+                <ol th:with="prefix=${live.pairing()} ? 'manager.connection.pairingStep.' : 'manager.connection.qrStep.'">
+                    <li th:each="i : ${#numbers.sequence(1, 3)}" th:text="#{${prefix + i}}">Abra o WhatsApp.</li>
+                </ol>
+            </div>
         </div>
-        <p class="muted" th:if="${live.open()}" th:text="#{manager.connection.connected}">Conectada</p>
+        <p class="muted" th:if="${!live.open() and !live.hasCode()}"
+           th:text="${live.state == 'connecting'} ? #{manager.connection.waiting} : #{manager.connection.expired}">Sem código.</p>
+        <div class="live-success" th:if="${live.open()}">
+            <p class="saved" th:text="#{manager.connection.connected}">Conectada</p>
+            <a class="button primary live-panel-link" th:href="@{/manager/instances/{n}(n=${live.name})}"
+               th:text="#{manager.connection.openPanel}">Abrir o painel</a>
+        </div>
     </section>
     </div>
+    <p id="live-announce" class="visually-hidden" role="status"></p>
 
     <div class="grid">
         <section class="card">

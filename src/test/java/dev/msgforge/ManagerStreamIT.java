@@ -203,7 +203,8 @@ class ManagerStreamIT extends IntegrationTest {
 
         get("/instance/connect/" + name);
 
-        var table = stream.await("table", html -> html.contains(name) && html.contains("badge connecting"));
+        // Nunca conectada: o selo diz "Aguardando conexão" e o estado de fato vai em data-state
+        var table = stream.await("table", html -> html.contains(name) && html.contains("data-state=\"connecting\""));
         assertThat(table.data()).contains("id=\"instances-table\"").contains("sse-swap=\"table\"");
     }
 

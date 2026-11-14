@@ -26,6 +26,8 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
 - [ ] **Fase 3, telas:** redesenho do Manager (lista, nova instância guiada com histórico no fluxo,
   visão geral, conversas, comportamento da conta, eventos agrupados com teste e últimas entregas,
   zona de perigo) e integrações e canais futuros como "Em breve"
+  - [x] nova instância guiada: nome, QR ou código de pareamento, histórico (padrão "Sem histórico")
+    e leitura do QR ao vivo; quem para no QR fica "Aguardando conexão" e o painel retoma
 - [ ] **Fase 4, link de conexão:** página isolada do QR para o cliente, enviada por e-mail
 - [ ] **Fase 5, alertas:** desconexão, sessão encerrada, webhook falhando, resumo do gestor
 - [ ] Depois: 2FA, chaves de API com escopo por organização, proxy e comportamento por instância,

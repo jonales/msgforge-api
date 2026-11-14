@@ -366,4 +366,229 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(flash().attribute("proxySaved", true));
         assertThat(instances.findByName(name).orElseThrow().getProxy()).isEmpty();
     }
+
+    // ------------------------------------------------------------ nova instância guiada
+
+    private static MockHttpServletRequestBuilder inSession(MockHttpServletRequestBuilder request,
+                                                           org.springframework.mock.web.MockHttpSession session) {
+        return asManager(request).session(session);
+    }
+
+    @Test
+    void guidedCreationWalksTheStepsAndSavesTheChosenHistory() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        var name = uniqueName("guiada");
+
+        mvc.perform(inSession(GET("/manager/instances/new"), session))
+                .andExpect(status().isOk())
+                .andExpect(view().name("manager/new-instance"))
+                .andExpect(content().string(containsString("Passo 1 de 4")))
+                .andExpect(content().string(containsString("aria-current=\"step\"")))
+                .andExpect(content().string(containsString("<title>Passo 1 de 4: Nome")))
+                .andExpect(content().string(containsString("name=\"_csrf\"")));
+        mvc.perform(inSession(POST("/manager/instances/new"), session).with(csrf()).param("instanceName", " " + name + " "))
+                .andExpect(redirectedUrl("/manager/instances/new/connection"));
+        assertThat(instances.findByName(name)).isEmpty();   // só cria no passo do histórico
+
+        mvc.perform(inSession(GET("/manager/instances/new/connection"), session))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Passo 2 de 4")))
+                .andExpect(content().string(containsString("id=\"method-qr\" name=\"method\" value=\"qr\" checked")));
+        mvc.perform(inSession(POST("/manager/instances/new/connection"), session).with(csrf()).param("method", "qr"))
+                .andExpect(redirectedUrl("/manager/instances/new/history"));
+
+        mvc.perform(inSession(GET("/manager/instances/new/history"), session))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Passo 3 de 4")))
+                .andExpect(content().string(containsString("value=\"NONE\" checked")))
+                .andExpect(content().string(containsString("não se desfaz depois de conectar")))
+                .andExpect(content().string(containsString("Criar e gerar o QR code")));
+        var created = mvc.perform(inSession(POST("/manager/instances/new/history"), session).with(csrf())
+                        .param("historySync", "RECENT"))
+                .andExpect(redirectedUrl("/manager/instances/" + name + "/connect"))
+                .andExpect(flash().attributeExists("createdToken"))
+                .andReturn();
+        var saved = instances.findByName(name).orElseThrow();
+        assertThat(saved.getHistorySync()).isEqualTo(dev.msgforge.instance.HistorySync.RECENT);
+        assertThat(saved.getNumber()).isNull();
+
+        var token = (String) created.getFlashMap().get("createdToken");
+        mvc.perform(inSession(GET("/manager/instances/" + name + "/connect"), session))   // consome o flash da sessão
+                .andExpect(status().isOk())
+                .andExpect(view().name("manager/connect"))
+                .andExpect(content().string(containsString("Passo 4 de 4")))
+                .andExpect(content().string(containsString("stub-qr-")))
+                .andExpect(content().string(containsString("Como ler o QR code no celular")))
+                .andExpect(content().string(containsString("Aparelhos conectados")))
+                .andExpect(content().string(containsString("Quando expira, um novo aparece aqui sozinho")))
+                .andExpect(content().string(containsString("sse-connect=\"/manager/stream/instances/" + name + "\"")))
+                .andExpect(content().string(containsString("sse-swap=\"live\"")))
+                .andExpect(content().string(containsString("Histórico neste pareamento: Recente.")))
+                .andExpect(content().string(containsString(token)));
+        // Recarregar: a mesma tela, sem o token (ele aparece uma vez só)
+        mvc.perform(inSession(GET("/manager/instances/" + name + "/connect"), session))
+                .andExpect(status().isOk())
+                .andExpect(content().string(Matchers.not(containsString(token))));
+    }
+
+    @Test
+    void guidedCreationByPairingCodeNeedsTheNumber() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        var name = uniqueName("codigo");
+        mvc.perform(inSession(POST("/manager/instances/new"), session).with(csrf()).param("instanceName", name))
+                .andExpect(redirectedUrl("/manager/instances/new/connection"));
+
+        mvc.perform(inSession(POST("/manager/instances/new/connection"), session).with(csrf())
+                        .param("method", "pairing").param("number", ""))
+                .andExpect(redirectedUrl("/manager/instances/new/connection"))
+                .andExpect(flash().attribute("fieldError", "manager.wizard.number.error.required"));
+        mvc.perform(inSession(GET("/manager/instances/new/connection"), session))
+                .andExpect(content().string(containsString("Informe o número que vai receber o código.")))
+                .andExpect(content().string(containsString("id=\"method-pairing\" name=\"method\" value=\"pairing\" checked")))
+                .andExpect(content().string(containsString("aria-invalid=\"true\"")));
+        mvc.perform(inSession(POST("/manager/instances/new/connection"), session).with(csrf())
+                        .param("method", "pairing").param("number", "123"))
+                .andExpect(flash().attribute("fieldError", "manager.wizard.number.error.invalid"));
+
+        mvc.perform(inSession(POST("/manager/instances/new/connection"), session).with(csrf())
+                        .param("method", "pairing").param("number", "+55 (61) 99999-9999"))
+                .andExpect(redirectedUrl("/manager/instances/new/history"));
+        mvc.perform(inSession(GET("/manager/instances/new/history"), session))
+                .andExpect(content().string(containsString("Código de pareamento (5561999999999)")))
+                .andExpect(content().string(containsString("Criar e gerar o código")));
+        mvc.perform(inSession(POST("/manager/instances/new/history"), session).with(csrf()))
+                .andExpect(redirectedUrl("/manager/instances/" + name + "/connect"));
+        var saved = instances.findByName(name).orElseThrow();
+        assertThat(saved.getNumber()).isEqualTo("5561999999999");
+        assertThat(saved.getHistorySync()).isEqualTo(dev.msgforge.instance.HistorySync.NONE);   // padrão seguro
+
+        mvc.perform(inSession(GET("/manager/instances/" + name + "/connect"), session))
+                .andExpect(content().string(containsString("STUB-1234")))
+                .andExpect(content().string(containsString("Conectar com número de telefone")))
+                .andExpect(content().string(containsString("Gerar outro código")))
+                .andExpect(content().string(containsString("name=\"number\" value=\"5561999999999\"")));
+    }
+
+    @Test
+    void guidedCreationValidatesTheName() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        var taken = createInstance();
+        // nome digitado → erro (chave) e o texto que a tela mostra junto do campo
+        var cases = java.util.List.of(
+                java.util.List.of("", "manager.wizard.name.error.required", "Dê um nome à instância."),
+                java.util.List.of("com espaço", "manager.wizard.name.error.pattern", "Use só letras sem acento"),
+                java.util.List.of("New", "manager.wizard.name.error.reserved", "Esse nome é usado pelo próprio painel"),
+                java.util.List.of(taken, "manager.wizard.name.error.taken", "Já existe uma instância com esse nome."));
+        for (var bad : cases) {
+            mvc.perform(inSession(POST("/manager/instances/new"), session).with(csrf()).param("instanceName", bad.get(0)))
+                    .andExpect(redirectedUrl("/manager/instances/new"))
+                    .andExpect(flash().attribute("fieldError", bad.get(1)))
+                    .andExpect(flash().attribute("typedName", bad.get(0)));
+            mvc.perform(inSession(GET("/manager/instances/new"), session))
+                    .andExpect(content().string(containsString(bad.get(2))))
+                    .andExpect(content().string(containsString("aria-invalid=\"true\"")))
+                    .andExpect(content().string(containsString("aria-describedby=\"instanceName-hint instanceName-error\"")))
+                    .andExpect(content().string(containsString("value=\"" + bad.get(0) + "\"")));
+        }
+        // Sem nome válido, os passos seguintes mandam de volta ao primeiro
+        mvc.perform(inSession(GET("/manager/instances/new/connection"), session))
+                .andExpect(redirectedUrl("/manager/instances/new"));
+        mvc.perform(inSession(GET("/manager/instances/new/history"), session))
+                .andExpect(redirectedUrl("/manager/instances/new"));
+    }
+
+    @Test
+    void guidedCreationRequiresCsrfAndTheManagerSession() throws Exception {
+        mvc.perform(GET("/manager/instances/new")).andExpect(redirectedUrl("/manager/login"));
+        mvc.perform(asManager(POST("/manager/instances/new")).param("instanceName", uniqueName("x")))
+                .andExpect(status().isForbidden());
+        mvc.perform(asManager(POST("/manager/instances/new/connection")).param("method", "qr"))
+                .andExpect(status().isForbidden());
+        mvc.perform(asManager(POST("/manager/instances/new/history")).param("historySync", "FULL"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void goingBackKeepsTheAnswersAndAfterCreatingPointsToTheConnection() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        var name = uniqueName("voltar");
+        mvc.perform(inSession(POST("/manager/instances/new"), session).with(csrf()).param("instanceName", name));
+        mvc.perform(inSession(POST("/manager/instances/new/connection"), session).with(csrf())
+                .param("method", "pairing").param("number", "5561988887777"));
+
+        // Voltar (link ou navegador): cada passo reabre com o que já foi respondido
+        mvc.perform(inSession(GET("/manager/instances/new"), session))
+                .andExpect(content().string(containsString("value=\"" + name + "\"")));
+        mvc.perform(inSession(GET("/manager/instances/new/connection"), session))
+                .andExpect(content().string(containsString("value=\"pairing\" checked")))
+                .andExpect(content().string(containsString("value=\"5561988887777\"")))
+                .andExpect(content().string(containsString("href=\"/manager/instances/new\"")));
+        // Trocar o nome no passo 1 não perde a forma de conexão
+        var renamed = uniqueName("voltar");
+        mvc.perform(inSession(POST("/manager/instances/new"), session).with(csrf()).param("instanceName", renamed));
+        mvc.perform(inSession(GET("/manager/instances/new/history"), session))
+                .andExpect(content().string(containsString(renamed)))
+                .andExpect(content().string(containsString("5561988887777")));
+
+        mvc.perform(inSession(POST("/manager/instances/new/history"), session).with(csrf()))
+                .andExpect(redirectedUrl("/manager/instances/" + renamed + "/connect"));
+        // Voltar do navegador depois de criar: a página não deixa recriar e leva à conexão
+        mvc.perform(inSession(GET("/manager/instances/new/history"), session))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Instância já criada")))
+                .andExpect(content().string(containsString("href=\"/manager/instances/" + renamed + "/connect\"")))
+                .andExpect(content().string(Matchers.not(containsString("name=\"historySync\""))));
+        mvc.perform(inSession(POST("/manager/instances/new/history"), session).with(csrf()))
+                .andExpect(redirectedUrl("/manager/instances/new"));
+        assertThat(instances.findByName(name)).isEmpty();
+    }
+
+    @Test
+    void abandonedConnectionShowsAsPendingAndThePanelResumesIt() throws Exception {
+        var session = new org.springframework.mock.web.MockHttpSession();
+        var name = uniqueName("parou");
+        mvc.perform(inSession(POST("/manager/instances/new"), session).with(csrf()).param("instanceName", name));
+        mvc.perform(inSession(POST("/manager/instances/new/connection"), session).with(csrf()).param("method", "qr"));
+        mvc.perform(inSession(POST("/manager/instances/new/history"), session).with(csrf()));
+
+        assertThat(badgeInTheList(name)).isEqualTo("pending");
+        mvc.perform(asManager(GET("/manager/instances/table")))
+                .andExpect(content().string(containsString("class=\"badge pending\"")))
+                .andExpect(content().string(containsString("Aguardando conexão")));
+        mvc.perform(asManager(GET("/manager/instances/" + name)))
+                .andExpect(content().string(containsString("Esta instância ainda não foi conectada")))
+                .andExpect(content().string(containsString("href=\"/manager/instances/" + name + "/connect\"")));
+
+        // Gerar outro QR pela tela guiada volta para ela
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/connect")).with(csrf()).param("next", "wizard"))
+                .andExpect(redirectedUrl("/manager/instances/" + name + "/connect"));
+
+        // Conectou: a tela mostra o sucesso e o caminho para o painel; a lista deixa de dizer "aguardando"
+        events.publishEvent(new dev.msgforge.event.GatewayEvent.ConnectionUpdated(name,
+                dev.msgforge.instance.ConnectionState.OPEN, null, "5561977776666@s.whatsapp.net", "Loja"));
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/live")))
+                .andExpect(content().string(containsString("WhatsApp conectado.")))
+                .andExpect(content().string(containsString("data-announce-key=\"open\"")))
+                .andExpect(content().string(containsString("data-announce=\"WhatsApp conectado.\"")))
+                .andExpect(content().string(containsString(
+                        "class=\"button primary live-panel-link\" href=\"/manager/instances/" + name + "\"")));
+        assertThat(badgeInTheList(name)).isEqualTo("open");
+        mvc.perform(asManager(GET("/manager/instances/" + name)))
+                .andExpect(content().string(Matchers.not(containsString("Esta instância ainda não foi conectada"))));
+    }
+
+    /** O selo da instância na lista (outras instâncias dos testes também estão lá). */
+    private String badgeInTheList(String name) throws Exception {
+        var model = mvc.perform(asManager(GET("/manager/instances/table"))).andReturn().getModelAndView().getModel();
+        @SuppressWarnings("unchecked")
+        var rows = (java.util.List<dev.msgforge.web.ManagerViews.InstanceRow>) model.get("instances");
+        return rows.stream().filter(r -> r.name().equals(name)).findFirst().orElseThrow().badge();
+    }
+
+    @Test
+    void theListLinksToTheGuidedCreation() throws Exception {
+        mvc.perform(asManager(GET("/manager")))
+                .andExpect(content().string(containsString("href=\"/manager/instances/new\"")))
+                .andExpect(content().string(Matchers.not(containsString("name=\"instanceName\""))));
+    }
 }

@@ -17,7 +17,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
  * Erros das telas viram mensagem em flash e redirecionamento, em vez do JSON do
  * {@code ApiExceptionHandler}, que continua valendo só para a API.
  */
-@ControllerAdvice(assignableTypes = ManagerController.class)
+@ControllerAdvice(assignableTypes = {ManagerController.class, NewInstanceController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class ManagerExceptionHandler {
 

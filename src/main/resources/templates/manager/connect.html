@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<!-- Nova instância guiada, passo 4: ler o QR (ou digitar o código). A instância já existe; quem
+     abandona aqui volta pelo painel dela. O trecho ao vivo é o mesmo do painel (instance :: live). -->
+<head th:replace="~{manager/fragments/layout :: head(#{manager.wizard.stepOf(${step}, ${totalSteps})} + ': ' + #{'manager.wizard.step.' + ${step}} + ' · ' + ${instance.name})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container wizard connect-page">
+    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <nav th:replace="~{manager/fragments/layout :: steps(${step}, ${totalSteps}, false)}"></nav>
+
+    <h1 id="step-title" tabindex="-1" data-step-heading aria-describedby="steps-count"
+        th:text="#{manager.wizard.connect.title}">Conecte o celular</h1>
+    <p class="muted">
+        <span th:text="${createdToken} ? #{manager.wizard.connect.intro(${instance.name})} : #{manager.wizard.connect.introPaired(${instance.name})}">Falta autorizar.</span>
+        <span th:text="#{manager.wizard.connect.history(#{'manager.history.' + ${historySync}})}">Histórico: Sem histórico.</span>
+    </p>
+    <div class="flash warning" role="status" th:if="${createdToken}">
+        <span th:text="#{manager.flash.token}">Token</span> <code th:text="${createdToken}">TOKEN</code>
+    </div>
+
+    <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances/{n}(n=${instance.name})}">
+        <section th:replace="~{manager/instance :: live}"></section>
+    </div>
+    <p id="live-announce" class="visually-hidden" role="status"></p>
+
+    <!-- Some com a instância conectada (CSS :has); sem :has(), continua à vista e é inofensivo -->
+    <div class="wizard-actions retry">
+        <form th:action="@{/manager/instances/{n}/connect(n=${instance.name})}" method="post">
+            <input type="hidden" name="next" value="wizard">
+            <input type="hidden" name="number" th:if="${pairingNumber}" th:value="${pairingNumber}">
+            <button type="submit" th:text="${pairingNumber} ? #{manager.wizard.connect.retryPairing} : #{manager.wizard.connect.retryQr}">Gerar outro QR code</button>
+        </form>
+        <a class="button" th:href="@{/manager/instances/{n}(n=${instance.name})}" th:text="#{manager.wizard.connect.later}">Conectar depois</a>
+    </div>
+    <p class="muted small retry" th:text="#{manager.wizard.connect.laterHint}">Fica na lista.</p>
+</main>
+</body>
+</html>

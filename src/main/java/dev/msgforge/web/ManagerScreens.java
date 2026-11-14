@@ -42,8 +42,8 @@ public class ManagerScreens {
         var state = instances.stateOf(instance).value();
         var qr = qrCodes.get(name).orElse(null);
         return qr == null || "open".equals(state)
-                ? new Live(name, state, null, null, null)
-                : new Live(name, state, qr.code(), qr.base64(), qr.pairingCode());
+                ? Live.withoutCode(name, state)
+                : Live.withCode(name, state, qr.code(), qr.base64(), qr.pairingCode(), qr.updatedAt());
     }
 
     public List<ChatRow> chatRows(String name) {

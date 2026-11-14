@@ -1,4 +1,4 @@
-// E2E do Manager (Playwright). Uso: subir a aplicação (stub) em :8080 e rodar
+// E2E do Manager (Playwright). Uso: subir a aplicação (stub) em :8080 (ou MSGFORGE_E2E_URL) e rodar
 //   node scripts/e2e/manager.js [pasta-de-screenshots]
 // Requer Node + o pacote playwright (já vem nas sessões em nuvem). Chave: MSGFORGE_E2E_KEY ou troque-esta-chave (perfil dev).
 const { chromium } = require('playwright');
@@ -22,15 +22,27 @@ const { chromium } = require('playwright');
   await page.fill('#apikey', key); await page.click('button[type=submit]');
   await page.waitForURL(base + '/manager'); step('login ok');
 
+  // Nova instância guiada: nome → forma de conexão → histórico → ler o QR
   const name = 'vendas-' + Date.now().toString().slice(-5);
-  await page.fill('input[name=instanceName]', name); await page.fill('input[name=number]', '5561999999999');
-  await page.click('form.inline-form button'); await page.waitForURL('**/manager/instances/' + name);
-  const token = await page.textContent('.flash.warning code'); step('instância criada, token mostrado uma vez: ' + token.slice(0, 8) + '…');
-
-  await page.click('form[action$="/connect"] button');
-  await page.waitForURL('**/manager/instances/' + name);
+  await page.click('a[href$="/manager/instances/new"]'); await page.waitForURL('**/manager/instances/new');
+  await page.fill('#instanceName', 'nome inválido'); await page.click('form button.primary');
+  await page.waitForSelector('#instanceName-error'); step('passo 1: nome inválido recusado junto do campo');
+  await page.fill('#instanceName', name); await page.click('form button.primary');
+  await page.waitForURL('**/manager/instances/new/connection'); step('passo 2: forma de conexão');
+  if (!(await page.isChecked('#method-qr'))) throw new Error('QR code não veio marcado');
+  await page.click('form button.primary'); await page.waitForURL('**/manager/instances/new/history');
+  if (!(await page.isChecked('input[name=historySync][value=NONE]'))) throw new Error('histórico sem o padrão seguro');
+  await page.goBack(); await page.waitForURL('**/manager/instances/new/connection');
+  await page.goForward(); await page.waitForURL('**/manager/instances/new/history'); step('passo 3: voltar e avançar pelo navegador');
+  await page.screenshot({ path: shots + '/1b-nova-instancia-historico.png', fullPage: true });
+  await page.click('form button.primary'); await page.waitForURL('**/manager/instances/' + name + '/connect');
+  const token = await page.textContent('.flash.warning code'); step('passo 4: instância criada, token mostrado uma vez: ' + token.slice(0, 8) + '…');
   await page.waitForSelector('#live .badge.connecting', { timeout: 5000 }); step('conectar → estado "Conectando"');
-  await page.waitForSelector('#live code', { timeout: 5000 }); step('QR do stub exibido (sem imagem)');
+  await page.waitForSelector('#live code', { timeout: 5000 }); step('QR do stub exibido (sem imagem), com o passo a passo');
+  await page.screenshot({ path: shots + '/1c-nova-instancia-qr.png', fullPage: true });
+
+  await page.goto(base + '/manager/instances/' + name);
+  await page.waitForSelector('.resume a[href$="/connect"]'); step('painel oferece retomar a conexão');
 
   await page.fill('input[name=url]', 'https://example.com/hook');
   await page.check('input[name=events][value=MESSAGES_UPSERT]');

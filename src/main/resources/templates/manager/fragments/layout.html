@@ -23,6 +23,29 @@
     </form>
 </header>
 
+<!-- Indicador da nova instância guiada. Os passos já feitos viram links enquanto dá para voltar
+     (antes de criar); o atual leva aria-current="step". -->
+<nav th:fragment="steps(current, total, linkBack)" class="steps" th:attr="aria-label=#{manager.wizard.progress}">
+    <p class="steps-count" id="steps-count" th:text="#{manager.wizard.stepOf(${current}, ${total})}">Passo 1 de 4</p>
+    <ol>
+        <li th:each="i : ${#numbers.sequence(1, total)}"
+            th:with="href=${i == 1} ? @{/manager/instances/new} : (${i == 2} ? @{/manager/instances/new/connection} : @{/manager/instances/new/history})"
+            th:class="${i < current} ? 'done' : (${i == current} ? 'current' : 'todo')"
+            th:attr="aria-current=${i == current} ? 'step' : null">
+            <a th:if="${linkBack and i < current}" th:href="${href}">
+                <span class="step-mark" aria-hidden="true" th:text="${i}">1</span>
+                <span th:text="#{'manager.wizard.step.' + ${i}}">Nome</span>
+                <span class="visually-hidden" th:text="'(' + #{manager.wizard.done} + ')'">(concluído)</span>
+            </a>
+            <span class="step-item" th:unless="${linkBack and i < current}">
+                <span class="step-mark" aria-hidden="true" th:text="${i}">1</span>
+                <span th:text="#{'manager.wizard.step.' + ${i}}">Nome</span>
+                <span class="visually-hidden" th:if="${i < current}" th:text="'(' + #{manager.wizard.done} + ')'">(concluído)</span>
+            </span>
+        </li>
+    </ol>
+</nav>
+
 <div th:fragment="flash">
     <div class="flash success" role="status" th:if="${success}" th:text="#{${success}}">ok</div>
     <div class="flash error" role="alert" th:if="${error}" th:text="#{${error}}">erro</div>

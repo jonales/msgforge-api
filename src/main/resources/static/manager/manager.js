@@ -40,3 +40,40 @@
         }
     });
 })();
+
+// Nova instância guiada e conexão: acessibilidade.
+// - Cada passo é uma página nova; o foco vai para o título do passo (que cita "Passo N de 4"),
+//   salvo quando um campo pediu o foco (autofocus, inclusive o campo com erro).
+// - O trecho ao vivo (#live) é trocado inteiro a cada QR novo; anunciar a troca inteira repetiria a
+//   tela. O anúncio sai de um aviso fixo (#live-announce) e só quando o estado ou o código mudam.
+(function () {
+    'use strict';
+
+    var lastKey = null;
+
+    function announce() {
+        var live = document.getElementById('live');
+        var region = document.getElementById('live-announce');
+        if (!live || !region) {
+            return;
+        }
+        var key = live.getAttribute('data-announce-key');
+        if (lastKey === null) {
+            lastKey = key;   // a página acabou de abrir: o que está na tela já foi lido
+            return;
+        }
+        if (key !== lastKey) {
+            lastKey = key;
+            region.textContent = live.getAttribute('data-announce') || '';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var heading = document.querySelector('[data-step-heading]');
+        if (heading && !document.querySelector('[autofocus]')) {
+            heading.focus();
+        }
+        announce();
+    });
+    document.addEventListener('htmx:afterSettle', announce);
+})();
