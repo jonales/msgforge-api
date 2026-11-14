@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(#{manager.forbidden.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container access-page">
+    <h1 th:text="#{manager.forbidden.title}">Sem acesso</h1>
+    <p class="muted" th:text="#{manager.forbidden.hint}">Seu papel não inclui esta tela.</p>
+    <p><a class="button" th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+</main>
+</body>
+</html>

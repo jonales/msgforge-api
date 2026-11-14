@@ -15,14 +15,19 @@
 </head>
 <body>
 
-<header th:fragment="header" class="topbar">
+<!-- Quem está logado, "Usuários" (para quem gerencia usuários) e "Sair", à direita (ADR 0010) -->
+<header th:fragment="header" class="topbar" th:with="me=${@managerTopbar.view()}">
     <a class="brand" th:href="@{/manager}" th:text="#{manager.brand}">Msgforge</a>
     <span class="brand-sub" th:text="#{manager.subtitle}">Manager</span>
-    <a class="topbar-link" th:href="@{/manager/server}" th:text="#{manager.nav.server}"
-       th:attr="aria-current=${currentPage == 'server'} ? 'page' : null">Servidor</a>
-    <form class="topbar-logout" th:action="@{/manager/logout}" method="post">
-        <button type="submit" class="link" th:text="#{manager.signOut}">Sair</button>
-    </form>
+    <nav class="topbar-account" th:attr="aria-label=#{manager.topbar.account}">
+        <span class="topbar-who" th:text="${me.email} ?: #{manager.topbar.globalKey}">ana@exemplo.com</span>
+        <a class="topbar-link" th:if="${me.users}" th:href="@{/manager/users}" th:text="#{manager.topbar.users}">Usuários</a>
+        <a class="topbar-link" th:if="${me.server}" th:href="@{/manager/server}" th:text="#{manager.nav.server}"
+           th:attr="aria-current=${currentPage == 'server'} ? 'page' : null">Servidor</a>
+        <form class="topbar-logout" th:action="@{/manager/logout}" method="post">
+            <button type="submit" class="link" th:text="#{manager.signOut}">Sair</button>
+        </form>
+    </nav>
 </header>
 
 <!-- Indicador da nova instância guiada. Os passos já feitos viram links enquanto dá para voltar

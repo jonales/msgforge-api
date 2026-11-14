@@ -4,18 +4,45 @@
 <body class="login-page">
 <main class="login-card">
     <h1 th:text="#{manager.brand}">Msgforge</h1>
-    <p class="muted" th:text="#{manager.login.hint}">Entre com a chave da API.</p>
 
     <div class="flash error" role="alert" th:if="${param.error}" th:text="#{manager.login.invalid}">inválida</div>
     <div class="flash error" role="alert" th:if="${param.blocked}" th:text="#{manager.login.blocked}">bloqueado</div>
+    <div class="flash error" role="alert" th:if="${param.disabled}" th:text="#{manager.login.disabled}">desativado</div>
     <div class="flash success" role="status" th:if="${param.logout}" th:text="#{manager.login.loggedOut}">saiu</div>
 
-    <form th:action="@{/manager/login}" method="post">
-        <input type="hidden" name="username" value="manager">
-        <label for="apikey" th:text="#{manager.login.apikey}">API key</label>
-        <input id="apikey" name="apikey" type="password" autocomplete="current-password" required autofocus>
-        <button type="submit" class="primary" th:text="#{manager.login.submit}">Entrar</button>
-    </form>
+    <!-- Primeiro acesso: ainda não há usuários, então a chave global é o caminho -->
+    <th:block th:if="${firstAccess}">
+        <p class="muted" th:text="#{manager.login.firstAccess}">Ainda não há usuários.</p>
+        <form th:action="@{/manager/login}" method="post">
+            <input type="hidden" name="username" value="manager">
+            <label for="apikey" th:text="#{manager.login.apikey}">Chave da API</label>
+            <input id="apikey" name="apikey" type="password" autocomplete="current-password" required autofocus>
+            <button type="submit" class="primary" th:text="#{manager.login.submit}">Entrar</button>
+        </form>
+    </th:block>
+
+    <th:block th:unless="${firstAccess}">
+        <p class="muted" th:text="#{manager.login.hint}">Entre com seu e-mail e senha.</p>
+        <form th:action="@{/manager/login}" method="post">
+            <label for="username" th:text="#{manager.login.email}">E-mail</label>
+            <input id="username" name="username" type="email" autocomplete="username" required autofocus
+                   spellcheck="false" autocapitalize="none">
+            <label for="password" th:text="#{manager.login.password}">Senha</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <button type="submit" class="primary" th:text="#{manager.login.submit}">Entrar</button>
+        </form>
+
+        <details class="disclosure login-key" th:if="${keyLogin}">
+            <summary><span class="summary-title" th:text="#{manager.login.withKey}">Entrar com a chave da API</span></summary>
+            <p class="muted small" th:text="#{manager.login.withKeyHint}">Acesso total.</p>
+            <form th:action="@{/manager/login}" method="post">
+                <input type="hidden" name="username" value="manager">
+                <label for="apikey" th:text="#{manager.login.apikey}">Chave da API</label>
+                <input id="apikey" name="apikey" type="password" autocomplete="off" required>
+                <button type="submit" th:text="#{manager.login.submitKey}">Entrar com a chave</button>
+            </form>
+        </details>
+    </th:block>
 </main>
 </body>
 </html>

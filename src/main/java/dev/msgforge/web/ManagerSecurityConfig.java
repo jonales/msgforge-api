@@ -1,5 +1,8 @@
 package dev.msgforge.web;
 
+import dev.msgforge.access.AccessService;
+import dev.msgforge.access.AccessService.LoginResult;
+import dev.msgforge.access.ManagerPrincipal;
 import dev.msgforge.config.MsgforgeProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -10,6 +13,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,6 +21,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.ExceptionMappingAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.WebAuthenticationDetails;
@@ -38,8 +43,9 @@ public class ManagerSecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain managerChain(HttpSecurity http, AuthenticationProvider managerAuthentication,
-                                     LoginAttemptLimiter limiter) throws Exception {
+                                     LoginAttemptLimiter limiter, AccessService access) throws Exception {
         http.securityMatcher("/manager", "/manager/**")
+                .addFilterBefore(new ActiveSessionFilter(access), AuthorizationFilter.class)
                 .authenticationProvider(managerAuthentication)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/manager/login", "/manager/manager.css", "/manager/manager.js", "/manager/favicon.svg",
@@ -49,9 +55,13 @@ public class ManagerSecurityConfig {
                         .loginPage("/manager/login")
                         .loginProcessingUrl("/manager/login")
                         .usernameParameter("username")
-                        .passwordParameter("apikey")
+                        .passwordParameter("password")
+                        .authenticationDetailsSource(ManagerLoginDetails::new)
                         .successHandler((request, response, authentication) -> {
                             limiter.succeeded(request.getRemoteAddr());
+                            if (authentication.getPrincipal() instanceof ManagerPrincipal who) {
+                                access.recordLogin(who);
+                            }
                             response.sendRedirect(request.getContextPath() + "/manager");
                         })
                         .failureHandler(failureHandler(limiter)))
@@ -105,7 +115,9 @@ public class ManagerSecurityConfig {
      */
     private static AuthenticationFailureHandler failureHandler(LoginAttemptLimiter limiter) {
         var redirect = new ExceptionMappingAuthenticationFailureHandler();
-        redirect.setExceptionMappings(Map.of(LockedException.class.getName(), "/manager/login?blocked"));
+        redirect.setExceptionMappings(Map.of(
+                LockedException.class.getName(), "/manager/login?blocked",
+                DisabledException.class.getName(), "/manager/login?disabled"));
         redirect.setDefaultFailureUrl("/manager/login?error");
         return (request, response, exception) -> {
             if (exception instanceof BadCredentialsException) {
@@ -116,26 +128,45 @@ public class ManagerSecurityConfig {
     }
 
     /**
-     * O login do Manager é a chave global (AUTHENTICATION_API_KEY), comparada em tempo constante.
-     * Um IP com {@link LoginAttemptLimiter#MAX_FAILURES} falhas na janela fica bloqueado.
+     * Dois jeitos de entrar (ADR 0010): e-mail e senha de um usuário ativo, ou a chave global
+     * (AUTHENTICATION_API_KEY, comparada em tempo constante), que entra como admin da plataforma no
+     * primeiro acesso e enquanto {@code MANAGER_KEY_LOGIN} for true. Um IP com
+     * {@link LoginAttemptLimiter#MAX_FAILURES} falhas na janela fica bloqueado, nos dois jeitos.
+     * Nenhuma falha é contada aqui (veja {@link #failureHandler}).
      */
     @Bean
-    AuthenticationProvider managerAuthentication(MsgforgeProperties properties, LoginAttemptLimiter limiter) {
+    AuthenticationProvider managerAuthentication(MsgforgeProperties properties, LoginAttemptLimiter limiter,
+                                                 AccessService access) {
         var expected = properties.authentication().apiKey().getBytes(StandardCharsets.UTF_8);
         return new AuthenticationProvider() {
             @Override
             public Authentication authenticate(Authentication authentication) {
-                var ip = authentication.getDetails() instanceof WebAuthenticationDetails details
-                        ? details.getRemoteAddress() : null;
+                var details = authentication.getDetails() instanceof WebAuthenticationDetails web ? web : null;
+                var ip = details == null ? null : details.getRemoteAddress();
                 if (limiter.blocked(ip)) {
                     throw new LockedException("Muitas tentativas de login; tente mais tarde");
                 }
-                var given = String.valueOf(authentication.getCredentials()).getBytes(StandardCharsets.UTF_8);
-                if (!MessageDigest.isEqual(expected, given)) {
-                    throw new BadCredentialsException("API key inválida");   // contada no failure handler
+                ManagerPrincipal who;
+                if (details instanceof ManagerLoginDetails login && login.apiKey() != null) {
+                    var given = login.apiKey().getBytes(StandardCharsets.UTF_8);
+                    if (!MessageDigest.isEqual(expected, given) || !access.keyLoginAllowed()) {
+                        throw new BadCredentialsException("API key inválida");   // contada no failure handler
+                    }
+                    who = ManagerPrincipal.GLOBAL_KEY;
+                } else {
+                    who = switch (access.login(authentication.getName(), String.valueOf(authentication.getCredentials()))) {
+                        case LoginResult.Success success -> success.principal();
+                        case LoginResult.WrongCredentials wrong ->
+                                throw new BadCredentialsException("E-mail ou senha inválidos");
+                        case LoginResult.Disabled disabled -> throw new DisabledException("Usuário bloqueado");
+                    };
                 }
-                return UsernamePasswordAuthenticationToken.authenticated("manager", null,
+                var result = UsernamePasswordAuthenticationToken.authenticated(who, null,
                         List.of(new SimpleGrantedAuthority("ROLE_" + ROLE)));
+                // Sem a chave digitada: a sessão guarda só o IP e o id da sessão
+                result.setDetails(details == null ? null
+                        : new WebAuthenticationDetails(details.getRemoteAddress(), details.getSessionId()));
+                return result;
             }
 
             @Override

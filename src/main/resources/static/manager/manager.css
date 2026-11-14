@@ -33,6 +33,15 @@ h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
 .brand { font-weight: 700; color: var(--text); text-decoration: none; }
 .brand-sub { color: var(--muted); }
 .topbar-logout { margin-left: auto; }
+/* Conta no topo (ADR 0010): quem está logado, "Usuários" e "Sair", discretos, à direita */
+.topbar-account { display: flex; align-items: center; gap: 4px 12px; margin-left: auto; min-width: 0; }
+.topbar-account .topbar-logout { margin-left: 0; }
+.topbar-who { color: var(--muted); font-size: var(--fs-small); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; max-width: 28ch; }
+.topbar-link { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 8px; color: var(--muted);
+    text-decoration: none; border-radius: 6px; }
+.topbar-link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 560px) { .topbar-who { display: none; } }
 .topbar-link { margin-left: auto; color: var(--muted); text-decoration: none; padding: 6px 8px; border-radius: 6px; }
 .topbar-link:hover { color: var(--text); }
 .topbar-link[aria-current=page] { color: var(--text); font-weight: 600; }
@@ -48,6 +57,7 @@ h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
 
 label { display: block; margin-bottom: 10px; }
 label > span { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
+input[type=text], input[type=password], input[type=url], input[type=search], input:not([type]), textarea, select {
 input[type=text], input[type=password], input[type=url], input[type=email], input:not([type]), textarea, select {
     width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
     background: var(--bg); color: var(--text); font: inherit; }
@@ -249,6 +259,8 @@ label > .field-error, .field-error { display: block; margin: 4px 0 0; font-size:
     .connect-page:has(#live[data-announce-key="open"]) .retry { display: none; }
 }
 
+/* Alvo do "Reconectar" da lista: não encosta no topo da janela */
+#connect { scroll-margin-top: 16px; }
 .resume { border-color: var(--badge-wait); }
 .resume h2 { margin-bottom: .3rem; }
 .resume p { margin: 0 0 12px; }
@@ -256,6 +268,161 @@ label > .field-error, .field-error { display: block; margin: 4px 0 0; font-size:
 ::selection { background: var(--accent); color: var(--accent-text); }
 .wizard-actions + .retry { margin-top: 8px; }
 
+/* ---- Página inicial (lista de instâncias) ----
+   Hierarquia: título da página > resumo > nome da instância > dados. A ação principal de cada linha
+   é um alvo de 44px; o que espera alguém agir (continuar, reconectar) leva a cor de ação. */
+.home-head { align-items: flex-end; margin: 12px 0 20px; }
+.home-title { display: grid; gap: 6px; }
+.home h1 { font-size: var(--fs-h1); line-height: 1.2; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
+.lede { margin: 0; max-width: 60ch; color: var(--muted); }
+.icon { flex: none; }
+a.button { gap: 8px; }
+a.button-lg { min-height: 44px; padding: 10px 18px; }
+
+.list-card { padding: 4px 0 0; overflow: hidden; }
+.list-summary { display: flex; flex-wrap: wrap; gap: 4px 0; margin: 0; padding: 12px 16px 10px;
+    font-size: var(--fs-small); color: var(--muted); }
+.list-summary span + span::before { content: "·"; margin: 0 8px; color: var(--muted); }
+.list-summary .attention { color: var(--warn-text); font-weight: 600; }
+
+table.instances th, table.instances td { padding: 12px 16px; vertical-align: middle; }
+table.instances thead th { padding-top: 8px; padding-bottom: 8px; }
+table.instances tbody tr:last-child td { border-bottom: 0; }
+table.instances tbody tr:hover { background: var(--bg); }
+.cell-name > * { display: block; }
+.cell-name > * + * { margin-top: 2px; }
+.instance-name { font-size: var(--fs-h3); font-weight: 600; color: var(--text); text-decoration: none;
+    overflow-wrap: anywhere; }
+.instance-name:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.profile { font-size: var(--fs-small); color: var(--muted); overflow-wrap: anywhere; }
+.number { font-variant-numeric: tabular-nums; }
+.cell-state { white-space: nowrap; }
+.cell-state .badge { vertical-align: middle; }
+.delivery-warn { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: .8rem; font-weight: 600;
+    color: var(--warn-text); white-space: normal; }
+.cell-action { text-align: right; white-space: nowrap; }
+.cell-action .button { min-height: 44px; min-width: 12rem; justify-content: center; }
+/* O filtro do manager.js esconde linhas; o display das linhas no celular não pode desfazer isso */
+#instances-table tr[hidden] { display: none; }
+
+.empty-state { display: grid; justify-items: start; gap: 12px; padding: 28px 24px 32px; }
+.empty-state h2 { font-size: var(--fs-h2); margin: 0; }
+.empty-state p { margin: 0; max-width: 56ch; color: var(--muted); }
+.empty-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; padding: 0; list-style: none;
+    counter-reset: step; }
+.empty-steps li { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px;
+    border: 1px solid var(--border); border-radius: 999px; font-size: var(--fs-small); }
+.empty-steps li::before { counter-increment: step; content: counter(step); display: inline-grid; place-items: center;
+    width: 22px; height: 22px; border-radius: 50%; background: var(--ok-bg); color: var(--ok-text);
+    font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.list-tools { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0 12px; align-items: end;
+    margin: 0 0 12px; }
+.list-tools[hidden] { display: none; }
+.list-tools label { margin: 0; }
+.list-tools input, .list-tools select { min-height: 44px; }
+.filter-status { grid-column: 1 / -1; margin: 6px 0 0; min-height: 1.2em; }
+.filter-empty { margin: 0; padding: 4px 16px 18px; }
+
+/* Em breve: discreto, sem cara de botão (nada aqui é clicável) */
+.soon { margin: 32px 0 8px; padding-top: 20px; border-top: 1px solid var(--border); }
+.soon-head { display: grid; gap: 4px; margin-bottom: 14px; }
+.soon h2 { font-size: var(--fs-h3); margin: 0; }
+.soon-head p { margin: 0; max-width: 70ch; }
+.soon-groups { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); gap: 16px 24px; }
+.soon h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+    margin: 0 0 8px; }
+.soon-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin: 0;
+    padding: 0; list-style: none; }
+.soon-list li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 10px 12px;
+    border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); }
+.soon-name { font-weight: 600; color: var(--text); }
+.soon-what { grid-column: 1; font-size: .8rem; }
+.soon-tag { grid-column: 2; grid-row: 1 / span 2; align-self: center; background: var(--bg); color: var(--muted);
+    border: 1px solid var(--border); }
+
+@media (max-width: 720px) {
+    .soon-groups { grid-template-columns: 1fr; }
+}
+/* Celular: cada instância vira um bloco; a ação ocupa a largura toda (alvo grande, ao alcance do polegar) */
+@media (max-width: 640px) {
+    .home-head { align-items: stretch; }
+    .home-head .button-lg { justify-content: center; width: 100%; }
+    .list-tools { grid-template-columns: 1fr; gap: 10px; }
+    table.instances thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    table.instances, table.instances tbody { display: block; }
+    table.instances tbody tr { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px;
+        padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    table.instances tbody tr:last-child { border-bottom: 0; }
+    table.instances tbody td { display: block; padding: 0; border: 0; }
+    /* Nome em cima, na largura toda; depois estado (e o aviso de entrega), número e a ação */
+    .cell-state { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; white-space: normal; }
+    .delivery-warn { margin-top: 0; }
+    .cell-state { order: 1; }
+    .cell-number { order: 2; }
+    .cell-action { order: 3; }
+    .cell-number { font-size: var(--fs-small); color: var(--muted); }
+    .cell-number::before { content: attr(data-label) ": "; }
+    .cell-number.no-number::before { content: none; }
+    .list-summary { gap: 2px 14px; }
+    .list-summary span + span::before { content: none; }
+    .soon-list { grid-template-columns: 1fr; }
+    .cell-action { grid-column: 1 / -1; margin-top: 6px; text-align: left; }
+    .cell-action .button { width: 100%; }
+}
+
+/* Usuários e papéis (ADR 0010) */
+input[type=email] { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--text); font: inherit; }
+input[type=email]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.access-page h1 { font-size: var(--fs-h1); line-height: 1.2; font-weight: 700; letter-spacing: -.015em;
+    text-wrap: balance; }
+.access-page h2 { font-size: var(--fs-h2); line-height: 1.3; font-weight: 650; margin: 0 0 12px; }
+.access-page .lead { margin: 0 0 var(--gap); max-width: 70ch; }
+.access-page .card { padding: 20px; }
+.org-switch { margin: 0 0 var(--gap); max-width: 420px; }
+/* position: o texto só para leitor de tela (absolute) fica dentro da rolagem, não alarga a página */
+.table-scroll { overflow-x: auto; position: relative; }
+.table-scroll td { vertical-align: middle; }
+.table-scroll .email { font-weight: 600; overflow-wrap: anywhere; }
+.table-scroll .tag { margin-left: 6px; }
+.role-change { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0; }
+.role-change select { width: auto; min-width: 9rem; }
+/* Celular: cada pessoa vira um bloco, com o nome da coluna antes de cada valor */
+@media (max-width: 640px) {
+    .people thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .people, .people tbody, .people tr, .people td { display: block; width: 100%; }
+    .people tr { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .people td { border: 0; padding: 4px 0; }
+    .people td[data-label]::before { content: attr(data-label); display: block; font-size: var(--fs-small);
+        color: var(--muted); }
+    .people td:first-child::before { content: none; }
+    .people td:empty { display: none; }
+}
+.new-user { max-width: 680px; }
+.new-user .field { margin-bottom: 10px; }
+.new-user .field label { margin-bottom: 0; }
+.new-user .toggle { margin: 4px 0 8px; padding: 10px 0; border-top: 1px solid var(--border); }
+.role-list { list-style: none; margin: 0; padding: 0; }
+.role-list > li { padding: 16px 0; }
+.role-list > li:first-child { padding-top: 0; }
+.role-list > li:last-child { padding-bottom: 0; }
+.role-list > li + li { border-top: 1px solid var(--border); }
+.role-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-bottom: 8px; }
+.role-head .role-name { font-size: var(--fs-h2); margin: 0; }
+.role-head .button { margin-left: auto; }
+.permission-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.permission-chips li { padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: var(--fs-small); color: var(--text); background: var(--bg); }
+.role-page { max-width: 760px; }
+.role-page .permissions { margin-top: 16px; }
+.role-page .permissions legend { font-size: var(--fs-small); font-weight: 600; text-transform: uppercase;
+    letter-spacing: .04em; }
+.role-page .toggle-text strong { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.toggle input.switch:disabled { opacity: .45; cursor: not-allowed; }
+.login-card form input { margin-bottom: 14px; }
+.login-key { margin-top: 18px; }
+.login-key form { margin-top: 4px; }
 /* Servidor: estado do SMTP e e-mail de teste */
 .server { max-width: 720px; }
 .server h1 { font-size: var(--fs-h1); line-height: 1.2; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }

@@ -2,7 +2,12 @@ package dev.msgforge;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
+import dev.msgforge.access.ManagerPrincipal;
+import java.util.List;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
@@ -139,7 +144,7 @@ class EmailIT extends IntegrationTest {
 
     @Test
     void managerShowsTheSmtpAndSendsATestEmail() throws Exception {
-        mvc.perform(MockMvcRequestBuilders.get("/manager/server").with(user("manager").roles("MANAGER")))
+        mvc.perform(MockMvcRequestBuilders.get("/manager/server").with(admin()))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("127.0.0.1:" + SMTP_PORT)))
                 .andExpect(content().string(Matchers.containsString("Ligado")))
@@ -147,7 +152,7 @@ class EmailIT extends IntegrationTest {
                 .andExpect(content().string(Matchers.not(Matchers.containsString(SMTP_PASSWORD))));
 
         var to = recipient();
-        mvc.perform(MockMvcRequestBuilders.post("/manager/server/test-email").with(user("manager").roles("MANAGER"))
+        mvc.perform(MockMvcRequestBuilders.post("/manager/server/test-email").with(admin())
                         .with(csrf()).param("email", to))
                 .andExpect(redirectedUrl("/manager/server"))
                 .andExpect(flash().attribute("sentTo", to));
@@ -157,7 +162,7 @@ class EmailIT extends IntegrationTest {
 
     @Test
     void managerRejectsAnInvalidAddressWithoutQueueing() throws Exception {
-        mvc.perform(MockMvcRequestBuilders.post("/manager/server/test-email").with(user("manager").roles("MANAGER"))
+        mvc.perform(MockMvcRequestBuilders.post("/manager/server/test-email").with(admin())
                         .with(csrf()).param("email", "ana@exemplo.com\r\nBcc: bia@exemplo.com"))
                 .andExpect(redirectedUrl("/manager/server"))
                 .andExpect(flash().attribute("fieldError", "manager.server.test.invalid"));
@@ -222,5 +227,11 @@ class EmailIT extends IntegrationTest {
         } else if (part.isMimeType("text/html")) {
             found.put("text/html", (String) part.getContent());
         }
+    }
+
+    /** Admin da plataforma (a chave global): a tela Servidor é só dele. */
+    private static RequestPostProcessor admin() {
+        return authentication(new UsernamePasswordAuthenticationToken(ManagerPrincipal.GLOBAL_KEY, null,
+                List.of(new SimpleGrantedAuthority("ROLE_MANAGER"))));
     }
 }

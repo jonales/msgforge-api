@@ -23,6 +23,7 @@ import tools.jackson.databind.json.JsonMapper;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "msgforge.authentication.api-key=" + IntegrationTest.API_KEY,
         "msgforge.gateway=stub",
+        "spring.datasource.hikari.maximum-pool-size=5",
         "msgforge.rabbitmq.enabled=false",
         "msgforge.webhook.global-enabled=false",
         "msgforge.webhook.request-timeout-ms=3000",

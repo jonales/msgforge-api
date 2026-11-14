@@ -7,6 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import dev.msgforge.access.AccessService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,12 +30,25 @@ public class ServerController {
 
     private final NotificationService notifications;
 
-    public ServerController(NotificationService notifications) {
+    private final AccessService access;
+
+    public ServerController(NotificationService notifications, AccessService access) {
         this.notifications = notifications;
+        this.access = access;
+    }
+
+    /** Configuração do servidor (SMTP, e-mail de teste): só a chave global ou um admin da plataforma. */
+    private boolean allowed() {
+        var who = ManagerTopbar.current();
+        return who != null && access.isPlatformAdmin(who);
     }
 
     @GetMapping
-    public String server(Model model) {
+    public String server(Model model, HttpServletResponse response) {
+        if (!allowed()) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return "manager/forbidden";
+        }
         model.addAttribute("currentPage", "server");
         var status = notifications.emailStatus();
         model.addAttribute("smtp", new SmtpView(status.enabled(),
@@ -46,7 +61,12 @@ public class ServerController {
     }
 
     @PostMapping("/test-email")
-    public String testEmail(@RequestParam(defaultValue = "") String email, RedirectAttributes flash) {
+    public String testEmail(@RequestParam(defaultValue = "") String email, RedirectAttributes flash,
+                            HttpServletResponse response) {
+        if (!allowed()) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return "manager/forbidden";
+        }
         var typed = email.strip();
         if (typed.isEmpty()) {
             return fieldError(flash, typed, "manager.server.test.required");

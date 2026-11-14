@@ -591,4 +591,113 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(containsString("href=\"/manager/instances/new\"")))
                 .andExpect(content().string(Matchers.not(containsString("name=\"instanceName\""))));
     }
+
+    // ------------------------------------------------------------ página inicial
+
+    @Autowired
+    org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    private String html(String url) throws Exception {
+        return mvc.perform(asManager(GET(url))).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    private void connection(String name, dev.msgforge.instance.ConnectionState state, String wuid, String profile) {
+        events.publishEvent(new dev.msgforge.event.GatewayEvent.ConnectionUpdated(name, state, null, wuid, profile));
+    }
+
+    @Test
+    void emptyHomeInvitesToCreateTheFirstInstanceThroughTheGuidedFlow() throws Exception {
+        var page = html("/manager");
+        assertThat(page)
+                .contains("Crie a primeira instância")
+                .contains("Criar a primeira instância")
+                .contains("href=\"/manager/instances/new\"")
+                .contains("id=\"instances-table\"").contains("sse-swap=\"table\"").contains("data-poll")
+                .doesNotContain("<table")
+                .doesNotContain("data-list-filter");
+    }
+
+    @Test
+    void eachStateHasItsOwnMainAction() throws Exception {
+        var waiting = createInstance();          // nunca conectou
+        var connected = createInstance();
+        var dropped = createInstance();          // conectou e caiu
+        var reconnecting = createInstance();     // conectou e está voltando
+        connection(connected, dev.msgforge.instance.ConnectionState.OPEN, "5561911112222@s.whatsapp.net", "Loja Azul");
+        connection(dropped, dev.msgforge.instance.ConnectionState.OPEN, "5561933334444@s.whatsapp.net", null);
+        connection(dropped, dev.msgforge.instance.ConnectionState.CLOSE, null, null);
+        connection(reconnecting, dev.msgforge.instance.ConnectionState.OPEN, "5561955556666@s.whatsapp.net", null);
+        connection(reconnecting, dev.msgforge.instance.ConnectionState.CONNECTING, null, null);
+
+        var model = mvc.perform(asManager(GET("/manager"))).andReturn().getModelAndView().getModel();
+        @SuppressWarnings("unchecked")
+        var rows = (java.util.List<dev.msgforge.web.ManagerViews.InstanceRow>) model.get("instances");
+        var actions = rows.stream().collect(java.util.stream.Collectors.toMap(
+                dev.msgforge.web.ManagerViews.InstanceRow::name, dev.msgforge.web.ManagerViews.InstanceRow::action));
+        assertThat(actions).containsExactlyInAnyOrderEntriesOf(java.util.Map.of(
+                waiting, "resume", connected, "open", dropped, "reconnect", reconnecting, "follow"));
+
+        var page = html("/manager");
+        assertThat(page)
+                // aguardando: volta para a conexão guiada, e o selo do PR #31 continua
+                .contains("href=\"/manager/instances/" + waiting + "/connect\"")
+                .contains("class=\"badge pending\" data-state=\"close\"").contains("Aguardando conexão")
+                .contains("Continuar a conexão")
+                // conectada: abre o painel, com número e nome do perfil
+                .contains("<span>Abrir</span><span class=\"visually-hidden\"> " + connected + "</span>")
+                .contains("5561911112222").contains("Loja Azul")
+                // caiu depois de conectar: reconectar leva ao cartão "Conectar" do painel
+                .contains("href=\"/manager/instances/" + dropped + "#connect\"").contains("Reconectar")
+                .contains("class=\"badge close\" data-state=\"close\"")
+                // voltando sozinha: acompanhar no painel
+                .contains("Ver conexão").contains("class=\"badge connecting\" data-state=\"connecting\"")
+                .contains("4 instâncias").contains("1 conectada").contains("2 precisam de ação")
+                // poucas instâncias: sem busca
+                .doesNotContain("data-list-filter");
+        assertThat(html("/manager/instances/" + dropped)).contains("id=\"connect\"");
+    }
+
+    @Test
+    void failingWebhookShowsInTheListFromTheOutboxQueue() throws Exception {
+        var name = createInstance();
+        assertThat(html("/manager/instances/table")).doesNotContain("Webhook falhando");
+        // Entrega já tentada, à espera de nova tentativa (no futuro, para o trabalhador não pegá-la)
+        jdbc.update("""
+                INSERT INTO outbox (type, order_key, event, destination, payload, attempts, next_attempt_at)
+                VALUES ('WEBHOOK', ?, 'messages.upsert', 'http://127.0.0.1:9/hook', '{}', 2, now() + interval '1 hour')
+                """, name);
+        try {
+            assertThat(html("/manager/instances/table")).contains("Webhook falhando, tentando de novo");
+        } finally {
+            jdbc.update("DELETE FROM outbox WHERE order_key = ?", name);
+        }
+    }
+
+    @Test
+    void searchAndFilterOnlyAppearAboveTheLimit() throws Exception {
+        for (int i = 0; i < 8; i++) {
+            createInstance();
+        }
+        assertThat(html("/manager")).doesNotContain("data-list-filter").doesNotContain("id=\"instance-search\"");
+        createInstance();
+        assertThat(html("/manager"))
+                .contains("data-list-filter").contains("id=\"instance-search\"").contains("id=\"instance-filter\"")
+                .contains("data-count-text=\"{0} de {1} instâncias\"")
+                .contains("data-search=").contains("9 instâncias");
+        // O trecho ao vivo não carrega a busca (ela fica fora dele, para não perder o que foi digitado)
+        assertThat(html("/manager/instances/table")).doesNotContain("data-list-filter");
+    }
+
+    @Test
+    void comingSoonIntegrationsHaveNoLinkOrButton() throws Exception {
+        var page = html("/manager");
+        var start = page.indexOf("<section class=\"soon\"");
+        assertThat(start).isPositive();
+        var soon = page.substring(start, page.indexOf("</section>", start));
+        assertThat(soon)
+                .contains("Em breve").contains("Cloud API oficial").contains("Typebot").contains("Chatwoot")
+                .contains("OpenAI").contains("Dify").contains("Flowise").contains("n8n")
+                .doesNotContain("<a ").doesNotContain("<button").doesNotContain("href=");
+    }
 }
