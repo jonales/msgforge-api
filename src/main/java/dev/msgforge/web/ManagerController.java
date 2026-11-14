@@ -2,11 +2,16 @@ package dev.msgforge.web;
 
 import dev.msgforge.event.EventType;
 import dev.msgforge.instance.InstanceDtos.CreateInstanceRequest;
+import dev.msgforge.common.ApiExceptionHandler.InvalidFieldException;
+import dev.msgforge.instance.HistorySync;
 import dev.msgforge.instance.InstanceService;
+import dev.msgforge.instance.InstanceSettings;
 import dev.msgforge.message.MessageService;
 import dev.msgforge.web.ManagerViews.InstanceDetail;
 import dev.msgforge.web.ManagerViews.InstanceRow;
 import dev.msgforge.web.ManagerViews.Live;
+import dev.msgforge.web.ManagerViews.ProxyView;
+import dev.msgforge.web.ManagerViews.SettingsView;
 import dev.msgforge.web.ManagerViews.WebhookView;
 import dev.msgforge.webhook.WebhookDtos.WebhookConfig;
 import dev.msgforge.webhook.WebhookService;
@@ -96,6 +101,20 @@ public class ManagerController {
         model.addAttribute("webhook", webhooks.find(name).map(WebhookView::of).orElse(WebhookView.EMPTY));
         model.addAttribute("eventNames", EVENT_NAMES);
         model.addAttribute("historyOptions", HISTORY_OPTIONS);
+        if (!model.containsAttribute("settings")) {
+            model.addAttribute("settings", SettingsView.of(instance));
+        }
+        if (!model.containsAttribute("proxy")) {
+            model.addAttribute("proxy", ProxyView.of(instance));
+        }
+        // O proxy fica recolhido, salvo logo depois de salvá-lo ou com erro nele
+        var errors = model.getAttribute("fieldErrors");
+        model.addAttribute("proxyOpen", model.containsAttribute("proxySaved")
+                || errors instanceof java.util.Map<?, ?> map && map.keySet().stream()
+                        .anyMatch(key -> key.toString().startsWith("proxy.")));
+        model.addAttribute("behaviors", SettingsView.BEHAVIORS);
+        model.addAttribute("proxyProtocols", ProxyView.PROTOCOLS);
+        model.addAttribute("secretsEnabled", instances.secretsEnabled());
         return "manager/instance";
     }
 
@@ -132,6 +151,71 @@ public class ManagerController {
                 events == null ? List.of() : events));
         flash.addFlashAttribute("success", "manager.flash.webhookSaved");
         return redirectTo(name);
+    }
+
+    /** Comportamentos e histórico do pareamento. Valem na hora, também na conexão em curso. */
+    @PostMapping("/instances/{name}/settings")
+    public String settings(@PathVariable String name,
+                           @RequestParam(defaultValue = "false") boolean rejectCall,
+                           @RequestParam(required = false) String msgCall,
+                           @RequestParam(defaultValue = "false") boolean groupsIgnore,
+                           @RequestParam(defaultValue = "false") boolean alwaysOnline,
+                           @RequestParam(defaultValue = "false") boolean readMessages,
+                           @RequestParam(defaultValue = "false") boolean readStatus,
+                           @RequestParam(required = false) String historySync,
+                           RedirectAttributes flash) {
+        var typed = new SettingsView(rejectCall, msgCall == null ? "" : msgCall, groupsIgnore, alwaysOnline,
+                readMessages, readStatus, historySync == null ? null : HistorySync.parse(historySync).name());
+        try {
+            var settings = new InstanceSettings(rejectCall, InstanceService.msgCall(msgCall), groupsIgnore,
+                    alwaysOnline, readMessages, readStatus);
+            instances.updateSettings(name, settings, historySync == null ? null : HistorySync.parse(historySync));
+        } catch (InvalidFieldException e) {
+            return invalid(name, "settings", typed, e, flash);
+        }
+        flash.addFlashAttribute("settingsSaved", true);
+        return redirectTo(name) + "#settings";
+    }
+
+    /**
+     * Proxy da instância. A senha nunca volta para a tela: em branco, a guardada fica (se o usuário é o
+     * mesmo); {@code removePassword} a apaga. Vale a partir da próxima conexão.
+     */
+    @PostMapping("/instances/{name}/proxy")
+    public String proxy(@PathVariable String name,
+                        @RequestParam(defaultValue = "false") boolean enabled,
+                        @RequestParam(required = false) String protocol,
+                        @RequestParam(required = false) String host,
+                        @RequestParam(required = false) String port,
+                        @RequestParam(required = false) String username,
+                        @RequestParam(required = false) String password,
+                        @RequestParam(defaultValue = "false") boolean removePassword,
+                        RedirectAttributes flash) {
+        var hadPassword = instances.get(name).getProxy().map(p -> p.hasPassword()).orElse(false);
+        var typed = new ProxyView(enabled, orEmpty(protocol), orEmpty(host), orEmpty(port), orEmpty(username),
+                hadPassword);
+        try {
+            var fields = new InstanceService.ProxyFields(host, port, protocol, username,
+                    removePassword ? null : password);
+            instances.updateProxy(name, enabled, fields, !removePassword);
+        } catch (InvalidFieldException e) {
+            return invalid(name, "proxy", typed, e, flash);
+        }
+        flash.addFlashAttribute("proxySaved", true);
+        return redirectTo(name) + "#proxy";
+    }
+
+    /** Volta para a tela com o que foi digitado (sem senha) e o erro preso ao campo. */
+    private static String invalid(String name, String form, Object typed, InvalidFieldException e,
+                                  RedirectAttributes flash) {
+        flash.addFlashAttribute(form, typed);
+        flash.addFlashAttribute("fieldErrors", java.util.Map.of(form + "." + e.field(),
+                "manager." + form + ".error." + e.field() + "." + e.reason()));
+        return redirectTo(name) + "#" + form;
+    }
+
+    private static String orEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     @PostMapping("/instances/{name}/send")

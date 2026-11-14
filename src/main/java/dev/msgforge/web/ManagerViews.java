@@ -58,6 +58,55 @@ public final class ManagerViews {
         }
     }
 
+    /**
+     * Configurações da instância na tela. {@code historySync} é o nome do {@code HistorySync}; null no
+     * que foi digitado quer dizer "não mudou".
+     */
+    public record SettingsView(boolean rejectCall, String msgCall, boolean groupsIgnore, boolean alwaysOnline,
+                               boolean readMessages, boolean readStatus, String historySync) {
+
+        /** Os comportamentos, na ordem da tela; {@code alwaysOnline} por último (ainda sem efeito). */
+        static final List<String> BEHAVIORS =
+                List.of("rejectCall", "groupsIgnore", "readMessages", "readStatus", "alwaysOnline");
+
+        static SettingsView of(Instance instance) {
+            var s = instance.getSettings();
+            return new SettingsView(s.rejectCall(), s.msgCall() == null ? "" : s.msgCall(), s.groupsIgnore(),
+                    s.alwaysOnline(), s.readMessages(), s.readStatus(), instance.getHistorySync().name());
+        }
+
+        /** Ligado? Pelo nome do campo do contrato (o template percorre {@link #BEHAVIORS}). */
+        public boolean on(String behavior) {
+            return switch (behavior) {
+                case "rejectCall" -> rejectCall;
+                case "groupsIgnore" -> groupsIgnore;
+                case "readMessages" -> readMessages;
+                case "readStatus" -> readStatus;
+                case "alwaysOnline" -> alwaysOnline;
+                default -> throw new IllegalArgumentException(behavior);
+            };
+        }
+    }
+
+    /** O proxy na tela. Nunca carrega a senha: só se há uma guardada. */
+    public record ProxyView(boolean enabled, String protocol, String host, String port, String username,
+                            boolean hasPassword) {
+
+        static final List<String> PROTOCOLS = List.of("http", "https", "socks5", "socks5h", "socks4", "socks4a");
+
+        static ProxyView of(Instance instance) {
+            return instance.getProxy()
+                    .map(p -> new ProxyView(true, p.protocol(), p.host(), String.valueOf(p.port()),
+                            p.username() == null ? "" : p.username(), p.hasPassword()))
+                    .orElse(new ProxyView(false, "http", "", "", "", false));
+        }
+
+        /** Resumo para o título recolhido: "http://host:porta" ou null sem proxy. */
+        public String summary() {
+            return enabled && !host.isEmpty() ? protocol + "://" + host + ":" + port : null;
+        }
+    }
+
     /** "5561999999999@s.whatsapp.net" → "5561999999999"; sem número conectado, o informado na criação. */
     private static String numberOf(Instance instance) {
         var jid = instance.getOwnerJid();

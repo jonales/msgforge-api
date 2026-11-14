@@ -89,7 +89,11 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   `delivers`/`marksAsRead`); `syncFullHistory: true` vira `historySync = FULL`. O proxy da instância
   (`InstanceProxy`) vence o `COBALT_PROXY`; a senha vai cifrada por `security/SecretCipher`
   (AES-GCM, `SECRETS_ENCRYPTION_KEY`, ADR 0014) e só o Cobalt a decifra, ao conectar. Sem a chave,
-  create com `proxyPassword` dá 400. Nada disso tem rota de alteração ainda.
+  create com `proxyPassword` dá 400. Depois do create: `/settings/set|find` e `/proxy/set|find`
+  (`instance/SettingsController`). As configurações valem na hora (`WhatsAppGateway.settingsChanged`
+  troca o `Connection.settings`, volátil, que cada evento lê); o proxy só numa conexão nova. O `find`
+  do proxy nunca devolve a senha. Erros de validação ligados a um campo usam `InvalidFieldException`
+  (`field` + `reason`), que o Manager traduz para `manager.<form>.error.<field>.<reason>`.
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
@@ -215,6 +219,8 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
   - [x] mensagem de teste
   - [x] logout e exclusão
   - [x] histórico no pareamento por instância (rádios no card "Conectar", select no criar)
+  - [x] configurações da instância (interruptores, histórico, proxy recolhido em `<details>`; a senha
+    nunca volta para a tela e, em branco, a guardada fica)
   - [x] mensagens: conversas e conversa aberta, lidas do histórico (`/manager/instances/{n}/messages`,
     atualiza por htmx; o envio de teste do Manager também vai para o histórico)
 - Planejado (fase 0 desenhada em 2026-11-13): redesenho do Manager, organizações, usuários e papéis,

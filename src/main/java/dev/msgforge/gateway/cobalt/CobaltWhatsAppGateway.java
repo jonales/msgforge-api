@@ -147,8 +147,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         volatile LidResolver lids = new LidResolver();
         /** messages.update das mensagens enviadas, a partir dos recibos. */
         volatile SentStatusTracker statuses;
-        /** Configurações do create (rejectCall, groupsIgnore...), lidas no connect. */
-        final InstanceSettings settings;
+        /** Configurações (rejectCall, groupsIgnore...): lidas no connect, trocadas por {@code settingsChanged}. */
+        volatile InstanceSettings settings;
         /** Proxy da instância; null = o global ({@code COBALT_PROXY}) ou conexão direta. */
         final WhatsAppClientProxy proxy;
         /**
@@ -1245,6 +1245,15 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             throw new BadRequestException("media is larger than " + config.mediaMaxBytes() + " bytes");
         }
         return bytes;
+    }
+
+    @Override
+    public void settingsChanged(Instance instance) {
+        // Cada evento lê connection.settings na hora: trocar a referência basta, sem reconectar
+        var connection = connections.get(instance.getId());
+        if (connection != null) {
+            connection.settings = instance.getSettings();
+        }
     }
 
     private Connection requireConnected(Instance instance) {

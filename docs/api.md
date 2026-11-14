@@ -35,6 +35,24 @@ aplicados pelo motor Cobalt a cada conexão. O `fetchInstances` não os devolve.
 Proxy incompleto, protocolo desconhecido, porta inválida ou senha sem usuário dão 400 e a instância
 não é criada. O proxy não é testado no create: um proxy que não responde aparece no connect.
 
+### Configurações e proxy depois do create
+
+- `POST /settings/set/{instancia}` troca as configurações. Os seis booleanos (`rejectCall`,
+  `groupsIgnore`, `alwaysOnline`, `readMessages`, `readStatus`, `syncFullHistory`) são obrigatórios;
+  `msgCall` é opcional. Responde 201 com `{"settings": {"instanceName", "settings": {...}}}`. Valem na
+  hora, inclusive para a conexão aberta. `syncFullHistory: false` desfaz só o histórico completo:
+  um "recente" escolhido no Manager continua. O histórico vale no próximo pareamento.
+- `GET /settings/find/{instancia}` devolve as configurações atuais, no mesmo formato.
+- `POST /proxy/set/{instancia}` com `enabled` (obrigatório), `host`, `port`, `protocol`, `username`
+  e `password`. `enabled: false` remove o proxy. Responde 201 com
+  `{"proxy": {"instanceName", "proxy": {"enabled", "host", "port", "protocol", "username"}}}`.
+  O pedido substitui o proxy inteiro: sem `password`, a senha guardada é apagada.
+- `GET /proxy/find/{instancia}` devolve `{enabled, host, port, protocol, username}`. **A senha nunca
+  sai** da API. Sem proxy, `enabled: false` e os campos vazios.
+
+O proxy novo **só vale numa conexão nova**: a que já está aberta (ou esperando o QR) continua pelo
+caminho anterior até ser refeita, por exemplo quando o servidor reinicia e restaura a sessão.
+
 ## Rotas
 
 | Método | Rota | Para quê |
@@ -73,6 +91,10 @@ não é criada. O proxy não é testado no create: um proxy que não responde ap
 | POST | `/group/revokeInviteCode/{instancia}?groupJid=` | Novo código (o anterior deixa de valer) |
 | GET | `/group/acceptInviteCode/{instancia}?inviteCode=` | Entra no grupo pelo código ou link |
 | DELETE | `/group/leaveGroup/{instancia}?groupJid=` | Sai do grupo |
+| POST | `/settings/set/{instancia}` | Troca as configurações (rejectCall, groupsIgnore...); valem na hora |
+| GET | `/settings/find/{instancia}` | Mostra as configurações |
+| POST | `/proxy/set/{instancia}` | Define ou remove (`enabled: false`) o proxy; vale na próxima conexão |
+| GET | `/proxy/find/{instancia}` | Mostra o proxy, sem a senha |
 | POST | `/webhook/set/{instancia}` | Configura o webhook da instância |
 | GET | `/webhook/find/{instancia}` | Mostra o webhook configurado |
 

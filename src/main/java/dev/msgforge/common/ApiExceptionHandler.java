@@ -149,6 +149,25 @@ public class ApiExceptionHandler {
         public BadRequestException(String message) { super(message); }
     }
 
+    /**
+     * 400 ligado a um campo do pedido. A API responde como qualquer {@link BadRequestException}; o
+     * Manager usa {@code field} e {@code reason} para mostrar o erro perto do campo.
+     */
+    public static class InvalidFieldException extends BadRequestException {
+        private final String field;
+        private final String reason;
+
+        public InvalidFieldException(String field, String reason, String message) {
+            super(message);
+            this.field = field;
+            this.reason = reason;
+        }
+
+        public String field() { return field; }
+
+        public String reason() { return reason; }
+    }
+
     /** O número de destino não tem WhatsApp. */
     public static class NumberNotOnWhatsAppException extends BadRequestException {
         final String jid;

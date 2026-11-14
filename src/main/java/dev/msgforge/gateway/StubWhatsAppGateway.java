@@ -47,6 +47,11 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
     }
 
     @Override
+    public void settingsChanged(Instance instance) {
+        log.info("[stub] settings {} -> {}", instance.getName(), instance.getSettings());
+    }
+
+    @Override
     public SentMessage sendText(Instance instance, OutgoingText text) {
         log.info("[stub] sendText {} -> {}: {}", instance.getName(), text.jid(), text.text());
         return sent(instance, text.jid());

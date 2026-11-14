@@ -14,6 +14,12 @@ public interface WhatsAppGateway {
 
     void logout(Instance instance);
 
+    /**
+     * As configurações da instância ({@link Instance#getSettings()}) mudaram: a conexão em curso, se
+     * houver, passa a usá-las. O proxy não entra aqui: ele só muda numa conexão nova.
+     */
+    void settingsChanged(Instance instance);
+
     SentMessage sendText(Instance instance, OutgoingText text);
 
     SentMessage sendMedia(Instance instance, OutgoingMedia media);
