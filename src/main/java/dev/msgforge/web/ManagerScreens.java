@@ -2,6 +2,7 @@ package dev.msgforge.web;
 
 import dev.msgforge.chat.ChatDtos.KeyFilter;
 import dev.msgforge.chat.ChatService;
+import dev.msgforge.event.outbox.DeliveryHealth;
 import dev.msgforge.instance.InstanceService;
 import dev.msgforge.web.ManagerViews.ChatRow;
 import dev.msgforge.web.ManagerViews.Conversation;
@@ -26,15 +27,22 @@ public class ManagerScreens {
     private final InstanceService instances;
     private final QrCodeCache qrCodes;
     private final ChatService chats;
+    private final DeliveryHealth deliveries;
 
-    public ManagerScreens(InstanceService instances, QrCodeCache qrCodes, ChatService chats) {
+    public ManagerScreens(InstanceService instances, QrCodeCache qrCodes, ChatService chats,
+                          DeliveryHealth deliveries) {
         this.instances = instances;
         this.qrCodes = qrCodes;
         this.chats = chats;
+        this.deliveries = deliveries;
     }
 
+    /** As linhas da lista. A saúde das entregas sai de uma consulta só, e não de uma por linha. */
     public List<InstanceRow> rows() {
-        return instances.list().stream().map(i -> InstanceRow.of(i, instances.stateOf(i))).toList();
+        var failing = deliveries.failingWebhooks();
+        return instances.list().stream()
+                .map(i -> InstanceRow.of(i, instances.stateOf(i), failing.contains(i.getName())))
+                .toList();
     }
 
     public Live live(String name) {

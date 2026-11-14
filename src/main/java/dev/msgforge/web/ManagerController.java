@@ -65,10 +65,20 @@ public class ManagerController {
 
     // ------------------------------------------------------------ lista
 
+    /** A busca e o filtro da lista só aparecem acima disto: com poucas instâncias, atrapalham. */
+    static final int SEARCH_THRESHOLD = 8;
+
+    /** Canais e integrações sem backend: aparecem como "Em breve" (PRODUCT.md), sem link nem botão. */
+    static final List<String> SOON_CHANNELS = List.of("cloudApi");
+    static final List<String> SOON_INTEGRATIONS = List.of("typebot", "chatwoot", "openai", "dify", "flowise", "n8n");
+
     @GetMapping({"", "/"})
     public String list(Model model) {
-        model.addAttribute("instances", rows());
-        model.addAttribute("historyOptions", HISTORY_OPTIONS);
+        var rows = rows();
+        model.addAttribute("instances", rows);
+        model.addAttribute("showSearch", rows.size() > SEARCH_THRESHOLD);
+        model.addAttribute("soonChannels", SOON_CHANNELS);
+        model.addAttribute("soonIntegrations", SOON_INTEGRATIONS);
         return "manager/instances";
     }
 
