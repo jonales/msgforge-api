@@ -27,8 +27,6 @@
     <div class="flash success" role="status" th:if="${createdEmail}"
          th:text="#{manager.users.createdHint(${createdEmail})}">Passe a senha.</div>
 
-    <p class="flash warning" role="note" th:text="#{manager.users.scopeNote}">Por enquanto o papel não filtra as instâncias.</p>
-
     <section class="card" aria-labelledby="members-title">
         <h2 id="members-title" th:text="#{manager.users.members}">Pessoas</h2>
         <p class="muted" th:if="${#lists.isEmpty(members)}" th:text="#{manager.users.empty}">Ninguém ainda.</p>

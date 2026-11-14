@@ -13,13 +13,13 @@
 
     <h1 th:text="${instance.name}">vendas</h1>
     <!-- Criada pela conexão guiada e abandonada antes de ler o QR: retoma do passo onde parou -->
-    <section class="card resume" th:if="${instance.pending()}" aria-labelledby="pending-title">
+    <section class="card resume" th:if="${instance.pending() and can.connect}" aria-labelledby="pending-title">
         <h2 id="pending-title" th:text="#{manager.pending.title}">Ainda não conectada</h2>
         <p class="muted" th:text="#{manager.pending.text}">Termine a conexão.</p>
         <a class="button primary" th:href="@{/manager/instances/{n}/connect(n=${instance.name})}"
            th:text="#{manager.pending.resume}">Continuar a conexão</a>
     </section>
-    <p><a class="button" th:href="@{/manager/instances/{n}/messages(n=${instance.name})}" th:text="#{manager.messages.open}">Mensagens</a></p>
+    <p th:if="${can.chats}"><a class="button" th:href="@{/manager/instances/{n}/messages(n=${instance.name})}" th:text="#{manager.messages.open}">Mensagens</a></p>
     <p class="muted">
         <span th:text="#{manager.col.number}">Número</span>: <span th:text="${instance.number} ?: '—'"></span>
         · <span th:text="#{manager.col.profile}">Perfil</span>: <span th:text="${instance.profileName} ?: '—'"></span>
@@ -63,7 +63,8 @@
                 </ol>
             </div>
         </div>
-        <p class="muted" th:if="${!live.open() and !live.hasCode()}"
+        <p class="muted" th:if="${live.codeHidden and !live.open()}" th:text="#{manager.connection.codeHidden}">Sem permissão para o QR.</p>
+        <p class="muted" th:if="${!live.codeHidden and !live.open() and !live.hasCode()}"
            th:text="${live.state == 'connecting'} ? #{manager.connection.waiting} : #{manager.connection.expired}">Sem código.</p>
         <div class="live-success" th:if="${live.open()}">
             <p class="saved" th:text="#{manager.connection.connected}">Conectada</p>
@@ -74,9 +75,10 @@
     </div>
     <p id="live-announce" class="visually-hidden" role="status"></p>
 
-    <div class="grid">
+    <!-- Cada seção só aparece com a permissão dela (PanelAccess); a rota confere de novo -->
+    <div class="grid" th:if="${can.connect or can.send}">
         <!-- Alvo do "Reconectar" da lista (/manager/instances/{n}#connect) -->
-        <section class="card" id="connect" aria-labelledby="connect-title">
+        <section class="card" id="connect" aria-labelledby="connect-title" th:if="${can.connect}">
             <h2 id="connect-title" th:text="#{manager.connect.title}">Conectar</h2>
             <form th:action="@{/manager/instances/{n}/connect(n=${instance.name})}" method="post">
                 <label>
@@ -100,7 +102,7 @@
             </form>
         </section>
 
-        <section class="card">
+        <section class="card" th:if="${can.send}">
             <h2 th:text="#{manager.send.title}">Mensagem de teste</h2>
             <form th:action="@{/manager/instances/{n}/send(n=${instance.name})}" method="post">
                 <label>
@@ -117,7 +119,7 @@
         </section>
     </div>
 
-    <section class="card">
+    <section class="card" th:if="${can.events}">
         <h2 th:text="#{manager.webhook.title}">Webhook</h2>
         <form th:action="@{/manager/instances/{n}/webhook(n=${instance.name})}" method="post">
             <label>
@@ -145,7 +147,7 @@
         </form>
     </section>
 
-    <section class="card" id="settings" aria-labelledby="settings-title"
+    <section class="card" id="settings" aria-labelledby="settings-title" th:if="${can.account}"
              th:with="errors=${fieldErrors != null ? fieldErrors : {:}}">
         <h2 id="settings-title" th:text="#{manager.settings.title}">Configurações</h2>
         <p class="muted small" th:text="#{manager.settings.intro}">Valem na hora.</p>
@@ -264,13 +266,13 @@
         </details>
     </section>
 
-    <section class="card danger-zone">
+    <section class="card danger-zone" th:if="${can.danger()}">
         <h2 th:text="#{manager.danger.title}">Zona de perigo</h2>
         <div class="row">
-            <form th:action="@{/manager/instances/{n}/logout(n=${instance.name})}" method="post">
+            <form th:if="${can.connect}" th:action="@{/manager/instances/{n}/logout(n=${instance.name})}" method="post">
                 <button type="submit" th:text="#{manager.danger.logout}">Desconectar</button>
             </form>
-            <form th:action="@{/manager/instances/{n}/delete(n=${instance.name})}" method="post">
+            <form th:if="${can.delete}" th:action="@{/manager/instances/{n}/delete(n=${instance.name})}" method="post">
                 <label class="check"><input type="checkbox" name="confirm" required>
                     <span th:text="#{manager.danger.confirm}">Confirmo</span></label>
                 <button type="submit" class="danger" th:text="#{manager.danger.delete}">Excluir</button>

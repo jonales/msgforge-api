@@ -57,6 +57,17 @@ class AccessRulesTest {
     }
 
     @Test
+    void somewhereAsksForAnyOrganizationAndNobodyBlockedHasIt() {
+        var boss = member(wholeOrg(OTHER_ORG, Permission.INSTANCE_CREATE));
+        assertThat(AccessRules.canSomewhere(boss, Permission.INSTANCE_CREATE)).isTrue();
+        assertThat(AccessRules.canSomewhere(boss, INSTANCE_DELETE)).isFalse();
+        assertThat(AccessRules.canSomewhere(Subject.admin(), INSTANCE_DELETE)).isTrue();
+        var blocked = new Subject(false, false, List.of(wholeOrg(ORG, Permission.INSTANCE_CREATE)));
+        assertThat(AccessRules.canSomewhere(blocked, Permission.INSTANCE_CREATE)).isFalse();
+        assertThat(AccessRules.canSomewhere(Subject.NOBODY, INSTANCE_VIEW)).isFalse();
+    }
+
+    @Test
     void anInstanceScopeLimitsTheGrantToTheChosenInstances() {
         var salesOnly = member(new Grant(ORG, EnumSet.of(INSTANCE_VIEW, CHAT_VIEW), false, Set.of(SALES)));
 

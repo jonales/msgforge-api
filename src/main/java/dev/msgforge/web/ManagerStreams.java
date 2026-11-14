@@ -1,6 +1,12 @@
 package dev.msgforge.web;
 
+import dev.msgforge.access.AccessCheck;
+import dev.msgforge.access.AccessService;
+import dev.msgforge.access.ManagerPrincipal;
+import dev.msgforge.access.Permission;
 import dev.msgforge.common.ApiExceptionHandler.NotFoundException;
+import dev.msgforge.web.ManagerViews.InstanceRow;
+import java.util.HashMap;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
 import java.time.Duration;
@@ -26,8 +32,17 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  *
  * <p>Cada conexão assina um canal: a lista ({@code instances}), o painel de uma instância
  * ({@code instance:{nome}}) ou as conversas dela ({@code messages:{nome}}). Mudanças chegam pelo
- * {@link ManagerBus}; as de um mesmo canal são agrupadas por {@link #DEBOUNCE} e o trecho é
- * renderizado <b>uma vez</b> e enviado a todos os assinantes. Sem assinante, nada é renderizado.
+ * {@link ManagerBus}; as de um mesmo canal são agrupadas por {@link #DEBOUNCE}. Sem assinante, nada
+ * é renderizado.
+ *
+ * <p>Permissões (ADR 0010, fatia 5): cada assinante leva quem abriu o stream, e cada envio relê
+ * as permissões dele ({@link AccessService#check}, uma leitura por pessoa e por envio). A lista
+ * depende de quem vê: o trecho é renderizado <b>uma vez por conteúdo distinto</b> (as mesmas linhas visíveis e o
+ * mesmo botão de criar), e quem vê o mesmo recebe o mesmo HTML. Nada é compartilhado entre
+ * conteúdos diferentes, então a linha de uma pessoa não chega a outra. No painel, o trecho sai em
+ * até duas versões (com e sem o QR, pela permissão de conectar); nas conversas, uma só, para quem
+ * tem "ver conversas". Quem perdeu a permissão (ou foi bloqueado) tem o stream fechado no envio
+ * seguinte.
  *
  * <p>Robustez: comentário de batida a cada {@link #HEARTBEAT} (proxies não derrubam a conexão
  * ociosa, e uma conexão morta ou uma sessão encerrada é descoberta), no máximo
@@ -51,10 +66,12 @@ public class ManagerStreams implements SmartLifecycle {
     private static final Logger log = LoggerFactory.getLogger(ManagerStreams.class);
 
     /** Uma aba com o stream aberto. */
-    private record Subscriber(String channel, SseEmitter emitter, HttpSession session, String sessionId) {}
+    private record Subscriber(String channel, SseEmitter emitter, HttpSession session, String sessionId,
+                              ManagerPrincipal who) {}
 
     private final ManagerScreens screens;
     private final FragmentRenderer renderer;
+    private final AccessService access;
     private final ConcurrentHashMap<String, Set<Subscriber>> channels = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, AtomicInteger> perSession = new ConcurrentHashMap<>();
     /** Canal → conversas tocadas desde o último envio; a chave existe enquanto um envio está agendado. */
@@ -63,7 +80,9 @@ public class ManagerStreams implements SmartLifecycle {
     private volatile ScheduledExecutorService timer;
     private volatile ExecutorService workers;
 
-    public ManagerStreams(ManagerBus bus, ManagerScreens screens, FragmentRenderer renderer) {
+    public ManagerStreams(ManagerBus bus, ManagerScreens screens, FragmentRenderer renderer,
+                          AccessService access) {
+        this.access = access;
         this.screens = screens;
         this.renderer = renderer;
         bus.subscribe(this::on);
@@ -88,7 +107,7 @@ public class ManagerStreams implements SmartLifecycle {
      * Abre o stream do canal e já envia o trecho atual (cobre o que mudou entre a página e o
      * stream, e o que se perdeu numa reconexão). {@code null} quando a sessão passou do limite.
      */
-    public SseEmitter open(String channel, HttpSession session) {
+    public SseEmitter open(String channel, HttpSession session, ManagerPrincipal who) {
         if (!reserve(session.getId())) {
             // Abas que a sessão deixou para trás (navegação) só seriam descobertas na próxima batida
             probe(session.getId());
@@ -97,7 +116,7 @@ public class ManagerStreams implements SmartLifecycle {
             }
         }
         var emitter = new SseEmitter(TIMEOUT.toMillis());
-        var subscriber = new Subscriber(channel, emitter, session, session.getId());
+        var subscriber = new Subscriber(channel, emitter, session, session.getId(), who);
         channels.computeIfAbsent(channel, _ -> ConcurrentHashMap.newKeySet()).add(subscriber);
         emitter.onCompletion(() -> remove(subscriber));
         emitter.onTimeout(() -> {
@@ -192,30 +211,34 @@ public class ManagerStreams implements SmartLifecycle {
         if (jids == null || targets == null || targets.isEmpty()) {
             return;
         }
-        List<Fragment> fragments;
+        var started = System.nanoTime();
         try {
-            fragments = fragments(channel, jids);
+            var renders = deliver(channel, jids, List.copyOf(targets));
+            if (log.isDebugEnabled()) {
+                log.debug("Manager: canal {}: {} assinante(s), {} renderização(ões), {} ms", channel, targets.size(),
+                        renders, (System.nanoTime() - started) / 1_000_000);
+            }
         } catch (NotFoundException e) {
             log.debug("Manager: canal {} sem instância ({}); fechando os streams", channel, e.getMessage());
-            targets.forEach(s -> s.emitter().complete());
-            return;
+            List.copyOf(targets).forEach(this::close);
         } catch (RuntimeException e) {
             log.warn("Manager: não renderizou o trecho do canal {}: {}", channel, e.getMessage());
-            return;
-        }
-        for (var subscriber : List.copyOf(targets)) {
-            fragments.forEach(f -> send(subscriber, f));
         }
     }
 
     private void snapshot(Subscriber subscriber) {
         try {
-            fragments(subscriber.channel(), Set.of()).forEach(f -> send(subscriber, f));
+            deliver(subscriber.channel(), Set.of(), List.of(subscriber));
         } catch (NotFoundException e) {
-            subscriber.emitter().complete();
+            close(subscriber);
         } catch (RuntimeException e) {
             log.warn("Manager: não renderizou o trecho inicial do canal {}: {}", subscriber.channel(), e.getMessage());
         }
+    }
+
+    private void close(Subscriber subscriber) {
+        remove(subscriber);
+        subscriber.emitter().complete();
     }
 
     // ------------------------------------------------------------ trechos
@@ -223,16 +246,68 @@ public class ManagerStreams implements SmartLifecycle {
     /** Um evento SSE: o nome é o {@code sse-swap} do trecho na página. */
     record Fragment(String event, String html) {}
 
-    private List<Fragment> fragments(String channel, Set<String> jids) {
+    /** O que define o trecho da lista para uma pessoa: duas pessoas com a mesma visão dividem o HTML. */
+    private record ListView(List<InstanceRow> rows, boolean canCreate) {}
+
+    /**
+     * Envia o trecho do canal a cada assinante, conforme as permissões dele agora, e devolve quantas
+     * vezes renderizou. Quem não pode mais ver o canal tem o stream fechado.
+     */
+    private int deliver(String channel, Set<String> jids, List<Subscriber> targets) {
+        // Uma leitura das permissões por pessoa e por envio (várias abas da mesma pessoa dividem)
+        var checks = new HashMap<ManagerPrincipal, AccessCheck>();
+        java.util.function.Function<Subscriber, AccessCheck> checkOf = s -> s.who() == null ? AccessCheck.NOBODY
+                : checks.computeIfAbsent(s.who(), access::check);
         if (LIST.equals(channel)) {
-            return List.of(new Fragment("table",
-                    renderer.render("manager/instances", "table", Map.of("instances", screens.rows()))));
+            var all = screens.allRows();
+            var rendered = new HashMap<ListView, Fragment>();
+            for (var subscriber : targets) {
+                var check = checkOf.apply(subscriber);
+                if (!check.active()) {
+                    close(subscriber);
+                    continue;
+                }
+                var view = new ListView(ManagerScreens.visible(all, check),
+                        check.canSomewhere(Permission.INSTANCE_CREATE));
+                send(subscriber, rendered.computeIfAbsent(view, v -> new Fragment("table",
+                        renderer.render("manager/instances", "table",
+                                Map.of("instances", v.rows(), "canCreate", v.canCreate())))));
+            }
+            return rendered.size();
         }
         var name = channel.substring(channel.indexOf(':') + 1);
-        if (channel.startsWith("instance:")) {
-            return List.of(new Fragment("live",
-                    renderer.render("manager/instance", "live", Map.of("live", screens.live(name)))));
+        var instance = screens.instance(name);
+        var needed = channel.startsWith("instance:") ? Permission.INSTANCE_VIEW : Permission.CHAT_VIEW;
+        var allowed = new ArrayList<Subscriber>();
+        var withCode = new HashMap<Subscriber, Boolean>();
+        for (var subscriber : targets) {
+            var check = checkOf.apply(subscriber);
+            if (!check.can(Permission.INSTANCE_VIEW, instance) || !check.can(needed, instance)) {
+                close(subscriber);
+                continue;
+            }
+            allowed.add(subscriber);
+            withCode.put(subscriber, check.can(Permission.INSTANCE_CONNECT, instance));
         }
+        if (allowed.isEmpty()) {
+            return 0;
+        }
+        if (channel.startsWith("instance:")) {
+            var rendered = new HashMap<Boolean, Fragment>();
+            for (var subscriber : allowed) {
+                send(subscriber, rendered.computeIfAbsent(withCode.get(subscriber), code -> new Fragment("live",
+                        renderer.render("manager/instance", "live", Map.of("live", screens.live(name, code))))));
+            }
+            return rendered.size();
+        }
+        var fragments = conversations(name, jids);
+        for (var subscriber : allowed) {
+            fragments.forEach(f -> send(subscriber, f));
+        }
+        return fragments.size();
+    }
+
+    private List<Fragment> conversations(String name, Set<String> jids) {
         var out = new ArrayList<Fragment>();
         out.add(new Fragment("chats", renderer.render("manager/messages", "chats",
                 Map.of("instanceName", name, "chats", screens.chatRows(name)))));

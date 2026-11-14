@@ -59,7 +59,15 @@ public class InstanceService {
     }
 
     public CreateInstanceResponse create(CreateInstanceRequest request) {
-        var instance = tx.execute(status -> persist(request));
+        return create(request, Instance.DEFAULT_ORGANIZATION);
+    }
+
+    /**
+     * Cria na organização dada (o Manager, ADR 0010). Quem chama já conferiu a permissão de criar
+     * nela; a API usa a organização padrão.
+     */
+    public CreateInstanceResponse create(CreateInstanceRequest request, UUID organizationId) {
+        var instance = tx.execute(status -> persist(request, organizationId));
         QrCode qr = null;
         if (Boolean.TRUE.equals(request.qrcode())) {
             qr = connect(instance, request.number());   // depois do commit: eventos do motor enxergam a instância
@@ -69,7 +77,7 @@ public class InstanceService {
         return new CreateInstanceResponse(info, instance.getToken(), qr);
     }
 
-    private Instance persist(CreateInstanceRequest request) {
+    private Instance persist(CreateInstanceRequest request, UUID organizationId) {
         if (instances.existsByName(request.instanceName())) {
             throw new BadRequestException("This name \"" + request.instanceName() + "\" is already in use.");
         }
@@ -83,6 +91,7 @@ public class InstanceService {
             throw new BadRequestException("This token is already in use.");
         }
         var instance = new Instance(request.instanceName(), token, request.integrationOrDefault(), request.number());
+        instance.setOrganizationId(organizationId);
         instance.setSettings(settings(request));
         instance.setProxy(proxy(request, instance.getId()));
         if (Boolean.TRUE.equals(request.syncFullHistory())) {

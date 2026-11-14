@@ -60,6 +60,14 @@ final class AccessRules {
                 && (instanceId == null || grant.covers(instanceId)));
     }
 
+    /** Tem a permissão em alguma organização (em alguma instância dela ou na organização toda)? */
+    static boolean canSomewhere(Subject who, Permission permission) {
+        if (!who.active()) {
+            return false;
+        }
+        return who.platformAdmin() || who.grants().stream().anyMatch(g -> g.permissions().contains(permission));
+    }
+
     /** Permissões na organização como um todo (o que a pessoa pode conceder a outras). */
     static Set<Permission> permissionsIn(Subject who, UUID organizationId) {
         if (!who.active()) {

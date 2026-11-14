@@ -266,8 +266,16 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     retoma. Os nomes `new` e `table` ficam reservados no Manager (rotas fixas em `/manager/instances/`).
   - [x] usuários e papéis (`AccessController`, `/manager/users` com `USERS_MANAGE` e
     `/manager/roles` com `ROLES_MANAGE`; link "Usuários" no topo, ao lado de "Sair"). Sem a
-    permissão, a tela "Sem acesso" com 403. O papel ainda **não** filtra instâncias, conversas nem
-    SSE (fatia 5 da ADR 0010), e a tela de usuários avisa isso.
+    permissão, a tela "Sem acesso" com 403.
+  - [x] filtro por papel (fatia 5 da ADR 0010): toda rota com `{nome}` passa por
+    `ManagerAccess.require(nome, permissão)`. Instância que a pessoa não vê (outra organização ou
+    fora do escopo) dá 404 igual à que não existe; vê, mas sem a permissão, 403 "Sem acesso". A
+    lista mostra só o que tem "ver status"; o painel esconde as seções sem permissão (`PanelAccess`)
+    e o QR só vai para quem pode conectar (`Live.codeHidden`). No SSE, cada assinante leva o
+    `ManagerPrincipal` e cada envio relê as permissões (`AccessService.check`, uma leitura por
+    pessoa); a lista é renderizada uma vez **por conteúdo distinto**, nunca uma vez para todos.
+    Nos ITs, entre no Manager com o `ManagerPrincipal` (login de verdade ou `authentication(...)`):
+    um `user("manager")` qualquer não vê nada (falha fechada).
 - Planejado (fase 0 desenhada em 2026-11-13): redesenho do Manager, organizações, usuários e papéis,
   link de conexão para o cliente, e-mail (SMTP) e alertas, outbox e telas ao vivo por SSE. Produto
   em `PRODUCT.md` (raiz); decisões nas ADRs 0010 a 0013; fases em `docs/roadmap.md`. Integrações e

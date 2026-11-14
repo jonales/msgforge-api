@@ -17,14 +17,25 @@ public final class ManagerViews {
     /**
      * Linha da lista de instâncias. {@code paired}: o WhatsApp já conectou alguma vez (há número logado),
      * mesmo que agora esteja fora. {@code deliveryFailing}: o webhook da instância tem entrega em nova
-     * tentativa na outbox ({@code DeliveryHealth}).
+     * tentativa na outbox ({@code DeliveryHealth}). {@code canConnect}: quem vê a lista pode conectar
+     * esta instância (sem isso, as ações "continuar" e "reconectar" não aparecem).
      */
     public record InstanceRow(String name, String state, String number, String profileName, Instant createdAt,
-                              boolean paired, boolean deliveryFailing) {
+                              boolean paired, boolean deliveryFailing, boolean canConnect) {
 
         static InstanceRow of(Instance instance, ConnectionState state, boolean deliveryFailing) {
             return new InstanceRow(instance.getName(), state.value(), numberOf(instance), instance.getProfileName(),
-                    instance.getCreatedAt(), everPaired(instance), deliveryFailing);
+                    instance.getCreatedAt(), everPaired(instance), deliveryFailing, false);
+        }
+
+        InstanceRow withConnect(boolean allowed) {
+            return allowed == canConnect ? this
+                    : new InstanceRow(name, state, number, profileName, createdAt, paired, deliveryFailing, allowed);
+        }
+
+        /** A ação principal da linha cabe a quem está vendo? Abrir e acompanhar só pedem ver. */
+        public boolean actionAllowed() {
+            return canConnect || !needsAction();
         }
 
         /** O selo da lista: quem nunca conectou aparece como "aguardando conexão" ({@code pending}). */
@@ -73,21 +84,27 @@ public final class ManagerViews {
 
     /**
      * Estado + QR para o trecho da página que se atualiza sozinho. {@code updatedAt}: hora (HH:mm:ss) em
-     * que o código atual chegou, para a renovação do QR ficar visível.
+     * que o código atual chegou, para a renovação do QR ficar visível. {@code codeHidden}: quem vê não
+     * pode conectar, então o QR e o código de pareamento não vêm (só o estado).
      */
     public record Live(String name, String state, String qrCode, String qrImage, String pairingCode,
-                       String updatedAt) {
+                       String updatedAt, boolean codeHidden) {
 
         private static final java.time.format.DateTimeFormatter CLOCK =
                 java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss").withZone(java.time.ZoneId.systemDefault());
 
         static Live withoutCode(String name, String state) {
-            return new Live(name, state, null, null, null, null);
+            return new Live(name, state, null, null, null, null, false);
         }
 
         static Live withCode(String name, String state, String qrCode, String qrImage, String pairingCode,
                              Instant updatedAt) {
-            return new Live(name, state, qrCode, qrImage, pairingCode, CLOCK.format(updatedAt));
+            return new Live(name, state, qrCode, qrImage, pairingCode, CLOCK.format(updatedAt), false);
+        }
+
+        /** Sem a permissão de conectar: o mesmo trecho, sem o QR e sem o código. */
+        Live hidingCode() {
+            return new Live(name, state, null, null, null, null, true);
         }
 
         public boolean open() {
@@ -115,6 +132,28 @@ public final class ManagerViews {
                 return "code:" + Integer.toHexString(java.util.Objects.hash(qrCode, pairingCode));
             }
             return state;
+        }
+    }
+
+    /**
+     * O que a pessoa pode no painel da instância (ADR 0010): cada seção aparece só com a permissão
+     * dela. A rota confere de novo; esconder aqui é só para não oferecer o que daria 403.
+     */
+    public record PanelAccess(boolean connect, boolean chats, boolean send, boolean events, boolean account,
+                              boolean delete) {
+
+        static PanelAccess of(java.util.Set<dev.msgforge.access.Permission> granted) {
+            return new PanelAccess(granted.contains(dev.msgforge.access.Permission.INSTANCE_CONNECT),
+                    granted.contains(dev.msgforge.access.Permission.CHAT_VIEW),
+                    granted.contains(dev.msgforge.access.Permission.CHAT_SEND),
+                    granted.contains(dev.msgforge.access.Permission.EVENTS_CONFIGURE),
+                    granted.contains(dev.msgforge.access.Permission.ACCOUNT_CONFIGURE),
+                    granted.contains(dev.msgforge.access.Permission.INSTANCE_DELETE));
+        }
+
+        /** A zona de perigo tem desconectar (conectar) e excluir. */
+        public boolean danger() {
+            return connect || delete;
         }
     }
 

@@ -125,3 +125,45 @@ Pontos que a decisão acima não fixava. Nada do que foi aceito muda.
 - **Limite desta fase:** o papel controla só as telas de usuários e papéis. As telas de
   instâncias, conversas e os streams SSE ainda mostram tudo a quem está logado (fatia 5), e a tela
   de usuários avisa isso. Até lá, crie usuários só para quem já pode ver tudo.
+
+## Fase 2, fatia 5 (2026-11-14): filtro das telas e do SSE
+
+A seção anterior dizia que as telas de instâncias e os streams mostravam tudo a quem estivesse
+logado. Deixou de valer: cada pessoa vê e opera só o que o papel permite. A API pública
+(`apikey`, token da instância) não mudou.
+
+- **Uma porta só:** toda rota do Manager com `{nome}` chama `ManagerAccess.require(nome,
+  permissão)`, que pergunta ao `AccessService`. Sem `@PreAuthorize`: a permissão depende da
+  instância (organização e escopo do vínculo), e não de uma autoridade fixa por método.
+- **404 ou 403:** instância que a pessoa não vê (de outra organização ou fora do escopo do
+  vínculo, ou seja, sem "ver status") responde como uma que não existe: 404 com a tela "Instância
+  não encontrada", com a mesma mensagem nos dois casos. Antes, a inexistente voltava para a lista
+  com um aviso; virou 404 para as duas respostas serem iguais. Vê, mas o papel não inclui a ação:
+  403 com a tela "Sem acesso", também num POST montado à mão.
+- **Permissão de cada rota:** painel e estado ao vivo, "ver status"; conectar, QR, passo 4 da
+  criação guiada e **desconectar** (o avesso de conectar), "conectar"; webhook, "configurar eventos";
+  configurações e proxy, "configurar comportamento"; conversas, "ver conversas"; envio de teste,
+  "enviar mensagens"; excluir, "excluir"; criação (direta e guiada), "criar instância".
+- **O QR é da permissão de conectar:** quem só vê o status (o Atendente, por exemplo) recebe o
+  trecho ao vivo sem o QR e sem o código de pareamento, porque o QR basta para vincular um aparelho.
+- **Criação na organização de quem cria:** com "criar instância" numa organização só, a instância
+  vai para ela. Com mais de uma (o admin da plataforma, ou alguém com vínculo em várias), o passo
+  1 mostra uma lista de organizações; é a opção mais simples, e o rascunho guarda a escolha. A
+  permissão é conferida de novo no passo que cria. A API continua criando na organização padrão.
+- **O nome é global:** "já existe uma instância com esse nome" aparece mesmo quando a existente é
+  de outra organização. O nome é a rota da API (`/message/sendText/{nome}`), então não dá para
+  repetir; o aviso revela só que o nome está ocupado.
+- **SSE por inscrito:** cada assinante guarda quem abriu o stream, e cada envio relê as permissões
+  (uma leitura por pessoa, dividida entre as abas dela). A lista é renderizada uma vez por
+  **conteúdo distinto** (as mesmas linhas visíveis e o mesmo botão de criar): quem vê o mesmo
+  recebe o mesmo HTML, e nada é dividido entre conteúdos diferentes. O painel sai em até duas
+  versões (com e sem QR); as conversas, numa só, para quem tem "ver conversas". A abertura de um
+  stream de instância ou de conversas confere a permissão (404 ou 403, como as telas), e quem a
+  perde depois tem o stream fechado no envio seguinte.
+- **Custo medido** (30 instâncias, 50 assinantes da lista com os 4 papéis-modelo, Postgres local):
+  a lista inteira sai do banco em ~25 ms, como antes; as 50 leituras de permissão somam ~55-70 ms
+  (~1,2 ms cada); as 3 versões distintas renderizam em ~5-13 ms (antes, 1 versão em ~2-5 ms). Um
+  envio passa de ~30 ms para ~100 ms, com o debounce de 250 ms. Se pesar com muitos assinantes,
+  o próximo passo é guardar as permissões por alguns segundos: são elas, e não a renderização,
+  que pesam.
+- **Falha fechada:** uma sessão cujo principal não é um `ManagerPrincipal` não vê nada.

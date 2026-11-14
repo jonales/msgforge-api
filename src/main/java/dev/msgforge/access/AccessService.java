@@ -13,8 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Quem pode o quê no Manager (ADR 0010). {@link #can(ManagerPrincipal, Permission, Instance)} é a
- * pergunta única "este usuário pode X na instância Y?": as telas e os streams vão passar a filtrar
- * por ela (fatia 5). Também faz o login por e-mail e senha, e decide se a chave global entra.
+ * pergunta única "este usuário pode X na instância Y?": as telas e os streams do Manager filtram
+ * por ela (fatia 5), e {@link #check} responde várias de uma vez. Também faz o login por e-mail e senha, e decide se a chave global entra.
  */
 @Service
 public class AccessService {
@@ -44,6 +44,15 @@ public class AccessService {
     @Transactional(readOnly = true)
     public boolean can(ManagerPrincipal who, Permission permission, Instance where) {
         return AccessRules.can(subject(who), permission, where.getOrganizationId(), where.getId());
+    }
+
+    /**
+     * As permissões da pessoa agora, para várias perguntas seguidas (uma lista inteira, um envio do
+     * SSE) com uma leitura só do banco.
+     */
+    @Transactional(readOnly = true)
+    public AccessCheck check(ManagerPrincipal who) {
+        return new AccessCheck(subject(who));
     }
 
     /** Pode {@code permission} na organização como um todo (usuários, papéis)? */
