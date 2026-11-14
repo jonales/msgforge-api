@@ -216,6 +216,11 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
 - Telas da v1 (todas entregues):
   - [x] login
   - [x] lista de instâncias com status
+  - [x] página inicial (`/manager`): uma ação principal por estado (`InstanceRow.action()`: abrir,
+    continuar a conexão, ver conexão, reconectar), número e perfil, aviso de webhook em nova tentativa
+    (`DeliveryHealth`, uma consulta à fila viva da outbox), estado vazio que leva à criação guiada,
+    busca e filtro no navegador só acima de 8 instâncias (`SEARCH_THRESHOLD`), e canais e integrações
+    "Em breve" sem link. Escala de títulos em `--fs-*` no `manager.css`
   - [x] criar instância
   - [x] conectar (QR/pairing ao vivo)
   - [x] webhook

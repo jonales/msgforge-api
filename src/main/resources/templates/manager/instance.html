@@ -75,8 +75,9 @@
     <p id="live-announce" class="visually-hidden" role="status"></p>
 
     <div class="grid">
-        <section class="card">
-            <h2 th:text="#{manager.connect.title}">Conectar</h2>
+        <!-- Alvo do "Reconectar" da lista (/manager/instances/{n}#connect) -->
+        <section class="card" id="connect" aria-labelledby="connect-title">
+            <h2 id="connect-title" th:text="#{manager.connect.title}">Conectar</h2>
             <form th:action="@{/manager/instances/{n}/connect(n=${instance.name})}" method="post">
                 <label>
                     <span th:text="#{manager.connect.pairingNumber}">Número para pairing (opcional)</span>

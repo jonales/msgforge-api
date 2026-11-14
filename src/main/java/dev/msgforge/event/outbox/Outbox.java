@@ -169,6 +169,18 @@ public class Outbox {
                 """, new MapSqlParameterSource("max", maxAttempts));
     }
 
+    /**
+     * Chaves ({@code order_key}, a instância) com entrega viva do {@code type} que já falhou ao menos
+     * uma vez e espera nova tentativa. Lê só a fila viva (PENDENTE/EM_ENVIO, no índice parcial), e não
+     * o histórico: barato o bastante para a lista do Manager, numa consulta só para todas as instâncias.
+     */
+    public java.util.Set<String> retryingKeys(Type type) {
+        return new java.util.HashSet<>(jdbc.queryForList("""
+                SELECT DISTINCT order_key FROM outbox
+                 WHERE type = :type AND state IN ('PENDENTE', 'EM_ENVIO') AND attempts > 0
+                """, new MapSqlParameterSource("type", type.name()), String.class));
+    }
+
     /** Apaga até {@code batch} entregas FEITO mais velhas que {@code age}; devolve quantas saíram. */
     public int deleteDoneOlderThan(Duration age, int batch) {
         return jdbc.update("""
