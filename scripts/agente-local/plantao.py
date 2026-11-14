@@ -170,6 +170,16 @@ def codigo_citado(texto, limite=2):
     return "\n\n".join(partes)
 
 
+def adrs_citadas(texto):
+    """Texto das ADRs citadas no pedido ("ADR 0010", "ADRs 0010 e 0011"), de docs/decisoes/."""
+    partes = []
+    for bloco in re.findall(r"ADRs?\s+((?:\d{4}(?:\s*(?:,|e|a)\s*)?)+)", texto):
+        for num in re.findall(r"\d{4}", bloco):
+            for f in glob.glob(os.path.join(REPO, "docs", "decisoes", f"{num}-*.md")):
+                partes.append(f"### {os.path.relpath(f, REPO)}\n{ler(f, 9000)}")
+    return "\n\n".join(list(dict.fromkeys(partes))[:2])
+
+
 CAMINHO = re.compile(r"`?((?:src|docs|scripts)/[\w./-]+\.\w+)`?")
 
 
@@ -248,6 +258,9 @@ GRAFO DO CÓDIGO (trechos relevantes, gerado por ferramenta, confiável):
 
 CÓDIGO DAS CLASSES MAIS RELEVANTES:
 {codigo}
+
+DECISÕES DE ARQUITETURA CITADAS (seguir à risca):
+{adrs_citadas(t['texto'])}
 
 Escreva uma especificação curta com EXATAMENTE estas seções:
 ## Objetivo
