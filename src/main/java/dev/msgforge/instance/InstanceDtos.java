@@ -16,10 +16,38 @@ public final class InstanceDtos {
             Boolean qrcode,
             String number,
             String integration,
-            WebhookConfig webhook) {
+            WebhookConfig webhook,
+            Boolean rejectCall,
+            String msgCall,
+            Boolean groupsIgnore,
+            Boolean alwaysOnline,
+            Boolean readMessages,
+            Boolean readStatus,
+            Boolean syncFullHistory,
+            String proxyHost,
+            String proxyPort,
+            String proxyProtocol,
+            String proxyUsername,
+            String proxyPassword) {
+
+        /** Só os campos de sempre, sem configurações nem proxy (Manager e testes). */
+        public CreateInstanceRequest(String instanceName, String token, Boolean qrcode, String number,
+                                     String integration, WebhookConfig webhook) {
+            this(instanceName, token, qrcode, number, integration, webhook,
+                    null, null, null, null, null, null, null, null, null, null, null, null);
+        }
 
         public String integrationOrDefault() {
             return integration == null || integration.isBlank() ? "WHATSAPP-BAILEYS" : integration;
+        }
+
+        /** A senha do proxy nunca vai para log nem mensagem de erro. */
+        @Override
+        public String toString() {
+            return "CreateInstanceRequest[instanceName=" + instanceName + ", qrcode=" + qrcode
+                    + ", integration=" + integration + ", proxyHost=" + proxyHost + ", proxyPort=" + proxyPort
+                    + ", proxyProtocol=" + proxyProtocol + ", proxyUsername=" + proxyUsername
+                    + ", proxyPassword=" + (proxyPassword == null ? null : "***") + "]";
         }
     }
 

@@ -43,6 +43,9 @@ class CobaltWhatsAppGatewayTest {
     private static final dev.msgforge.gateway.media.AudioTranscoder TRANSCODER =
             new dev.msgforge.gateway.media.AudioTranscoder(new dev.msgforge.gateway.media.MediaProperties("ffmpeg", 30000, 1 << 24));
 
+    private static final dev.msgforge.security.SecretCipher SECRETS =
+            new dev.msgforge.security.SecretCipher("chave-de-teste-com-pelo-menos-32-caracteres");
+
     private final List<Object> events = new CopyOnWriteArrayList<>();
     private final InMemorySessionStore sessions = new InMemorySessionStore();
     private HttpServer server;
@@ -63,7 +66,7 @@ class CobaltWhatsAppGatewayTest {
                         blockPrivateNetworks),
                 null, "cobalt",
                 new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), sessionDir.toString()));
-        return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties);
+        return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties, SECRETS);
     }
 
     private static Instance instance(String name) {
@@ -126,6 +129,55 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void instanceProxyWinsOverTheGlobalOneAndCarriesTheDecryptedPassword() throws Exception {
+        try (var proxy = new java.net.ServerSocket(0)) {
+            var request = new java.util.concurrent.CompletableFuture<String>();
+            Thread.ofVirtual().start(() -> {
+                try (var socket = proxy.accept()) {
+                    var in = new java.io.BufferedReader(new java.io.InputStreamReader(socket.getInputStream(),
+                            java.nio.charset.StandardCharsets.ISO_8859_1));
+                    var head = new StringBuilder();
+                    for (String line; (line = in.readLine()) != null && !line.isEmpty(); ) {
+                        head.append(line).append('\n');
+                    }
+                    request.complete(head.toString());
+                } catch (java.io.IOException e) {
+                    request.completeExceptionally(e);
+                }
+            });
+            var gateway = gateway(false, 1024);   // global: proxy numa porta fechada
+            var instance = instance("com-proxy");
+            instance.setProxy(new dev.msgforge.instance.InstanceProxy("http", "127.0.0.1", proxy.getLocalPort(),
+                    "cliente", SECRETS.encrypt(instance.getId(), "s3nh@:secreta")));
+            try {
+                gateway.connect(instance, null);
+
+                var head = request.get(5, java.util.concurrent.TimeUnit.SECONDS);
+                assertThat(head).startsWith("CONNECT ");
+                var basic = java.util.Base64.getEncoder().encodeToString(
+                        "cliente:s3nh@:secreta".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                assertThat(head).containsIgnoringCase("Proxy-Authorization: Basic " + basic);
+            } finally {
+                gateway.destroy();
+            }
+        }
+    }
+
+    @Test
+    void undecryptableProxyPasswordFailsTheConnectWithoutLeakingIt() {
+        var gateway = gateway(false, 1024);
+        var instance = instance("chave-trocada");
+        var other = new dev.msgforge.security.SecretCipher("outra-chave-com-pelo-menos-32-caracteres!!");
+        var proxy = new dev.msgforge.instance.InstanceProxy("socks5", "127.0.0.1", 1080, "cliente",
+                other.encrypt(instance.getId(), "valor-sigiloso-do-proxy"));
+
+        assertThatThrownBy(() -> gateway.proxyOf(instance.getId(), proxy))
+                .isInstanceOf(dev.msgforge.gateway.WhatsAppGateway.GatewayException.class)
+                .hasMessageNotContaining("valor-sigiloso-do-proxy");
+        assertThat(proxy.toString()).doesNotContain("sigiloso").doesNotContain(proxy.passwordEncrypted());
+    }
+
+    @Test
     void concurrentConnectsShareOnePendingConnection() throws Exception {
         try (var proxy = silentProxy()) {
             var properties = new MsgforgeProperties("http://localhost", null,
@@ -133,7 +185,7 @@ class CobaltWhatsAppGatewayTest {
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
                             "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));
-            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties);
+            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties, SECRETS);
             var instance = instance("corrida");
             try {
                 var start = new java.util.concurrent.CountDownLatch(1);
@@ -182,7 +234,7 @@ class CobaltWhatsAppGatewayTest {
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
                             "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));
-            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties);
+            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties, SECRETS);
             var instance = instance("pendente");
             try {
                 gateway.connect(instance, null);   // fica esperando o QR: nunca loga

@@ -5,7 +5,7 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 ## Instance
 | Método | Rota | Status |
 |---|---|---|
-| POST | `/instance/create` | ✅ (instanceName, token, qrcode, number, integration, webhook) |
+| POST | `/instance/create` | 🟡 instanceName, token, qrcode, number, integration, webhook; `syncFullHistory`, `rejectCall`, `msgCall`, `groupsIgnore`, `readMessages`, `readStatus` e o proxy (`proxyHost/Port/Protocol/Username/Password`) com efeito no Cobalt (detalhes abaixo); `alwaysOnline` aceito e **ainda sem efeito** |
 | GET | `/instance/connect/{instance}?number=` | ✅ (Cobalt: QR + base64; com `number`, pairing code) |
 | GET | `/instance/connectionState/{instance}` | ✅ (cache Redis) |
 | GET | `/instance/fetchInstances?instanceName=` | ✅ (com token de instância, retorna só a própria) |
@@ -13,6 +13,24 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 | DELETE | `/instance/delete/{instance}` | ✅ |
 | POST | `/instance/restart/{instance}` | ⬜ |
 | POST | `/instance/setPresence/{instance}` | ⬜ |
+
+### Configurações e proxy do `/instance/create`
+Os campos são guardados na instância e lidos a cada conexão. No stub, nada muda (ele não recebe
+mensagens nem chamadas). No Cobalt (chamadas e leitura automática ainda não testadas ao vivo):
+- `syncFullHistory: true` = histórico completo no pareamento (`historySync = FULL`); ausente/false = nenhum.
+- `rejectCall`: recusa a chamada (`REJECTED`). `msgCall`: texto a quem ligou, independente do
+  `rejectCall`, como na referência; sai como `send.message` (a referência emite `messages.upsert`).
+- `groupsIgnore`: mensagens de `@g.us` não viram `messages.upsert` nem entram no histórico.
+- `readMessages`: tique azul nas recebidas assim que chegam. `readStatus`: `false` (padrão) ignora os
+  status; `true` entrega e marca como vistos.
+- `alwaysOnline`: **aceito e ainda sem efeito.** O motor anuncia "disponível" ao logar (precisa disso
+  para receber a fila offline) e nada envia "indisponível" depois, então a instância aparece online
+  enquanto conectada, com `true` ou `false`.
+- Proxy: substitui o `COBALT_PROXY` só nesta instância; protocolos `http`, `https`, `socks4`,
+  `socks4a`, `socks5`/`socks`, `socks5h`. Diferente da referência, o proxy **não é testado** no
+  create (a referência responde 400 "Invalid proxy"): um proxy morto aparece como falha no connect.
+  A senha exige `SECRETS_ENCRYPTION_KEY` e fica cifrada (ADR 0014).
+- Não há rota para mudar essas configurações depois (`/settings/set`, `/proxy/set`: ⬜).
 
 ## Message
 | Método | Rota | Status |

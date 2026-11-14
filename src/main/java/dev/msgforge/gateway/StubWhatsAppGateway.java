@@ -32,7 +32,9 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
     public ConnectResult connect(Instance instance, String phoneNumberForPairing) {
         var qr = "stub-qr-" + UUID.randomUUID();
         var pairing = phoneNumberForPairing == null ? null : "STUB-1234";
-        log.info("[stub] connect {} -> QR gerado", instance.getName());
+        // O stub não recebe mensagens nem chamadas: as configurações e o proxy só aparecem no log
+        log.info("[stub] connect {} -> QR gerado (settings={}, proxy={})", instance.getName(),
+                instance.getSettings(), instance.getProxy().map(Object::toString).orElse("nenhum"));
         events.publishEvent(new GatewayEvent.QrCodeUpdated(instance.getName(), qr, pairing));
         events.publishEvent(new GatewayEvent.ConnectionUpdated(instance.getName(), ConnectionState.CONNECTING, null));
         return new ConnectResult(pairing, qr, null);
