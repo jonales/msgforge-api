@@ -107,7 +107,7 @@ def destravar_ollama():
 
 def perguntar(modelo, sistema, usuario, json_mode=False, ctx=16384):
     corpo = {"model": modelo, "stream": False, "keep_alive": "30m",
-             "options": {"temperature": 0, "num_ctx": ctx, "num_predict": 4096},  # sem teto, modelo pequeno pode entrar em repetição sem fim
+             "options": {"temperature": 0, "num_ctx": ctx, "num_predict": 4096, "repeat_penalty": 1.15},  # sem teto e penalidade, modelo pequeno pode entrar em repetição sem fim
              "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]}
     if json_mode:
         corpo["format"] = "json"
