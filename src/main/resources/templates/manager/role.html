@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{manager/fragments/layout :: head(${form.id == null} ? #{manager.roles.new} : ${form.name})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container access-page role-page" th:with="isNew=${form.id == null}">
+    <p class="breadcrumb"><a th:href="@{/manager/roles(org=${organization.id})}" th:text="#{manager.roles.back}">← Papéis</a></p>
+    <h1 th:text="${isNew} ? #{manager.roles.new} : ${form.name}">Gestor</h1>
+    <p class="muted lead" th:text="#{manager.roles.formIntro(${organization.name})}">Marque o que quem tem este papel pode fazer.</p>
+
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <div class="flash error" role="alert" th:if="${formError}" th:text="#{${formError}}">erro</div>
+    <p class="note" th:unless="${editable}" th:text="#{manager.roles.readOnly}">Você não pode editar este papel.</p>
+
+    <form method="post" class="card"
+          th:action="${isNew} ? @{/manager/roles} : @{/manager/roles/{id}(id=${form.id})}">
+        <input type="hidden" name="org" th:value="${organization.id}">
+        <label for="role-name"><span th:text="#{manager.roles.name}">Nome do papel</span>
+            <input id="role-name" name="name" type="text" required maxlength="60" th:value="${form.name}"
+                   th:disabled="${!editable}">
+        </label>
+
+        <fieldset class="toggles permissions" th:each="g : ${groups}">
+            <legend th:text="#{'manager.permission.group.' + ${g.name}}">Instâncias</legend>
+            <label class="toggle" th:each="p : ${g.permissions}" th:for="'perm-' + ${p.name}">
+                <span class="toggle-text">
+                    <strong>
+                        <span th:text="#{'manager.permission.' + ${p.name}}">Ver status</span>
+                        <span class="tag" th:if="${p.soon}" th:text="#{manager.soon}">Em breve</span>
+                    </strong>
+                    <span class="small muted" th:text="#{'manager.permission.' + ${p.name} + '.hint'}">O que faz.</span>
+                    <span class="small muted" th:if="${editable and !p.grantable}" th:text="#{manager.roles.notYours}">Você não tem esta permissão.</span>
+                </span>
+                <input class="switch" type="checkbox" name="permissions" th:id="'perm-' + ${p.name}" th:value="${p.name}"
+                       th:checked="${p.checked}" th:disabled="${!editable or !p.grantable}">
+            </label>
+        </fieldset>
+
+        <div class="form-actions" th:if="${editable}">
+            <button type="submit" class="primary" th:text="${isNew} ? #{manager.roles.create} : #{manager.roles.save}">Salvar</button>
+            <a th:href="@{/manager/roles(org=${organization.id})}" th:text="#{manager.roles.cancel}">Cancelar</a>
+        </div>
+    </form>
+
+    <section class="card danger-zone" th:if="${!isNew and editable}" aria-labelledby="delete-title">
+        <h2 id="delete-title" th:text="#{manager.roles.delete}">Apagar papel</h2>
+        <p class="muted" th:if="${form.inUse}" th:text="#{manager.roles.deleteInUse}">Em uso.</p>
+        <form method="post" th:unless="${form.inUse}" th:action="@{/manager/roles/{id}/delete(id=${form.id})}">
+            <input type="hidden" name="org" th:value="${organization.id}">
+            <p class="muted" th:text="#{manager.roles.deleteHint}">Não dá para desfazer.</p>
+            <button type="submit" class="danger" th:text="#{manager.roles.delete}">Apagar papel</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

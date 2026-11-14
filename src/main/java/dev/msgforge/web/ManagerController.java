@@ -58,11 +58,6 @@ public class ManagerController {
         this.history = history;
     }
 
-    @GetMapping("/login")
-    public String login() {
-        return "manager/login";
-    }
-
     // ------------------------------------------------------------ lista
 
     @GetMapping({"", "/"})

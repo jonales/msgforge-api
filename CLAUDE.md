@@ -157,6 +157,16 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.
 - `web/`: o **Manager**, front-end em Thymeleaf em `/manager` (ADR 0005). Veja a seção
   "Front-end" abaixo.
+- `access/` (ADR 0010, seção "Fase 2"): organizações, usuários (`app_user`), papéis e vínculos.
+  Catálogo **fixo** de permissões (`Permission`); papéis são **dados** de cada organização
+  (`role` + `role_permission`), com os modelos de `RoleTemplate`. Toda instância tem
+  `organization_id` (padrão: a organização `...0001`, onde a API cria). A pergunta única é
+  `AccessService.can(quem, permissão, instância)`; as regras puras ficam em `AccessRules`. A sessão
+  guarda só o `ManagerPrincipal` (id e e-mail; chave global = `GLOBAL_KEY`); as permissões são
+  lidas do banco a cada pergunta. As travas (sem escalada, último gestor de papéis, papel em uso)
+  ficam no `AccessAdminService`. Permissão nova: migration no `CHECK` de `role_permission` e textos
+  `manager.permission.*` (o `PermissionCatalogTest` cobra os dois). Nos ITs, limpe com
+  `AccessFixtures.reset` (o `TRUNCATE instance` não alcança usuários).
 
 ## Convenções
 
@@ -188,13 +198,18 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
 - Controllers MVC em `dev.msgforge.web` chamam os **serviços**, nunca repositórios nem a
   API por HTTP. Os modelos de tela são records próprios; os DTOs da API são o contrato público e
   não são reaproveitados.
-- Segurança: `ManagerSecurityConfig` aplica o Spring Security **só** em `/manager/**` (login com a
-  chave global, sessão, CSRF, CSP só `'self'`, cookie `SameSite=Strict`). A API tem uma cadeia
+- Segurança: `ManagerSecurityConfig` aplica o Spring Security **só** em `/manager/**` (login por
+  e-mail e senha ou pela chave global, sessão, CSRF, CSP só `'self'`, cookie `SameSite=Strict`). A API tem uma cadeia
   aberta, sem sessão e sem headers; quem a protege é o `ApiKeyFilter`. Não use estilo ou script
   inline: o CSP bloqueia.
   - Login limitado a 10 falhas por IP em 15 min (`LoginAttemptLimiter`). **Conte falhas no
     failure handler, nunca no `AuthenticationProvider`**: o Boot registra o provider também no
     `AuthenticationManager` pai, e numa chave errada ele roda duas vezes.
+  - Um POST de login só: com o campo `apikey` é a chave (entra como admin da plataforma; sem
+    usuários sempre, depois só com `MANAGER_KEY_LOGIN=true`, o padrão), senão `username` (e-mail) e
+    `password` (BCrypt). Bloqueado com a senha certa vai para `?disabled`, sem contar falha. O
+    `ActiveSessionFilter` derruba a sessão de quem foi bloqueado (não é `@Component`: viraria
+    filtro da API).
   - Sem sessão, o entry point manda para o login; no polling do htmx (`HX-Request`) responde
     401 + `HX-Redirect`. Não use `defaultAuthenticationEntryPointFor` sozinho: ele substitui o
     entry point do form login para todas as requisições.
@@ -228,6 +243,10 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     mesmo trecho `instance :: live`). Uma página por passo, rascunho na sessão: voltar e recarregar
     funcionam sem JS. Nunca conectada (`ownerJid` nulo) aparece como "Aguardando conexão" e o painel
     retoma. Os nomes `new` e `table` ficam reservados no Manager (rotas fixas em `/manager/instances/`).
+  - [x] usuários e papéis (`AccessController`, `/manager/users` com `USERS_MANAGE` e
+    `/manager/roles` com `ROLES_MANAGE`; link "Usuários" no topo, ao lado de "Sair"). Sem a
+    permissão, a tela "Sem acesso" com 403. O papel ainda **não** filtra instâncias, conversas nem
+    SSE (fatia 5 da ADR 0010), e a tela de usuários avisa isso.
 - Planejado (fase 0 desenhada em 2026-11-13): redesenho do Manager, organizações, usuários e papéis,
   link de conexão para o cliente, e-mail (SMTP) e alertas, outbox e telas ao vivo por SSE. Produto
   em `PRODUCT.md` (raiz); decisões nas ADRs 0010 a 0013; fases em `docs/roadmap.md`. Integrações e

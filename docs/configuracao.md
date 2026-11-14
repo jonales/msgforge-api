@@ -8,6 +8,7 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `SPRING_PROFILES_ACTIVE` | vazio | `dev` aceita a chave padrão ou fraca (com aviso no log); o `mvn spring-boot:run` já usa `dev`. Nunca em produção |
 | `TRUSTED_PROXIES` | vazio | Proxies reversos confiáveis, em CIDR separados por vírgula (um IP só: `/32`): só deles o `X-Forwarded-For` é aceito. Vazio = cabeçalho ignorado |
 | `AUTHENTICATION_MAX_FAILURES` | `30` | Erros de chave da API por IP em 15 min antes do 429 (0 desliga) |
+| `MANAGER_KEY_LOGIN` | `true` | A chave global entra no Manager (como admin da plataforma) mesmo depois de existirem usuários. Sem usuários ela sempre entra, para criar o primeiro. `false` deixa só e-mail e senha (ADR 0010) |
 | `SERVER_URL` | `http://localhost:8080` | URL pública, enviada nos eventos |
 | `DATABASE_URL`, `DATABASE_USER`, `DATABASE_PASSWORD` | PostgreSQL local | Banco (migrations Flyway automáticas) |
 | `CACHE_REDIS_HOST`, `CACHE_REDIS_PORT` | `localhost:6379` | Cache do estado das instâncias |
