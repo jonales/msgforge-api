@@ -5,6 +5,8 @@
     --ok-bg: #e5f5ee; --ok-text: #0d5f43; --err-bg: #fdecea; --err-text: #8e241b;
     --warn-bg: #fff6df; --warn-text: #6d4c00; --badge-wait: #a86b00;
     --radius: 10px; --gap: 16px;
+    /* Escala de títulos (razão ~1.2): página, seção, subtítulo, corpo, apoio */
+    --fs-h1: 1.75rem; --fs-h2: 1.2rem; --fs-h3: 1rem; --fs-body: .9375rem; --fs-small: .85rem;
     color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -31,6 +33,10 @@ h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
 .brand { font-weight: 700; color: var(--text); text-decoration: none; }
 .brand-sub { color: var(--muted); }
 .topbar-logout { margin-left: auto; }
+.topbar-link { margin-left: auto; color: var(--muted); text-decoration: none; padding: 6px 8px; border-radius: 6px; }
+.topbar-link:hover { color: var(--text); }
+.topbar-link[aria-current=page] { color: var(--text); font-weight: 600; }
+.topbar-link + .topbar-logout { margin-left: 0; }
 
 .container { max-width: 980px; margin: 0 auto; padding: 16px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -42,7 +48,7 @@ h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
 
 label { display: block; margin-bottom: 10px; }
 label > span { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
-input[type=text], input[type=password], input[type=url], input:not([type]), textarea, select {
+input[type=text], input[type=password], input[type=url], input[type=email], input:not([type]), textarea, select {
     width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
     background: var(--bg); color: var(--text); font: inherit; }
 input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
@@ -249,3 +255,18 @@ label > .field-error, .field-error { display: block; margin: 4px 0 0; font-size:
 
 ::selection { background: var(--accent); color: var(--accent-text); }
 .wizard-actions + .retry { margin-top: 8px; }
+
+/* Servidor: estado do SMTP e e-mail de teste */
+.server { max-width: 720px; }
+.server h1 { font-size: var(--fs-h1); line-height: 1.2; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
+.server h2 { font-size: var(--fs-h2); line-height: 1.3; }
+.server-intro, .server .card p:not(.small) { font-size: var(--fs-body); }
+.server .card p.small { font-size: var(--fs-small); }
+.server-intro { margin: -8px 0 var(--gap); }
+.card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.card-head h2 { margin: 0; }
+.server .summary { margin-bottom: 8px; }
+.server .summary > div { grid-template-columns: 8rem 1fr; }
+@media (max-width: 480px) { .server .summary > div { grid-template-columns: 1fr; gap: 2px; } }
+.server-subtitle { font-size: var(--fs-h3); font-weight: 600; margin: 24px 0 4px; padding-top: 16px; border-top: 1px solid var(--border); }
+.server form { max-width: 420px; }

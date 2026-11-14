@@ -18,6 +18,8 @@
 <header th:fragment="header" class="topbar">
     <a class="brand" th:href="@{/manager}" th:text="#{manager.brand}">Msgforge</a>
     <span class="brand-sub" th:text="#{manager.subtitle}">Manager</span>
+    <a class="topbar-link" th:href="@{/manager/server}" th:text="#{manager.nav.server}"
+       th:attr="aria-current=${currentPage == 'server'} ? 'page' : null">Servidor</a>
     <form class="topbar-logout" th:action="@{/manager/logout}" method="post">
         <button type="submit" class="link" th:text="#{manager.signOut}">Sair</button>
     </form>

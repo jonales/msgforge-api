@@ -21,6 +21,12 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `OUTBOX_POLL_INTERVAL_MS` | `1000` | Varredura periódica da outbox, além do sinal de linha nova e do `LISTEN/NOTIFY` entre nós |
 | `OUTBOX_MAX_IN_FLIGHT` | `64` | Entregas simultâneas por nó |
 | `OUTBOX_LEASE_SECONDS` | `60` | Prazo de uma entrega em curso; vencido (o nó caiu), ela volta para a fila. Nunca fica abaixo de 3x `WEBHOOK_REQUEST_TIMEOUT_MS` |
+| `SMTP_HOST` | vazio (e-mail desligado) | Servidor SMTP das notificações por e-mail (ADR 0011). Sem ele, a aplicação sobe normalmente e nenhum e-mail sai; a tela Servidor do Manager mostra "Desligado" |
+| `SMTP_PORT` | `587` | Porta do SMTP (587 com STARTTLS; 25 ou 1025 num servidor local de teste) |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | vazio | Login no SMTP; vazio = sem autenticação. A senha fica só na configuração: a outbox guarda o e-mail montado, nunca a credencial |
+| `SMTP_FROM` | vazio | Remetente, como `Msgforge <avisos@seudominio.com>`; vazio usa o `SMTP_USERNAME` |
+| `SMTP_STARTTLS` | `true` | Exige STARTTLS antes do login. `false` só para SMTP local de teste |
+| `SMTP_TIMEOUT_MS` | `10000` | Timeout de conexão, leitura e escrita no SMTP |
 | `WEBHOOK_BLOCK_PRIVATE_NETWORKS` | `false` | Recusa webhooks de instância para IPs internos (SSRF) |
 | `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
 | `RABBITMQ_EVENTS` | vazio (todos) | Eventos publicados no RabbitMQ, separados por vírgula |
@@ -34,6 +40,24 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `COBALT_LOG_LEVEL` | desligado | Liga os logs internos do Cobalt (`WARNING`, `INFO`, `DEBUG`...), para diagnóstico do motor |
 | `FFMPEG_PATH` | `ffmpeg` | Binário do ffmpeg (já vem na imagem Docker); sem ele, a voz vai sem conversão |
 | `MEDIA_TRANSCODE_TIMEOUT_MS` | `60000` | Limite de uma conversão de áudio |
+
+## E-mail (SMTP)
+
+O Msgforge manda e-mail por qualquer provedor que aceite SMTP (inclusive os que têm API própria).
+Cada e-mail entra na outbox como tipo `EMAIL`, com o destinatário como chave de ordem, e o
+trabalhador entrega com o mesmo retry dos webhooks (`WEBHOOK_RETRY_*`); depois da última
+tentativa, a linha vira `MORTO`. Um nó sem `SMTP_HOST` não pega linhas `EMAIL` e as deixa para um
+nó que tenha SMTP. Com `OUTBOX_ENABLED=false`, o e-mail vai para uma fila em memória por
+destinatário, com o mesmo retry, e se perde se o processo cair.
+
+Para conferir a configuração, abra **Servidor** no Manager (`/manager/server`): a tela mostra o
+servidor, a porta e o remetente (nunca a senha) e manda um e-mail de teste para o endereço que você
+digitar.
+
+**Entregabilidade é de quem opera o servidor.** Para os e-mails não caírem no spam, o domínio do
+`SMTP_FROM` precisa de SPF (o IP ou o provedor do SMTP autorizado no DNS) e de DKIM (assinatura
+configurada no provedor), e de preferência uma política DMARC. O Msgforge não assina nem confere
+nada disso: configure no provedor do domínio e no do SMTP, e use o e-mail de teste para checar.
 
 Em produção atrás de HTTPS, ligue também `SERVER_SERVLET_SESSION_COOKIE_SECURE=true` (cookie do
 Manager).
