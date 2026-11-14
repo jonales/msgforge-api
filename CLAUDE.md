@@ -141,6 +141,19 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   `LISTEN/NOTIFY` entre nós. `OUTBOX_ENABLED=false` volta ao `OrderedExecutor`. `WebhookSender` cuida de
   timeout, retry e `Content-Length`; `sendUntrusted` (webhook de instância) passa pelo
   `security/PrivateNetworkGuard` quando `WEBHOOK_BLOCK_PRIVATE_NETWORKS=true`.
+- `notification/` (ADR 0011): `NotificationService.send(Notification)` entrega por todos os
+  `NotificationChannel` ligados; o primeiro é o `EmailChannel`. Dentro de transação, enfileira só
+  no afterCommit. SMTP por `SMTP_*` (`SmtpProperties`); o `EmailSender` monta o `JavaMailSender`
+  ele mesmo (não o auto-config `spring.mail.*`), então sem `SMTP_HOST` não há bean pela metade e
+  `isEmailEnabled()` é false. O e-mail é montado na hora (`EmailRenderer`, motor Thymeleaf próprio
+  com HTML + TEXT em `templates/email/`, assunto em `email.<modelo>.subject`) e vai para a outbox
+  como `EMAIL` (chave = destinatário, payload = `EmailMessage`, nunca a credencial). O
+  `OutboxWorker` entrega com o retry dos webhooks; um nó sem SMTP não pega linhas `EMAIL`
+  (`claim` por tipos), o que também isola os ITs (só o `EmailIT` tem GreenMail). Com
+  `OUTBOX_ENABLED=false`, fila em memória por destinatário (`OrderedExecutor`). Endereço passa por
+  `EmailAddresses.normalize` (um endereço só, sem nome nem quebra de linha). Tipo novo de
+  notificação: valor em `Notification.Kind` + os dois modelos + o assunto. Tela `/manager/server`
+  (`ServerController`): estado do SMTP e e-mail de teste.
 - `gateway/session/SessionStore`: blob da sessão do WhatsApp por instância (`session_store`).
   `SessionRestorer` reconecta no boot quem tem sessão; logout apaga a sessão.
 - `security/ApiKeyFilter`: a chave global libera tudo; o token da instância libera só as rotas

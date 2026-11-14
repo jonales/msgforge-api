@@ -23,14 +23,15 @@ public class ManagerTopbar {
      * @param email null quando entrou com a chave global
      * @param users mostra o link "Usuários" (gerencia usuários em alguma organização)
      */
-    public record View(String email, boolean users) {}
+    public record View(String email, boolean users, boolean server) {}
 
     public View view() {
         var who = current();
         if (who == null) {
-            return new View(null, false);
+            return new View(null, false, false);
         }
-        return new View(who.email(), !access.organizationsWhere(who, Permission.USERS_MANAGE).isEmpty());
+        return new View(who.email(), !access.organizationsWhere(who, Permission.USERS_MANAGE).isEmpty(),
+                access.isPlatformAdmin(who));
     }
 
     /** O usuário da requisição; null fora de uma sessão do Manager. */

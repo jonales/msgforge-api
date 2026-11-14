@@ -28,6 +28,8 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
     papéis
   - [ ] convite e redefinição por e-mail, auditoria, escopo por instância na tela, filtro das
     telas e do SSE pelas permissões (fatia 5)
+  - [x] base de e-mail (ADR 0011): SMTP pela outbox, modelos HTML e texto, tela Servidor com o
+    estado do SMTP e o e-mail de teste
 - [ ] **Fase 3, telas:** redesenho do Manager (lista, nova instância guiada com histórico no fluxo,
   visão geral, conversas, comportamento da conta, eventos agrupados com teste e últimas entregas,
   zona de perigo) e integrações e canais futuros como "Em breve"

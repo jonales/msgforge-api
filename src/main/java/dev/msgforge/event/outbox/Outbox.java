@@ -7,8 +7,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -25,8 +27,12 @@ import tools.jackson.databind.json.JsonMapper;
 @Repository
 public class Outbox {
 
-    /** Destino da entrega. Um tipo novo (EMAIL, ADR 0011) exige trocar o CHECK numa migration. */
-    public enum Type { WEBHOOK, WEBHOOK_GLOBAL, RABBITMQ }
+    /**
+     * Destino da entrega. Um tipo novo exige trocar o CHECK {@code ck_outbox_type} numa migration.
+     * {@code EMAIL} (ADR 0011): a chave é o destinatário, o destino é o endereço e o payload é o
+     * e-mail montado ({@code EmailMessage}).
+     */
+    public enum Type { WEBHOOK, WEBHOOK_GLOBAL, RABBITMQ, EMAIL }
 
     public enum State { PENDENTE, EM_ENVIO, FEITO, MORTO }
 
@@ -88,6 +94,10 @@ public class Outbox {
         return claim(limit, lease, null);
     }
 
+    public List<Entry> claim(int limit, Duration lease, Instant asOf) {
+        return claim(limit, lease, asOf, EnumSet.allOf(Type.class));
+    }
+
     /**
      * Pega a cabeça de cada chave: a linha PENDENTE mais antiga, já no horário, sem outra linha
      * PENDENTE ou EM_ENVIO mais antiga na mesma chave. Assim a ordem por instância (ADR 0006)
@@ -97,16 +107,18 @@ public class Outbox {
      * {@code c.state = 'PENDENTE'} é conferido de novo na versão mais nova da linha travada, então
      * uma linha que outro nó acabou de pegar fica de fora.
      *
-     * @param asOf "agora" para comparar com a próxima tentativa (testes); null usa o relógio do banco
+     * @param asOf  "agora" para comparar com a próxima tentativa (testes); null usa o relógio do banco
+     * @param types só os tipos que este nó sabe entregar (um nó sem SMTP deixa os e-mails para outro)
      */
-    public List<Entry> claim(int limit, Duration lease, Instant asOf) {
-        if (limit <= 0) {
+    public List<Entry> claim(int limit, Duration lease, Instant asOf, Set<Type> types) {
+        if (limit <= 0 || types.isEmpty()) {
             return List.of();
         }
         var params = new MapSqlParameterSource()
                 .addValue("limit", limit)
                 .addValue("asOf", asOf == null ? null : asOf.atOffset(ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE)
-                .addValue("leaseMs", lease.toMillis());
+                .addValue("leaseMs", lease.toMillis())
+                .addValue("types", types.stream().map(Type::name).toList());
         return jdbc.query("""
                 WITH now_ AS (SELECT COALESCE(CAST(:asOf AS timestamptz), now()) AS t)
                 UPDATE outbox o
@@ -116,6 +128,7 @@ public class Outbox {
                  WHERE o.id IN (
                        SELECT c.id FROM outbox c
                         WHERE c.state = 'PENDENTE' AND c.next_attempt_at <= (SELECT t FROM now_)
+                          AND c.type IN (:types)
                           AND NOT EXISTS (
                               SELECT 1 FROM outbox p
                                WHERE p.type = c.type AND p.order_key = c.order_key AND p.id < c.id

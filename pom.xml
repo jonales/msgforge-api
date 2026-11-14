@@ -22,6 +22,7 @@
         <springdoc.version>3.0.0</springdoc.version>
         <cobalt.version>0.1.0</cobalt.version>
         <zxing.version>3.5.3</zxing.version>
+        <greenmail.version>2.1.2</greenmail.version>
     </properties>
 
     <dependencies>
@@ -83,6 +84,12 @@
             <artifactId>spring-boot-starter-amqp</artifactId>
         </dependency>
 
+        <!-- Notificações por e-mail (ADR 0011): JavaMailSender por SMTP -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- Swagger / OpenAPI -->
         <dependency>
             <groupId>org.springdoc</groupId>
@@ -132,6 +139,13 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- SMTP em memória para os testes de e-mail (sem rede) -->
+        <dependency>
+            <groupId>com.icegreen</groupId>
+            <artifactId>greenmail-junit5</artifactId>
+            <version>${greenmail.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

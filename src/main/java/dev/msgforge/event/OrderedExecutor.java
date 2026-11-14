@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
  * entregas pendentes. Cada fila tem um teto ({@code maxPending}); acima dele a tarefa nova é
  * recusada, para que um destino fora do ar não faça a memória crescer sem limite.
  */
-final class OrderedExecutor {
+public final class OrderedExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(OrderedExecutor.class);
 
@@ -28,13 +28,13 @@ final class OrderedExecutor {
     private final Executor executor;
     private final int maxPending;
 
-    OrderedExecutor(Executor executor, int maxPending) {
+    public OrderedExecutor(Executor executor, int maxPending) {
         this.executor = executor;
         this.maxPending = Math.max(1, maxPending);
     }
 
     /** @return false se a fila da chave já estava cheia (a tarefa foi descartada) */
-    boolean submit(String key, Runnable task) {
+    public boolean submit(String key, Runnable task) {
         while (true) {
             var lane = lanes.computeIfAbsent(key, k -> new Lane());
             synchronized (lane) {

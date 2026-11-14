@@ -28,7 +28,9 @@ record TestInfrastructure(String jdbcUrl, String user, String password, String r
         if (!dockerAvailable()) {
             return null;
         }
-        var postgres = new PostgreSQLContainer("postgres:17-alpine");
+        // Cada contexto de teste em cache tem seu pool (e o ouvinte da outbox): com muitos contextos, o
+        // limite padrão de 100 conexões acaba ("too many clients")
+        var postgres = new PostgreSQLContainer("postgres:17-alpine").withCommand("postgres", "-c", "max_connections=400");
         var redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
         postgres.start();
         redis.start();

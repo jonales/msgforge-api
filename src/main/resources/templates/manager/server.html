@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<!-- Servidor (ServerController): estado do SMTP e e-mail de teste (ADR 0011). Só leitura: a
+     configuração vem das variáveis de ambiente. -->
+<head th:replace="~{manager/fragments/layout :: head(#{manager.server.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container server" th:with="fieldErr=${fieldError}">
+    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+    <div class="page-head">
+        <h1 th:text="#{manager.server.title}">Servidor</h1>
+    </div>
+    <p class="muted server-intro" th:text="#{manager.server.intro}">Configurações deste servidor.</p>
+
+    <div class="flash success" role="status" th:if="${sentTo}" th:text="#{manager.server.test.queued(${sentTo})}">Na fila.</div>
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+
+    <section class="card" aria-labelledby="smtp-title">
+        <div class="card-head">
+            <h2 id="smtp-title" th:text="#{manager.server.email.title}">E-mail (SMTP)</h2>
+            <span class="badge" th:classappend="${smtp.enabled} ? 'open' : 'close'"
+                  th:text="${smtp.enabled} ? #{manager.server.email.on} : #{manager.server.email.off}">Ligado</span>
+        </div>
+
+        <p class="note" th:unless="${smtp.enabled}" th:text="#{manager.server.email.offText}">Sem SMTP_HOST.</p>
+
+        <th:block th:if="${smtp.enabled}">
+            <dl class="summary">
+                <div>
+                    <dt th:text="#{manager.server.email.server}">Servidor</dt>
+                    <dd><code th:text="${smtp.address}">smtp.exemplo.com:587</code></dd>
+                </div>
+                <div>
+                    <dt th:text="#{manager.server.email.security}">Conexão</dt>
+                    <dd th:text="${smtp.starttls} ? #{manager.server.email.starttls} : #{manager.server.email.noStarttls}">STARTTLS</dd>
+                </div>
+                <div>
+                    <dt th:text="#{manager.server.email.auth}">Login</dt>
+                    <dd th:text="${smtp.authenticated} ? #{manager.server.email.authUser} : #{manager.server.email.authNone}">Com usuário</dd>
+                </div>
+                <div>
+                    <dt th:text="#{manager.server.email.from}">Remetente</dt>
+                    <dd>
+                        <code th:if="${smtp.from}" th:text="${smtp.from}">avisos@exemplo.com</code>
+                        <span class="muted" th:unless="${smtp.from}" th:text="#{manager.server.email.fromMissing}">Não definido</span>
+                    </dd>
+                </div>
+            </dl>
+            <p class="muted small" th:text="#{manager.server.email.deliverability}">SPF e DKIM.</p>
+
+            <h3 id="test-title" class="server-subtitle" th:text="#{manager.server.test.title}">Enviar e-mail de teste</h3>
+            <p class="muted" th:text="#{manager.server.test.intro}">Manda uma mensagem curta.</p>
+            <form th:action="@{/manager/server/test-email}" method="post" novalidate aria-labelledby="test-title">
+                <label for="test-email">
+                    <span th:text="#{manager.server.test.label}">Endereço de e-mail</span>
+                    <input id="test-email" name="email" type="email" required maxlength="254" autocomplete="email"
+                           spellcheck="false" autocapitalize="off" placeholder="nome@exemplo.com"
+                           th:value="${typedEmail}" th:autofocus="${fieldErr != null}"
+                           th:attr="aria-invalid=${fieldErr != null} ? 'true' : null,aria-describedby='test-email-hint' + (${fieldErr != null} ? ' test-email-error' : '')">
+                    <span class="field-error" id="test-email-error" th:if="${fieldErr}" th:text="#{${fieldErr}}">Erro</span>
+                    <span class="hint" id="test-email-hint" th:text="#{manager.server.test.hint}">Sai em segundos.</span>
+                </label>
+                <div class="form-actions">
+                    <button type="submit" class="primary" th:text="#{manager.server.test.submit}">Enviar e-mail de teste</button>
+                </div>
+            </form>
+        </th:block>
+    </section>
+</main>
+</body>
+</html>

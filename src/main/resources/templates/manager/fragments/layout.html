@@ -22,6 +22,8 @@
     <nav class="topbar-account" th:attr="aria-label=#{manager.topbar.account}">
         <span class="topbar-who" th:text="${me.email} ?: #{manager.topbar.globalKey}">ana@exemplo.com</span>
         <a class="topbar-link" th:if="${me.users}" th:href="@{/manager/users}" th:text="#{manager.topbar.users}">Usuários</a>
+        <a class="topbar-link" th:if="${me.server}" th:href="@{/manager/server}" th:text="#{manager.nav.server}"
+           th:attr="aria-current=${currentPage == 'server'} ? 'page' : null">Servidor</a>
         <form class="topbar-logout" th:action="@{/manager/logout}" method="post">
             <button type="submit" class="link" th:text="#{manager.signOut}">Sair</button>
         </form>

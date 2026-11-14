@@ -79,6 +79,15 @@ msgforge:
   # sempre entra (primeiro acesso); com MANAGER_KEY_LOGIN=false, só nesse caso.
   manager:
     key-login: ${MANAGER_KEY_LOGIN:true}
+  # Notificações por e-mail (ADR 0011); sem SMTP_HOST, o e-mail fica desligado
+  smtp:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    from: ${SMTP_FROM:}
+    starttls: ${SMTP_STARTTLS:true}
+    timeout-ms: ${SMTP_TIMEOUT_MS:10000}
   # Cifra dos segredos guardados no banco, como a senha do proxy da instância (ADR 0014)
   secrets:
     encryption-key: ${SECRETS_ENCRYPTION_KEY:}

@@ -14,6 +14,9 @@ import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.WebhookSender;
 import dev.msgforge.event.outbox.Outbox.Entry;
 import dev.msgforge.event.outbox.Outbox.Type;
+import dev.msgforge.notification.EmailMessage;
+import dev.msgforge.notification.EmailSender;
+import dev.msgforge.notification.SmtpProperties;
 import dev.msgforge.security.PrivateNetworkGuard;
 import dev.msgforge.support.WebhookReceiver;
 import java.nio.charset.StandardCharsets;
@@ -42,8 +45,9 @@ class OutboxWorkerTest {
     private final WebhookSender sender = new WebhookSender(
             RestClient.builder().requestFactory(HttpClientConfig.requestFactory(2000)).build(),
             JsonMapper.builder().build(), properties, new PrivateNetworkGuard(false));
+    private final JsonMapper json = JsonMapper.builder().build();
     private final OutboxWorker worker = new OutboxWorker(outbox, sender, rabbit,
-            new OutboxProperties(true, 24, 1000, 4, 60), properties);
+            new OutboxProperties(true, 24, 1000, 4, 60), properties, new EmailSender(smtp(null, 0)), json);
 
     @AfterEach
     void stop() {
@@ -127,5 +131,39 @@ class OutboxWorkerTest {
                 PAYLOAD, 1));
 
         verify(outbox).markRetry(eq(9L), anyString(), eq(Duration.ofMillis(10)));
+    }
+
+    private static SmtpProperties smtp(String host, int port) {
+        return new SmtpProperties(host, port, null, null, "avisos@exemplo.com", false, 2000);
+    }
+
+    private Entry email(int attempts) {
+        var payload = json.writeValueAsString(new EmailMessage("ana@exemplo.com", "Teste", "texto", "<p>html</p>"));
+        return new Entry(11, Type.EMAIL, "ana@exemplo.com", "email.test", "ana@exemplo.com", Map.of(), false,
+                payload, attempts);
+    }
+
+    @Test
+    void emailWithSmtpDownIsRetriedAndDeadAfterTheLastAttempt() throws Exception {
+        int closedPort;
+        try (var socket = new java.net.ServerSocket(0)) {
+            closedPort = socket.getLocalPort();
+        }
+        var down = new OutboxWorker(outbox, sender, rabbit, new OutboxProperties(true, 24, 1000, 4, 60), properties,
+                new EmailSender(smtp("127.0.0.1", closedPort)), json);
+
+        down.deliver(email(1));
+        down.deliver(email(3));
+
+        verify(outbox).markRetry(eq(11L), anyString(), eq(Duration.ofMillis(10)));
+        verify(outbox).markDead(eq(11L), anyString());
+        verifyNoMoreInteractions(outbox);
+    }
+
+    @Test
+    void emailOnANodeWithoutSmtpIsDead() {
+        worker.deliver(email(1));
+
+        verify(outbox).markDead(eq(11L), org.mockito.ArgumentMatchers.startsWith("SMTP desligado"));
     }
 }

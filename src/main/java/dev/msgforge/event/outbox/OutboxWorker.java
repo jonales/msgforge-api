@@ -5,8 +5,13 @@ import dev.msgforge.event.EventDispatcher;
 import dev.msgforge.event.WebhookSender;
 import dev.msgforge.event.WebhookSender.Attempt;
 import dev.msgforge.event.outbox.Outbox.Entry;
+import dev.msgforge.event.outbox.Outbox.Type;
+import dev.msgforge.notification.EmailMessage;
+import dev.msgforge.notification.EmailSender;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -19,6 +24,7 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Entrega o que está na outbox (ADR 0012). Um laço pega as cabeças das chaves com
@@ -43,6 +49,9 @@ public class OutboxWorker implements SmartLifecycle {
     private final OutboxProperties properties;
     private final Duration lease;
     private final Semaphore inFlight;
+    private final EmailSender email;
+    private final JsonMapper json;
+    private final Set<Type> types;
 
     private final Object signal = new Object();
     private boolean signalled;
@@ -51,8 +60,12 @@ public class OutboxWorker implements SmartLifecycle {
     private ExecutorService deliveries;
 
     public OutboxWorker(Outbox outbox, WebhookSender sender, RabbitTemplate rabbit, OutboxProperties properties,
-                        MsgforgeProperties msgforge) {
+                        MsgforgeProperties msgforge, EmailSender email, JsonMapper json) {
         this.outbox = outbox;
+        this.email = email;
+        this.json = json;
+        // Sem SMTP, este nó não pega e-mail: a linha espera um nó que consiga entregar (ADR 0011)
+        this.types = email.isEnabled() ? EnumSet.allOf(Type.class) : EnumSet.complementOf(EnumSet.of(Type.EMAIL));
         this.sender = sender;
         this.rabbit = rabbit;
         this.properties = properties;
@@ -136,7 +149,7 @@ public class OutboxWorker implements SmartLifecycle {
         if (free == 0) {
             return false;   // wake() chega quando uma entrega terminar
         }
-        var claimed = outbox.claim(free, lease);
+        var claimed = outbox.claim(free, lease, null, types);
         for (var entry : claimed) {
             inFlight.acquireUninterruptibly();
             deliveries.execute(() -> {
@@ -159,6 +172,7 @@ public class OutboxWorker implements SmartLifecycle {
                         entry.payload().getBytes(StandardCharsets.UTF_8), entry.headers(),
                         entry.checkPrivateNetwork());
                 case RABBITMQ -> publishRabbit(entry);
+                case EMAIL -> email.attempt(json.readValue(entry.payload(), EmailMessage.class));
             };
         } catch (RuntimeException e) {
             result = new Attempt.Retry(String.valueOf(e.getMessage()));
@@ -169,18 +183,18 @@ public class OutboxWorker implements SmartLifecycle {
                 case Attempt.Delivered _ -> outbox.markDone(entry.id());
                 case Attempt.Failed f -> {
                     log.warn("Entrega {} {} para {} recusada: {} (sem retry)", entry.type(), entry.event(),
-                            entry.destination(), f.reason());
+                            where(entry), f.reason());
                     outbox.markDead(entry.id(), f.reason());
                 }
                 case Attempt.Retry r when entry.attempts() >= sender.maxAttempts() -> {
                     log.warn("Entrega {} {} para {} falhou após {} tentativa(s): {}", entry.type(), entry.event(),
-                            entry.destination(), entry.attempts(), r.reason());
+                            where(entry), entry.attempts(), r.reason());
                     outbox.markDead(entry.id(), r.reason());
                 }
                 case Attempt.Retry r -> {
                     var delay = Duration.ofMillis(sender.retryDelayMs(entry.attempts()));
                     log.debug("Entrega {} {} para {} falhou (tentativa {}/{}): {}", entry.type(), entry.event(),
-                            entry.destination(), entry.attempts(), sender.maxAttempts(), r.reason());
+                            where(entry), entry.attempts(), sender.maxAttempts(), r.reason());
                     outbox.markRetry(entry.id(), r.reason(), delay);
                     wakeAfter(delay);
                 }
@@ -189,6 +203,11 @@ public class OutboxWorker implements SmartLifecycle {
             // Sem conseguir gravar o resultado, a linha fica EM_ENVIO e volta quando o prazo vencer
             log.warn("Outbox: resultado da entrega {} não gravado: {}", entry.id(), e.getMessage());
         }
+    }
+
+    /** Destino para o log; o endereço de e-mail não vai para o log, só o id da linha. */
+    private static String where(Entry entry) {
+        return entry.type() == Type.EMAIL ? "outbox#" + entry.id() : entry.destination();
     }
 
     private Attempt publishRabbit(Entry entry) {
