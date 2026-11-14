@@ -29,7 +29,11 @@ for p in (FILA, SAIDA):
 
 
 def enfileirar(tipo, **campos):
-    ident = f"{dt.datetime.now():%m%d-%H%M%S}-{tipo}"
+    base = f"{dt.datetime.now():%m%d-%H%M%S}-{tipo}"
+    ident, n = base, 2
+    while any(os.path.exists(os.path.join(BASE, d, ident + ext)) for d, ext in
+              (("fila", ".json"), ("feito", ".json"), ("falhou", ".json"), ("saida", ".md"))):
+        ident, n = f"{base}-{n}", n + 1   # duas tarefas no mesmo segundo não se sobrescrevem
     tarefa = {"id": ident, "tipo": tipo, **{k: v for k, v in campos.items() if v not in (None, [], "")}}
     with open(os.path.join(FILA, ident + ".json"), "w", encoding="utf-8") as f:
         json.dump(tarefa, f, ensure_ascii=False, indent=1)

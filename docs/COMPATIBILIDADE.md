@@ -82,7 +82,28 @@ Grupo inexistente no stub dá 404; no Cobalt, o erro do WhatsApp vira 500.
 | | `inviteInfo`, `sendInvite`, `toggleEphemeral`, eventos `GROUPS_*` | ⬜ |
 
 ## Settings, Integrações (Typebot, Chatwoot etc.)
-⬜ Fora do escopo: o foco é a API do WhatsApp.
+⬜ Ainda não implementadas (o foco atual é a API do WhatsApp); no Manager aparecem como "Em breve".
+Abaixo, o mapa da interface da Evolution API **2.3.7** para quando cada uma entrar: rotas extraídas
+do código-fonte público (`*.router.ts`) e campos conferidos nele (levantamento de 2026-11-13). Só
+fatos de interface: nada de código foi copiado.
+
+| Integração | Rotas (`{instance}` no fim de todas, salvo indicação) | Campos de configuração | Ambiente |
+|---|---|---|---|
+| WhatsApp Cloud API (oficial) | `GET` e `POST /webhook/meta` (sem instância: verificação e eventos da Meta) | (na criação da instância) | `WA_BUSINESS_TOKEN_WEBHOOK`, `WA_BUSINESS_URL`, `WA_BUSINESS_VERSION`, `WA_BUSINESS_LANGUAGE` |
+| Chatwoot | `POST /chatwoot/set`, `GET /chatwoot/find`, `POST /chatwoot/webhook` | `enabled`, `accountId`, `token`, `url`, `signMsg`, `nameInbox`, `reopenConversation`, `conversationPending`, `autoCreate`, `importContacts`, `mergeBrazilContacts`, `importMessages`, `daysLimitImportMessages`, `ignoreJids` | `CHATWOOT_ENABLED`, `CHATWOOT_MESSAGE_DELETE`, `CHATWOOT_MESSAGE_READ`, `CHATWOOT_BOT_CONTACT`, `CHATWOOT_IMPORT_DATABASE_CONNECTION_URI`, `CHATWOOT_IMPORT_PLACEHOLDER_MEDIA_MESSAGE` |
+| Typebot | padrão de bots (abaixo) + `POST /typebot/start` | `url`, `typebot`, `triggerType`, `triggerOperator`, `triggerValue`, `expire`, `keywordFinish`, `delayMessage`, `unknownMessage`, `listeningFromMe`, `stopBotFromMe`, `ignoreJids` | eventos `TYPEBOT_START`, `TYPEBOT_CHANGE_STATUS` |
+| OpenAI | padrão de bots + `POST`/`GET /openai/creds`, `DELETE /openai/creds/{credsId}`, `GET /openai/getModels` | `apiKey` (nas credenciais) | `OPENAI_ENABLED`, `OPENAI_API_KEY_GLOBAL` |
+| Dify | padrão de bots | `botType`, `apiUrl`, `apiKey` | `DIFY_ENABLED` |
+| Flowise | padrão de bots | `apiUrl`, `triggerType` | `FLOWISE_ENABLED` |
+| n8n | padrão de bots | `webhookUrl`, `basicAuthUser`, `basicAuthPass` | `N8N_ENABLED` |
+
+**Padrão de bots** (`/{bot}` = `typebot`, `openai`, `dify`, `flowise`, `n8n`): `POST /{bot}/create`,
+`GET /{bot}/find`, `GET /{bot}/fetch/{botId}`, `PUT /{bot}/update/{botId}`,
+`DELETE /{bot}/delete/{botId}`, `POST /{bot}/settings`, `GET /{bot}/fetchSettings`,
+`POST /{bot}/changeStatus`, `GET /{bot}/fetchSessions/{botId}`, `POST /{bot}/ignoreJid`. Os campos
+comuns de gatilho (`triggerType`, `triggerOperator`, `triggerValue`, `expire`, `keywordFinish`,
+`delayMessage`, `unknownMessage`, `listeningFromMe`, `stopBotFromMe`, `ignoreJids`) aparecem no
+Typebot; nos outros bots, conferir no código antes de implementar.
 
 ## Erros
 Todos no formato `{ "status", "error", "response": { "message": [...] } }`: validação, JSON

@@ -107,7 +107,7 @@ def destravar_ollama():
 
 def perguntar(modelo, sistema, usuario, json_mode=False, ctx=16384):
     corpo = {"model": modelo, "stream": False, "keep_alive": "30m",
-             "options": {"temperature": 0, "num_ctx": ctx},
+             "options": {"temperature": 0, "num_ctx": ctx, "num_predict": 4096, "repeat_penalty": 1.15},  # sem teto e penalidade, modelo pequeno pode entrar em repetição sem fim
              "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]}
     if json_mode:
         corpo["format"] = "json"
@@ -168,6 +168,16 @@ def codigo_citado(texto, limite=2):
         if len(partes) >= limite:
             break
     return "\n\n".join(partes)
+
+
+def adrs_citadas(texto):
+    """Texto das ADRs citadas no pedido ("ADR 0010", "ADRs 0010 e 0011"), de docs/decisoes/."""
+    partes = []
+    for bloco in re.findall(r"ADRs?\s+((?:\d{4}(?:\s*(?:,|e|a)\s*)?)+)", texto):
+        for num in re.findall(r"\d{4}", bloco):
+            for f in glob.glob(os.path.join(REPO, "docs", "decisoes", f"{num}-*.md")):
+                partes.append(f"### {os.path.relpath(f, REPO)}\n{ler(f, 9000)}")
+    return "\n\n".join(list(dict.fromkeys(partes))[:2])
 
 
 CAMINHO = re.compile(r"`?((?:src|docs|scripts)/[\w./-]+\.\w+)`?")
@@ -248,6 +258,9 @@ GRAFO DO CÓDIGO (trechos relevantes, gerado por ferramenta, confiável):
 
 CÓDIGO DAS CLASSES MAIS RELEVANTES:
 {codigo}
+
+DECISÕES DE ARQUITETURA CITADAS (seguir à risca):
+{adrs_citadas(t['texto'])}
 
 Escreva uma especificação curta com EXATAMENTE estas seções:
 ## Objetivo

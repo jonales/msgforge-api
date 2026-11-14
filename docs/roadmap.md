@@ -20,7 +20,7 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
 
 - [x] **Fase 0, desenho:** `PRODUCT.md` e ADRs 0010 (organizações, usuários e papéis), 0011
   (notificações e e-mail), 0012 (outbox) e 0013 (tempo real com SSE)
-- [ ] **Fase 1, fundação:** outbox no PostgreSQL (entregas que sobrevivem a queda) e SSE no Manager
+- [x] **Fase 1, fundação:** outbox no PostgreSQL (entregas que sobrevivem a queda) e SSE no Manager
 - [ ] **Fase 2, acesso:** organizações, usuários, papéis, login por e-mail, convite e redefinição
   de senha (SMTP), auditoria mínima
 - [ ] **Fase 3, telas:** redesenho do Manager (lista, nova instância guiada com histórico no fluxo,
