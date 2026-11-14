@@ -5,6 +5,7 @@ import dev.msgforge.common.ApiExceptionHandler.NotFoundException;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.gateway.WhatsAppGateway;
 import dev.msgforge.gateway.session.SessionStore;
+import dev.msgforge.security.SecretCipher;
 import dev.msgforge.instance.InstanceDtos.ConnectionStateResponse;
 import dev.msgforge.instance.InstanceDtos.CreateInstanceRequest;
 import dev.msgforge.instance.InstanceDtos.CreateInstanceResponse;
@@ -41,10 +42,12 @@ public class InstanceService {
     private final MsgforgeProperties properties;
     private final SessionStore sessions;
     private final TransactionTemplate tx;
+    private final SecretCipher secrets;
 
     public InstanceService(InstanceRepository instances, InstanceStateService state, WebhookService webhooks,
                            WhatsAppGateway gateway, MsgforgeProperties properties, SessionStore sessions,
-                           PlatformTransactionManager transactionManager) {
+                           PlatformTransactionManager transactionManager, SecretCipher secrets) {
+        this.secrets = secrets;
         this.sessions = sessions;
         this.tx = new TransactionTemplate(transactionManager);
         this.instances = instances;
@@ -78,13 +81,77 @@ public class InstanceService {
         if (token.equals(properties.authentication().apiKey()) || instances.existsByToken(token)) {
             throw new BadRequestException("This token is already in use.");
         }
-        var instance = instances.save(new Instance(request.instanceName(), token,
-                request.integrationOrDefault(), request.number()));
+        var instance = new Instance(request.instanceName(), token, request.integrationOrDefault(), request.number());
+        instance.setSettings(settings(request));
+        instance.setProxy(proxy(request, instance.getId()));
+        if (Boolean.TRUE.equals(request.syncFullHistory())) {
+            instance.setHistorySync(HistorySync.FULL);   // ausente ou false: o padrão (NONE)
+        }
+        instance = instances.save(instance);
 
         if (request.webhook() != null) {
             webhooks.save(instance, request.webhook());
         }
         return instance;
+    }
+
+    private static InstanceSettings settings(CreateInstanceRequest request) {
+        var msgCall = blankToNull(request.msgCall());
+        if (msgCall != null && msgCall.length() > InstanceSettings.MAX_MSG_CALL_LENGTH) {
+            throw new BadRequestException("msgCall must have at most " + InstanceSettings.MAX_MSG_CALL_LENGTH
+                    + " characters");
+        }
+        return new InstanceSettings(Boolean.TRUE.equals(request.rejectCall()), msgCall,
+                Boolean.TRUE.equals(request.groupsIgnore()), Boolean.TRUE.equals(request.alwaysOnline()),
+                Boolean.TRUE.equals(request.readMessages()), Boolean.TRUE.equals(request.readStatus()));
+    }
+
+    /**
+     * Proxy do contrato: {@code proxyHost}, {@code proxyPort} e {@code proxyProtocol} vêm juntos (ou
+     * nenhum); usuário e senha são opcionais. Vazio conta como ausente. A senha sai daqui cifrada.
+     */
+    private InstanceProxy proxy(CreateInstanceRequest request, UUID instanceId) {
+        var host = blankToNull(request.proxyHost());
+        var port = blankToNull(request.proxyPort());
+        var protocol = blankToNull(request.proxyProtocol());
+        var username = blankToNull(request.proxyUsername());
+        var password = request.proxyPassword() == null || request.proxyPassword().isEmpty()
+                ? null : request.proxyPassword();
+        if (host == null && port == null && protocol == null) {
+            if (username != null || password != null) {
+                throw new BadRequestException("proxyUsername and proxyPassword need proxyHost, proxyPort and proxyProtocol");
+            }
+            return null;
+        }
+        if (host == null || port == null || protocol == null) {
+            throw new BadRequestException("proxyHost, proxyPort and proxyProtocol must be informed together");
+        }
+        var normalized = InstanceProxy.normalizeProtocol(protocol);
+        if (normalized == null) {
+            throw new BadRequestException("proxyProtocol must be one of http, https, socks4, socks4a, socks5, socks5h");
+        }
+        if (!InstanceProxy.validHost(host)) {
+            throw new BadRequestException("proxyHost is invalid");
+        }
+        var portNumber = InstanceProxy.parsePort(port);
+        if (portNumber == null) {
+            throw new BadRequestException("proxyPort must be a number between 1 and 65535");
+        }
+        if (username != null && username.contains(":")) {
+            throw new BadRequestException("proxyUsername cannot contain \":\"");
+        }
+        if (password != null && username == null) {
+            throw new BadRequestException("proxyPassword needs proxyUsername");
+        }
+        if (password != null && !secrets.enabled()) {
+            throw new BadRequestException("proxyPassword needs SECRETS_ENCRYPTION_KEY configured on the server");
+        }
+        var encrypted = password == null ? null : secrets.encrypt(instanceId, password);
+        return new InstanceProxy(normalized, host, portNumber, username, encrypted);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     public QrCode connect(String instanceName, String number) {

@@ -20,6 +20,8 @@ import com.github.auties00.cobalt.wire.core.message.MessageKeyBuilder;
 import com.github.auties00.cobalt.wire.linked.chat.ChatMessageInfo;
 import com.github.auties00.cobalt.wire.linked.chat.ChatPolicy;
 import com.github.auties00.cobalt.wire.linked.chat.group.GroupMetadata;
+import com.github.auties00.cobalt.wire.linked.call.CallEndReason;
+import com.github.auties00.cobalt.wire.linked.call.IncomingCall;
 import com.github.auties00.cobalt.wire.linked.chat.group.GroupMetadataEditBuilder;
 import com.github.auties00.cobalt.wire.linked.contact.ContactStatus;
 import com.github.auties00.cobalt.wire.linked.media.MediaProvider;
@@ -48,10 +50,14 @@ import dev.msgforge.gateway.media.MediaSignatures;
 import dev.msgforge.gateway.session.SessionStore;
 import dev.msgforge.instance.ConnectionState;
 import dev.msgforge.instance.Instance;
+import dev.msgforge.instance.InstanceProxy;
+import dev.msgforge.instance.InstanceSettings;
 import dev.msgforge.security.PrivateNetworkGuard;
+import dev.msgforge.security.SecretCipher;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -139,10 +145,16 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         volatile LidResolver lids = new LidResolver();
         /** messages.update das mensagens enviadas, a partir dos recibos. */
         volatile SentStatusTracker statuses;
+        /** Configurações do create (rejectCall, groupsIgnore...), lidas no connect. */
+        final InstanceSettings settings;
+        /** Proxy da instância; null = o global ({@code COBALT_PROXY}) ou conexão direta. */
+        final WhatsAppClientProxy proxy;
 
-        Connection(String instanceName, boolean pairing) {
+        Connection(String instanceName, boolean pairing, InstanceSettings settings, WhatsAppClientProxy proxy) {
             this.instanceName = instanceName;
             this.pairing = pairing;
+            this.settings = settings;
+            this.proxy = proxy;
         }
 
         void codeGenerated(ConnectResult code) {
@@ -159,12 +171,14 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private final PrivateNetworkGuard guard;
     private final AudioTranscoder transcoder;
     private final MsgforgeProperties.Cobalt config;
+    private final SecretCipher secrets;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final HttpClient http;
 
     public CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
                                  PrivateNetworkGuard guard, AudioTranscoder transcoder,
-                                 MsgforgeProperties properties) {
+                                 MsgforgeProperties properties, SecretCipher secrets) {
+        this.secrets = secrets;
         this.events = events;
         this.sessions = sessions;
         this.guard = guard;
@@ -222,7 +236,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private Connection start(Instance instance, String phoneNumberForPairing) {
         var id = instance.getId();
         var name = instance.getName();
-        var connection = new Connection(name, phoneNumberForPairing != null);
+        var connection = new Connection(name, phoneNumberForPairing != null, instance.getSettings(),
+                instance.getProxy().map(proxy -> proxyOf(id, proxy)).orElse(null));
         var web = WhatsAppClient.builder().linkedApi()
                 .webClient(LinkedWhatsAppStoreFactory.persistent(sessionDirectory(id)));
 
@@ -276,7 +291,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         }
 
         connection.lids = new LidResolver(lid -> connection.api.store().contactStore().findPhoneByLid(lid));
-        registerListeners(id, connection);
+        registerListeners(instance, connection);
         connections.put(id, connection);
         events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.CONNECTING, null));
 
@@ -365,13 +380,37 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                     ? WhatsAppLinkedClientErrorResult.DISCONNECT
                     : WhatsAppLinkedClientErrorResult.DISCARD;
         });
-        if (config.proxy() != null && !config.proxy().isBlank()) {
+        if (connection.proxy != null) {
+            options.proxy(connection.proxy);   // o da instância vence o global
+        } else if (config.proxy() != null && !config.proxy().isBlank()) {
             options.proxy(WhatsAppClientProxy.of(URI.create(config.proxy())));
         }
         return options;
     }
 
-    private void registerListeners(UUID id, Connection connection) {
+    /**
+     * Proxy da instância, com a senha decifrada só aqui. Nenhuma mensagem de erro leva a URI (que
+     * teria a senha): só o {@link InstanceProxy#toString()}, que a esconde.
+     */
+    WhatsAppClientProxy proxyOf(UUID id, InstanceProxy proxy) {
+        String password;
+        try {
+            password = proxy.hasPassword() ? secrets.decrypt(id, proxy.passwordEncrypted()) : null;
+        } catch (IllegalStateException e) {
+            throw new GatewayException("A senha do proxy da instância não pôde ser decifrada: " + e.getMessage(), null);
+        }
+        var userInfo = proxy.username() == null ? null
+                : password == null ? proxy.username() : proxy.username() + ":" + password;
+        try {
+            return WhatsAppClientProxy.of(new URI(proxy.protocol(), userInfo, proxy.host(), proxy.port(),
+                    null, null, null));
+        } catch (URISyntaxException | RuntimeException e) {
+            throw new GatewayException("Proxy da instância inválido: " + proxy, null);
+        }
+    }
+
+    private void registerListeners(Instance instance, Connection connection) {
+        var id = instance.getId();
         var name = connection.instanceName;
         var api = connection.api;
         api.addLoggedInListener(whatsapp -> {
@@ -403,6 +442,12 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             if (!(info instanceof ChatMessageInfo message)) {
                 return;
             }
+            var chat = message.key().parentJid().map(Jid::toString).orElse(null);
+            if (!connection.settings.delivers(chat)) {
+                // groupsIgnore / readStatus=false: nem messages.upsert, nem histórico
+                wire.debug("{}: nova mensagem chat={} ignorada pela configuração", name, chat);
+                return;
+            }
             try {
                 var data = CobaltMessageMapper.upsert(message, id, connection.lids);
                 wire.debug("{}: nova mensagem id={} chat={} -> {}", name, message.key().id().orElse(null),
@@ -412,7 +457,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 log.warn("[cobalt] {}: falha ao converter a mensagem {}: {}", name,
                         message.key().id().orElse(null), e.toString());
             }
+            if (connection.settings.marksAsRead(chat, message.key().fromMe())) {
+                executor.execute(() -> markReadOnArrival(connection, message));
+            }
         });
+        api.addCallListener((whatsapp, incoming) -> executor.execute(() -> onCall(instance, connection, incoming)));
         api.addMessageStatusListener((whatsapp, info) -> {
             try {
                 var id2 = info instanceof ChatMessageInfo chat ? chat.key().id().orElse(null) : null;
@@ -429,6 +478,49 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             // Árvore de nomes e atributos (ex.: enc{type=pkmsg}); o conteúdo cifrado nunca é registrado
             api.addNodeReceivedListener((whatsapp, node) -> wire.debug("{}: <- {}", name, outline(node)));
             api.addNodeSentListener((whatsapp, node) -> wire.debug("{}: -> {}", name, outline(node)));
+        }
+    }
+
+    /** readMessages / readStatus: o tique azul sai assim que a mensagem chega. */
+    private void markReadOnArrival(Connection connection, ChatMessageInfo message) {
+        try {
+            call(() -> {
+                connection.api.markMessageAsRead(message.key());
+                return null;
+            }, "leitura automática");
+        } catch (RuntimeException e) {
+            log.debug("[cobalt] {}: leitura automática: {}", connection.instanceName, rootMessage(e));
+        }
+    }
+
+    /**
+     * Chamada recebida: com {@code rejectCall}, recusa; com {@code msgCall}, responde com o texto (como
+     * no contrato, independentes um do outro). Falhas só vão para o log.
+     */
+    private void onCall(Instance instance, Connection connection, IncomingCall incoming) {
+        var settings = connection.settings;
+        if (settings.rejectCall()) {
+            try {
+                call(() -> {
+                    connection.api.rejectCall(incoming, CallEndReason.REJECTED);
+                    return null;
+                }, "recusa da chamada");
+                log.info("[cobalt] {}: chamada {} recusada (rejectCall)", connection.instanceName, incoming.callId());
+            } catch (RuntimeException e) {
+                log.warn("[cobalt] {}: falha ao recusar a chamada {}: {}", connection.instanceName,
+                        incoming.callId(), rootMessage(e));
+            }
+        }
+        var reply = settings.callReply();
+        if (reply != null && connection.loggedIn) {
+            try {
+                // Quem ligou pode vir por LID: traduz para o número quando a sessão conhece o par
+                var caller = Jid.of(connection.lids.apply(incoming.peer().toUserJid()));
+                deliver(instance, connection, caller, LinkedMessageContainer.of(reply), "resposta à chamada");
+            } catch (RuntimeException e) {
+                log.warn("[cobalt] {}: falha ao responder a chamada {}: {}", connection.instanceName,
+                        incoming.callId(), rootMessage(e));
+            }
         }
     }
 

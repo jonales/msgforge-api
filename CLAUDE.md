@@ -84,6 +84,12 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     `GatewayException` e o marcador e a pasta ficam (antes, virava QR novo por cima da sessão).
   - Diagnóstico do protocolo: `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG` registra os
     nós enviados e recebidos (só nomes e atributos, nunca o conteúdo).
+- Configurações do `/instance/create` (`rejectCall`, `msgCall`, `groupsIgnore`, `alwaysOnline`,
+  `readMessages`, `readStatus`) ficam em `InstanceSettings` (embeddable, com as regras puras
+  `delivers`/`marksAsRead`); `syncFullHistory: true` vira `historySync = FULL`. O proxy da instância
+  (`InstanceProxy`) vence o `COBALT_PROXY`; a senha vai cifrada por `security/SecretCipher`
+  (AES-GCM, `SECRETS_ENCRYPTION_KEY`, ADR 0014) e só o Cobalt a decifra, ao conectar. Sem a chave,
+  create com `proxyPassword` dá 400. Nada disso tem rota de alteração ainda.
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
@@ -238,6 +244,10 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    observado ao vivo. A suíte do motor tem 16 falhas e 93 erros que já existem no `master`.
 5. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
+6. `/instance/create`: `alwaysOnline` é aceito e guardado, mas **ainda sem efeito** (o motor
+   anuncia "disponível" no login e nada manda "indisponível"). `rejectCall`/`msgCall` e a leitura
+   automática (`readMessages`/`readStatus`) não foram testados ao vivo. O proxy não é testado no
+   create (a referência devolve 400 "Invalid proxy").
 
 ## Memória entre sessões
 

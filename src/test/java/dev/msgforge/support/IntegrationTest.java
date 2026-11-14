@@ -28,11 +28,13 @@ import tools.jackson.databind.json.JsonMapper;
         "msgforge.webhook.request-timeout-ms=3000",
         "msgforge.webhook.retry.max-attempts=3",
         "msgforge.webhook.retry.initial-delay-ms=50",
+        "msgforge.secrets.encryption-key=" + IntegrationTest.SECRETS_KEY,
 })
 @ExtendWith(RequiresInfrastructure.class)
 public abstract class IntegrationTest {
 
     public static final String API_KEY = "it-global-key-0123456789abcdefghijklmnop";   // >= 32: sobe fora do perfil dev
+    public static final String SECRETS_KEY = "it-secrets-key-0123456789abcdefghijklmnop";
 
     protected static final WebhookReceiver webhooks = new WebhookReceiver();
     private static final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
