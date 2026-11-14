@@ -11,6 +11,7 @@
     tarefa.py nota <id> "lição"                    # ensina o plantão (vai para licoes.md)
     tarefa.py licoes                               # lista o que ele já aprendeu
     tarefa.py consumo                              # estimativa do plano do Claude na janela de 5 h
+    tarefa.py calibrar 70                          # informa a % real que você vê, para acertar a estimativa
     tarefa.py fila [horas]                         # gera já a fila de pendências (padrão 10 h)
 """
 import argparse
@@ -95,6 +96,8 @@ s.add_argument("id")
 s.add_argument("texto")
 sub.add_parser("licoes")
 sub.add_parser("consumo")
+s = sub.add_parser("calibrar")
+s.add_argument("porcentagem", type=float)
 s = sub.add_parser("fila")
 s.add_argument("horas", nargs="?", type=float, default=10.0)
 a = p.parse_args()
@@ -119,14 +122,14 @@ elif a.cmd == "ver":
     ver(a.id)
 elif a.cmd == "nota":
     nota(a.id, a.texto)
-elif a.cmd in ("consumo", "fila"):
+elif a.cmd in ("consumo", "fila", "calibrar"):
     import importlib.util
-    nome = "consumo" if a.cmd == "consumo" else "fila_pendencias"
+    nome = "fila_pendencias" if a.cmd == "fila" else "consumo"
     spec = importlib.util.spec_from_file_location(nome, os.path.join(os.path.dirname(os.path.abspath(__file__)), nome + ".py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    if a.cmd == "consumo":
-        e = mod.estimar()
+    if a.cmd in ("consumo", "calibrar"):
+        e = mod.calibrar(a.porcentagem) if a.cmd == "calibrar" else mod.estimar()
         print(f"janela desde {e['inicio']:%d/%m %H:%M}: {e['usado'] / 1e6:.1f} M de ~{e['orcamento'] / 1e6:.1f} M "
               f"({e['fracao']:.0%}); a fila automática sai em 90%")
     else:
