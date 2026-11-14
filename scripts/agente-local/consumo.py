@@ -15,8 +15,13 @@ import json
 import os
 import re
 import statistics
+import subprocess
+import time
 
 PROJETOS = os.path.expanduser("~/.claude/projects")
+BASE = os.path.join(os.path.dirname(subprocess.run(
+    ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"], cwd=os.path.dirname(os.path.abspath(__file__)),
+    capture_output=True, text=True).stdout.strip()), ".agente-local")
 H5 = dt.timedelta(hours=5)
 VOLTA = re.compile(r"resets (\d{1,2})(?::(\d{2}))?\s*(am|pm)", re.I)
 
@@ -62,6 +67,14 @@ def _ler(dias=3):
     return reqs, sorted(set(estouros))
 
 
+def calibrar(porcentagem):
+    """Grava a leitura real do plano (ex.: 70 = 70%) para ajustar o orçamento estimado."""
+    e = estimar()
+    with open(os.path.join(BASE, "calibragem.json"), "w", encoding="utf-8") as f:
+        json.dump({"usado": e["usado"], "fracao": porcentagem / 100, "quando": time.time()}, f)
+    return estimar()
+
+
 def estimar(orcamento_padrao=15e6):
     """Dicionário com usado, orçamento, fração, início da janela e quantos estouros calibraram."""
     reqs, estouros = _ler()
@@ -71,6 +84,15 @@ def estimar(orcamento_padrao=15e6):
         if gasto > 0:
             amostras.append(gasto)
     orcamento = statistics.median(amostras) if amostras else orcamento_padrao
+    # Leitura real informada pelo usuário (tarefa.py calibrar <pct>) vale mais que os estouros
+    calibragem = os.path.join(BASE, "calibragem.json")
+    if os.path.exists(calibragem):
+        try:
+            c = json.load(open(calibragem, encoding="utf-8"))
+            if c.get("fracao", 0) > 0 and time.time() - c.get("quando", 0) < 7 * 86400:
+                orcamento = c["usado"] / c["fracao"]
+        except (ValueError, KeyError, OSError):
+            pass
     agora = dt.datetime.now().astimezone()
     voltas_passadas = [v for _, v in estouros if v <= agora and agora - v < H5]
     # Liberado antes da hora (o limite estourou e a volta ainda não chegou, mas o uso seguiu):
