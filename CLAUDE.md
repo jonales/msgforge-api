@@ -65,6 +65,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     - Mídia passa pelo transcodificador do motor (ffmpeg nativo), que lê MP3, OGG e WAV. Nota de
       voz (`ptt`) sai em OGG/Opus a 16 kHz; o granule precisa estar em 48 kHz, ou o WhatsApp não
       baixa o áudio. Áudio comum vira AAC em quadros de `frame_size` fixo.
+    - Recusa de chamada: o `IncomingCall` traz o número de quem liga, mas a recusa leva o criador
+      da oferta (LID) e sai como a do celular (`count="0"`, sem `reason`); senão o servidor aceita e
+      ignora, e a chamada continua tocando (cobalt-2#2).
     - Toda mensagem leva o `deviceListMetadata` (ICDC) com o `ts` da lista de aparelhos do
       remetente. Ele precisa ser o `ts` **assinado** da lista de índices de chave, em segundos: com
       o horário da consulta, o WhatsApp Web de quem recebe mostrava "Não foi possível confirmar
@@ -263,8 +266,8 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
 5. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 6. `/instance/create`: `alwaysOnline` é aceito e guardado, mas **ainda sem efeito** (o motor
-   anuncia "disponível" no login e nada manda "indisponível"). `rejectCall`/`msgCall` e a leitura
-   automática (`readMessages`/`readStatus`) não foram testados ao vivo. O proxy não é testado no
+   anuncia "disponível" no login e nada manda "indisponível"). `rejectCall` foi validado ao vivo
+   (2026-11-14); `msgCall` e a leitura automática (`readMessages`/`readStatus`) ainda não. O proxy não é testado no
    create (a referência devolve 400 "Invalid proxy").
 7. Eventos além das mensagens (`MESSAGES_SET`, `MESSAGES_DELETE`, `CONTACTS_*`, `PRESENCE_UPDATE`,
    `CHATS_*`, `GROUPS_*`/`GROUP_*`, `CALL`) ainda não foram testados ao vivo no Cobalt. Limites:
