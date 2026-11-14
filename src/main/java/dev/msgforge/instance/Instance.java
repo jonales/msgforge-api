@@ -83,6 +83,8 @@ public class Instance {
     public UUID getId() { return id; }
     public String getName() { return name; }
     public UUID getOrganizationId() { return organizationId; }
+    /** Só na criação pelo Manager (a API não conhece organizações e usa a padrão). */
+    void setOrganizationId(UUID organizationId) { this.organizationId = organizationId; }
     public String getToken() { return token; }
     public String getIntegration() { return integration; }
     public String getNumber() { return number; }

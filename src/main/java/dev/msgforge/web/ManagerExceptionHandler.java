@@ -4,6 +4,8 @@ import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import dev.msgforge.common.ApiExceptionHandler.NotFoundException;
 import dev.msgforge.gateway.WhatsAppGateway.GatewayException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.access.AccessDeniedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.Ordered;
@@ -23,10 +25,21 @@ class ManagerExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ManagerExceptionHandler.class);
 
+    /**
+     * Instância que não existe ou que a pessoa não vê ({@link ManagerAccess}): a mesma resposta nos
+     * dois casos, para não revelar que existe.
+     */
     @ExceptionHandler(NotFoundException.class)
-    String notFound(NotFoundException ex, RedirectAttributes flash) {
-        flash.addFlashAttribute("errorText", ex.getMessage());
-        return "redirect:/manager";
+    String notFound(HttpServletResponse response) {
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        return "manager/not-found";
+    }
+
+    /** Vê a instância, mas o papel não inclui a ação (o POST montado à mão também cai aqui). */
+    @ExceptionHandler(AccessDeniedException.class)
+    String denied(HttpServletResponse response) {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        return "manager/forbidden";
     }
 
     @ExceptionHandler({BadRequestException.class, GatewayException.class, MissingServletRequestParameterException.class})

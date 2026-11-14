@@ -1,6 +1,10 @@
 package dev.msgforge.web;
 
+import dev.msgforge.access.AccessCheck;
+import dev.msgforge.access.Permission;
 import dev.msgforge.chat.ChatDtos.KeyFilter;
+import dev.msgforge.instance.Instance;
+import java.util.UUID;
 import dev.msgforge.chat.ChatService;
 import dev.msgforge.event.outbox.DeliveryHealth;
 import dev.msgforge.instance.InstanceService;
@@ -37,21 +41,50 @@ public class ManagerScreens {
         this.deliveries = deliveries;
     }
 
-    /** As linhas da lista. A saúde das entregas sai de uma consulta só, e não de uma por linha. */
-    public List<InstanceRow> rows() {
+    /** Uma linha da lista antes do filtro: a organização e o id decidem quem a vê. */
+    record ScopedRow(UUID organizationId, UUID instanceId, InstanceRow row) {}
+
+    /**
+     * Todas as linhas, sem filtro. O SSE monta uma vez por envio e filtra por inscrito
+     * ({@link #visible}). A saúde das entregas sai de uma consulta só, e não de uma por linha.
+     */
+    List<ScopedRow> allRows() {
         var failing = deliveries.failingWebhooks();
         return instances.list().stream()
-                .map(i -> InstanceRow.of(i, instances.stateOf(i), failing.contains(i.getName())))
+                .map(i -> new ScopedRow(i.getOrganizationId(), i.getId(),
+                        InstanceRow.of(i, instances.stateOf(i), failing.contains(i.getName()))))
+                .toList();
+    }
+
+    /** As linhas que a pessoa vê ("ver status"), cada uma sabendo se ela pode conectar. */
+    public List<InstanceRow> rows(AccessCheck access) {
+        return visible(allRows(), access);
+    }
+
+    static List<InstanceRow> visible(List<ScopedRow> all, AccessCheck access) {
+        return all.stream()
+                .filter(r -> access.can(Permission.INSTANCE_VIEW, r.organizationId(), r.instanceId()))
+                .map(r -> r.row().withConnect(access.can(Permission.INSTANCE_CONNECT, r.organizationId(), r.instanceId())))
                 .toList();
     }
 
     public Live live(String name) {
+        return live(name, true);
+    }
+
+    /** {@code withCode}: a pessoa pode conectar; sem isso, o trecho leva só o estado. */
+    public Live live(String name, boolean withCode) {
         var instance = instances.get(name);
         var state = instances.stateOf(instance).value();
         var qr = qrCodes.get(name).orElse(null);
-        return qr == null || "open".equals(state)
+        var live = qr == null || "open".equals(state)
                 ? Live.withoutCode(name, state)
                 : Live.withCode(name, state, qr.code(), qr.base64(), qr.pairingCode(), qr.updatedAt());
+        return withCode ? live : live.hidingCode();
+    }
+
+    public Instance instance(String name) {
+        return instances.get(name);
     }
 
     public List<ChatRow> chatRows(String name) {

@@ -1,7 +1,9 @@
 package dev.msgforge.web;
 
 import dev.msgforge.common.ApiExceptionHandler.NotFoundException;
-import dev.msgforge.instance.InstanceService;
+import dev.msgforge.access.Permission;
+import java.util.Optional;
+import org.springframework.security.access.AccessDeniedException;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -24,43 +26,47 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class ManagerStreamController {
 
     private final ManagerStreams streams;
-    private final InstanceService instances;
+    private final ManagerAccess guard;
 
-    public ManagerStreamController(ManagerStreams streams, InstanceService instances) {
+    public ManagerStreamController(ManagerStreams streams, ManagerAccess guard) {
         this.streams = streams;
-        this.instances = instances;
+        this.guard = guard;
     }
 
-    /** Lista de instâncias: evento {@code table}. */
+    /** Lista de instâncias: evento {@code table}, só com as instâncias que a pessoa vê. */
     @GetMapping("/instances")
     public ResponseEntity<SseEmitter> list(HttpSession session) {
         return open(ManagerStreams.LIST, session);
     }
 
-    /** Painel da instância (estado e QR): evento {@code live}. */
+    /** Painel da instância (estado e, com "conectar", o QR): evento {@code live}. Pede "ver status". */
     @GetMapping("/instances/{name}")
     public ResponseEntity<SseEmitter> instance(@PathVariable String name, HttpSession session) {
-        return exists(name) ? open(ManagerStreams.instanceChannel(name), session) : notFound();
+        return allowed(name, Permission.INSTANCE_VIEW)
+                .orElseGet(() -> open(ManagerStreams.instanceChannel(name), session));
     }
 
     /** Conversas: eventos {@code chats} e {@code conversation:{jid}} (a conversa aberta, página 1). */
     @GetMapping("/instances/{name}/messages")
     public ResponseEntity<SseEmitter> messages(@PathVariable String name, HttpSession session) {
-        return exists(name) ? open(ManagerStreams.messagesChannel(name), session) : notFound();
+        return allowed(name, Permission.CHAT_VIEW)
+                .orElseGet(() -> open(ManagerStreams.messagesChannel(name), session));
     }
 
-    /** Sem passar pelo handler de erros da API, que responderia JSON a quem pediu text/event-stream. */
-    private boolean exists(String name) {
+    /**
+     * A recusa, se houver: 404 para a instância que não existe ou que a pessoa não vê, 403 sem a
+     * permissão. Sem passar pelo handler de erros da API, que responderia JSON a quem pediu
+     * text/event-stream.
+     */
+    private Optional<ResponseEntity<SseEmitter>> allowed(String name, Permission permission) {
         try {
-            instances.get(name);
-            return true;
+            guard.require(name, permission);
+            return Optional.empty();
         } catch (NotFoundException e) {
-            return false;
+            return Optional.of(ResponseEntity.notFound().build());
+        } catch (AccessDeniedException e) {
+            return Optional.of(ResponseEntity.status(HttpStatus.FORBIDDEN).build());
         }
-    }
-
-    private static ResponseEntity<SseEmitter> notFound() {
-        return ResponseEntity.notFound().build();
     }
 
     /** Aba fechada no meio do stream: não há a quem responder (nem erro para registrar). */
@@ -70,7 +76,7 @@ public class ManagerStreamController {
     }
 
     private ResponseEntity<SseEmitter> open(String channel, HttpSession session) {
-        var emitter = streams.open(channel, session);
+        var emitter = streams.open(channel, session, ManagerTopbar.current());
         if (emitter == null) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
         }

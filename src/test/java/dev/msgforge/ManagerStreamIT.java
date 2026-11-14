@@ -2,7 +2,12 @@ package dev.msgforge;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.msgforge.access.AccessAdminService;
+import dev.msgforge.access.ManagerPrincipal;
+import dev.msgforge.access.Organization;
 import dev.msgforge.event.GatewayEvent.MessageReceived;
+import dev.msgforge.support.AccessFixtures;
+import org.springframework.jdbc.core.JdbcTemplate;
 import dev.msgforge.support.IntegrationTest;
 import dev.msgforge.web.ManagerStreams;
 import java.io.BufferedReader;
@@ -46,9 +51,16 @@ class ManagerStreamIT extends IntegrationTest {
 
     private final List<Stream> opened = new ArrayList<>();
 
+    @Autowired
+    AccessAdminService admin;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
     @AfterEach
     void closeStreams() {
         opened.forEach(Stream::close);
+        AccessFixtures.reset(jdbc);
     }
 
     // ------------------------------------------------------------ apoio
@@ -60,6 +72,8 @@ class ManagerStreamIT extends IntegrationTest {
     final class Stream implements AutoCloseable {
         final HttpResponse<InputStream> response;
         final LinkedBlockingQueue<Event> received = new LinkedBlockingQueue<>();
+        /** Tudo o que chegou, também o que o {@link #await} já consumiu. */
+        final java.util.Queue<Event> history = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
         Stream(HttpResponse<InputStream> response) {
             this.response = response;
@@ -73,7 +87,9 @@ class ManagerStreamIT extends IntegrationTest {
                 for (String line; (line = lines.readLine()) != null; ) {
                     if (line.isEmpty()) {
                         if (!data.isEmpty()) {
-                            received.add(new Event(name, String.join("\n", data)));
+                            var event = new Event(name, String.join("\n", data));
+                            history.add(event);
+                            received.add(event);
                         }
                         name = "message";
                         data.clear();
@@ -114,16 +130,25 @@ class ManagerStreamIT extends IntegrationTest {
         }
     }
 
-    /** Cliente HTTP com a sessão do Manager (login pelo formulário, com CSRF). */
+    /** Cliente HTTP com a sessão do Manager (login pelo formulário, com CSRF), pela chave global. */
     private HttpClient loggedIn() throws Exception {
+        return loggedIn("username=manager&apikey=" + URLEncoder.encode(API_KEY, StandardCharsets.UTF_8));
+    }
+
+    /** Com e-mail e senha de um usuário do Manager. */
+    private HttpClient loggedInAs(String email, String password) throws Exception {
+        return loggedIn("username=" + URLEncoder.encode(email, StandardCharsets.UTF_8)
+                + "&password=" + URLEncoder.encode(password, StandardCharsets.UTF_8));
+    }
+
+    private HttpClient loggedIn(String credentials) throws Exception {
         var client = HttpClient.newBuilder().cookieHandler(new CookieManager())
                 .followRedirects(HttpClient.Redirect.NEVER).build();
         var page = client.send(HttpRequest.newBuilder(url("/manager/login")).build(),
                 HttpResponse.BodyHandlers.ofString());
         var csrf = CSRF.matcher(page.body());
         assertThat(csrf.find()).as("token CSRF no formulário de login").isTrue();
-        var form = "username=manager&apikey=" + URLEncoder.encode(API_KEY, StandardCharsets.UTF_8)
-                + "&_csrf=" + URLEncoder.encode(csrf.group(1), StandardCharsets.UTF_8);
+        var form = credentials + "&_csrf=" + URLEncoder.encode(csrf.group(1), StandardCharsets.UTF_8);
         var login = client.send(HttpRequest.newBuilder(url("/manager/login"))
                         .header("Content-Type", "application/x-www-form-urlencoded")
                         .POST(HttpRequest.BodyPublishers.ofString(form)).build(),
@@ -250,6 +275,45 @@ class ManagerStreamIT extends IntegrationTest {
         var response = request(loggedIn(), "/manager/stream/instances/nao-existe-" + port);
         assertThat(response.statusCode()).isEqualTo(404);
         response.body().close();
+    }
+
+    /**
+     * ADR 0010, fatia 5: a lista vai renderizada por conteúdo, e não uma vez para todos. O Cliente,
+     * com escopo numa instância só, nunca recebe a linha de outra, nem quando ela muda; a chave
+     * global, no mesmo canal, recebe as duas.
+     */
+    @Test
+    void theClientNeverReceivesARowOutsideItsScope() throws Exception {
+        var mine = createInstance();
+        var other = createInstance();
+        var user = admin.createUser(ManagerPrincipal.GLOBAL_KEY, Organization.DEFAULT_ID, "cliente-sse@exemplo.com",
+                "senha-inicial-123", AccessFixtures.CLIENTE, false).getId();
+        jdbc.update("UPDATE membership SET all_instances = false WHERE user_id = ?", user);
+        jdbc.update("INSERT INTO membership_instance (membership_id, instance_id) "
+                + "SELECT m.id, i.id FROM membership m, instance i WHERE m.user_id = ? AND i.name = ?", user, mine);
+
+        var client = loggedInAs("cliente-sse@exemplo.com", "senha-inicial-123");
+        var clientList = open(client, "/manager/stream/instances");
+        var keyList = open(loggedIn(), "/manager/stream/instances");
+        assertThat(clientList.await("table", html -> html.contains(mine)).data()).doesNotContain(other);
+        keyList.await("table", html -> html.contains(mine) && html.contains(other));
+
+        // A instância fora do escopo muda de estado: a chave global vê, o Cliente recebe a lista sem ela
+        get("/instance/connect/" + other);
+        keyList.await("table", html -> html.contains(other) && html.contains("data-state=\"connecting\""));
+        get("/instance/connect/" + mine);
+        var table = clientList.await("table", html -> html.contains("data-state=\"connecting\""));
+        assertThat(table.data()).contains(mine).doesNotContain(other);
+        assertThat(clientList.history).noneMatch(event -> event.data().contains(other));
+
+        // Os streams de instância e de conversas conferem a permissão na abertura
+        var hidden = request(client, "/manager/stream/instances/" + other);
+        assertThat(hidden.statusCode()).isEqualTo(404);
+        hidden.body().close();
+        var chats = request(client, "/manager/stream/instances/" + mine + "/messages");
+        assertThat(chats.statusCode()).isEqualTo(403);
+        chats.body().close();
+        open(client, "/manager/stream/instances/" + mine).await("live", html -> html.contains("stub-qr-"));
     }
 
     @Test

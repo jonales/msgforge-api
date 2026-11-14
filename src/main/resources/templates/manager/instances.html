@@ -13,7 +13,7 @@
             <h1 th:text="#{manager.instances.title}">Instâncias</h1>
             <p class="lede" th:text="#{manager.home.lede}">Cada instância é um número de WhatsApp ligado à API.</p>
         </div>
-        <a class="button primary button-lg" th:href="@{/manager/instances/new}">
+        <a class="button primary button-lg" th:if="${canCreate}" th:href="@{/manager/instances/new}">
             <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
                 <path d="M8 3v10M3 8h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
             </svg>
@@ -50,7 +50,12 @@
         <div th:fragment="table" id="instances-table" sse-swap="table" data-poll
              th:attr="hx-get=@{/manager/instances/table}" hx-trigger="every 5s" hx-swap="outerHTML">
 
-            <div class="empty-state" th:if="${#lists.isEmpty(instances)}">
+            <!-- Quem não pode criar (e não vê nenhuma instância) não recebe o convite para criar -->
+            <div class="empty-state" th:if="${#lists.isEmpty(instances) and !canCreate}">
+                <h2 th:text="#{manager.home.none.title}">Nenhuma instância para você</h2>
+                <p th:text="#{manager.home.none.text}">Seu papel ainda não dá acesso a nenhuma instância.</p>
+            </div>
+            <div class="empty-state" th:if="${#lists.isEmpty(instances) and canCreate}">
                 <h2 th:text="#{manager.home.empty.title}">Crie a primeira instância</h2>
                 <p th:text="#{manager.home.empty.text}">Uma instância liga um número de WhatsApp à API.</p>
                 <ol class="empty-steps">
@@ -105,7 +110,11 @@
                             <span th:text="#{manager.home.deliveryFailing}">Webhook falhando, tentando de novo</span>
                         </span>
                     </td>
-                    <td class="cell-action" th:switch="${row.action()}">
+                    <!-- Continuar e reconectar pedem "conectar"; sem ela, a linha mostra só o estado -->
+                    <td class="cell-action" th:unless="${row.actionAllowed()}">
+                        <span class="visually-hidden" th:text="#{manager.home.noAction}">Sem ação para o seu papel</span>
+                    </td>
+                    <td class="cell-action" th:if="${row.actionAllowed()}" th:switch="${row.action()}">
                         <a th:case="'open'" class="button action" th:href="@{/manager/instances/{n}(n=${row.name})}">
                             <span th:text="#{manager.home.action.open}">Abrir</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
                         <a th:case="'resume'" class="button primary action" th:href="@{/manager/instances/{n}/connect(n=${row.name})}">

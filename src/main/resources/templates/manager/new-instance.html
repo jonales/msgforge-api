@@ -36,6 +36,15 @@
                 <span class="field-error" id="instanceName-error" th:if="${fieldErr}" th:text="#{${fieldErr}}">Erro</span>
                 <span class="hint" id="instanceName-hint" th:text="#{manager.wizard.name.hint}">Letras e números.</span>
             </label>
+            <!-- Só para quem pode criar em mais de uma organização -->
+            <label for="org" th:if="${organizations}">
+                <span th:text="#{manager.wizard.org.label}">Organização</span>
+                <select id="org" name="org" aria-describedby="org-hint">
+                    <option th:each="o : ${organizations}" th:value="${o.id}" th:text="${o.name}"
+                            th:selected="${o.id == typedOrg}">Padrão</option>
+                </select>
+                <span class="hint" id="org-hint" th:text="#{manager.wizard.org.hint}">Quem vê a instância.</span>
+            </label>
             <div class="wizard-actions">
                 <button type="submit" class="primary" th:text="#{manager.wizard.continue}">Continuar</button>
                 <a class="button" th:href="@{/manager}" th:text="#{manager.wizard.cancel}">Cancelar</a>

@@ -3,7 +3,7 @@ package dev.msgforge;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import dev.msgforge.access.ManagerPrincipal;
 import dev.msgforge.instance.InstanceRepository;
 import dev.msgforge.support.IntegrationTest;
 import dev.msgforge.webhook.WebhookService;
@@ -19,6 +20,9 @@ import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import java.util.List;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -45,7 +49,9 @@ class ManagerIT extends IntegrationTest {
     }
 
     private static MockHttpServletRequestBuilder asManager(MockHttpServletRequestBuilder request) {
-        return request.with(user("manager").roles("MANAGER"));
+        // Como o login com a chave global deixa a sessão (admin da plataforma: vê tudo)
+        return request.with(authentication(UsernamePasswordAuthenticationToken.authenticated(
+                ManagerPrincipal.GLOBAL_KEY, null, List.of(new SimpleGrantedAuthority("ROLE_MANAGER")))));
     }
 
     private String createInstance() throws Exception {
@@ -203,8 +209,7 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(redirectedUrl("/manager"))
                 .andExpect(flash().attribute("errorText", Matchers.containsString("already in use")));
         mvc.perform(asManager(GET("/manager/instances/nao-existe")))
-                .andExpect(redirectedUrl("/manager"))
-                .andExpect(flash().attribute("errorText", Matchers.containsString("does not exist")));
+                .andExpect(status().isNotFound()).andExpect(view().name("manager/not-found"));
         mvc.perform(asManager(POST("/manager/instances/" + name + "/send")).with(csrf())
                         .param("number", "abc").param("text", "oi"))
                 .andExpect(flash().attribute("errorText", Matchers.containsString("Invalid number")));
