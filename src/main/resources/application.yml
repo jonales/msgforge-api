@@ -75,6 +75,9 @@ msgforge:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
     max-in-flight: ${OUTBOX_MAX_IN_FLIGHT:64}
     lease-seconds: ${OUTBOX_LEASE_SECONDS:60}
+  # Cifra dos segredos guardados no banco, como a senha do proxy da instância (ADR 0014)
+  secrets:
+    encryption-key: ${SECRETS_ENCRYPTION_KEY:}
   gateway: ${MSGFORGE_GATEWAY:stub}
   history:
     enabled: ${DATABASE_SAVE_DATA_NEW_MESSAGE:true}

@@ -15,11 +15,31 @@ O `token` escolhido no `/instance/create` precisa ter pelo menos 32 caracteres (
 `token`, a instância recebe um gerado (UUID, 36 caracteres), devolvido no campo `hash`. Tokens
 criados antes dessa regra continuam valendo.
 
+### Configurações e proxy no `/instance/create`
+
+Todos opcionais; sem eles, vale o padrão (tudo desligado, sem proxy). São guardados na instância e
+aplicados pelo motor Cobalt a cada conexão. O `fetchInstances` não os devolve.
+
+| Campo | Tipo | Efeito |
+|---|---|---|
+| `syncFullHistory` | boolean | `true` pede até 365 dias de histórico no pareamento (o mesmo que "completo" no Manager); ausente ou `false`, nenhum |
+| `rejectCall` | boolean | Recusa as chamadas recebidas |
+| `msgCall` | string | Texto enviado a quem ligou (com ou sem `rejectCall`); sai como `send.message`. Até 4096 caracteres |
+| `groupsIgnore` | boolean | Mensagens de grupo não viram `messages.upsert` (nem entram no histórico) |
+| `readMessages` | boolean | Marca como lidas as mensagens recebidas, assim que chegam |
+| `readStatus` | boolean | `true`: os status (`status@broadcast`) viram `messages.upsert` e são marcados como vistos. `false` (padrão): status são ignorados |
+| `alwaysOnline` | boolean | Aceito e guardado, **ainda sem efeito** (ver COMPATIBILIDADE.md) |
+| `proxyHost`, `proxyPort`, `proxyProtocol` | string | Proxy desta instância para a conexão com o WhatsApp, no lugar do `COBALT_PROXY`. Os três juntos; `proxyPort` de 1 a 65535 (texto ou número); `proxyProtocol`: `http`, `https`, `socks4`, `socks4a`, `socks5` (ou `socks`), `socks5h` |
+| `proxyUsername`, `proxyPassword` | string | Credenciais do proxy (opcionais). A senha é guardada cifrada e exige `SECRETS_ENCRYPTION_KEY` no servidor (sem ela, 400). No `socks4`, só o usuário é usado |
+
+Proxy incompleto, protocolo desconhecido, porta inválida ou senha sem usuário dão 400 e a instância
+não é criada. O proxy não é testado no create: um proxy que não responde aparece no connect.
+
 ## Rotas
 
 | Método | Rota | Para quê |
 |---|---|---|
-| POST | `/instance/create` | Cria a instância (opcional: `qrcode`, `number`, `token`, `webhook`) |
+| POST | `/instance/create` | Cria a instância (opcional: `qrcode`, `number`, `token`, `webhook`, configurações e proxy, abaixo) |
 | GET | `/instance/connect/{instancia}?number=` | Conecta: devolve o QR code ou, com `number`, o código de pareamento |
 | GET | `/instance/connectionState/{instancia}` | Estado: `open`, `connecting` ou `close` |
 | GET | `/instance/fetchInstances?instanceName=` | Lista as instâncias (com token de instância, só a própria) |
