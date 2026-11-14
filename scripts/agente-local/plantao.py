@@ -50,7 +50,22 @@ COMANDOS = {
     "mvn-it-classe": ["mvn", "-q", "-B", "verify", "-Dtest=none", "-Dsurefire.failIfNoSpecifiedTests=false",
                       "-Dit.test={classe}"],
     "mvn-compile": ["mvn", "-q", "-B", "-DskipTests", "test-compile"],
+    "mvn-verify": ["mvn", "-q", "-B", "verify"],
 }
+
+LIMIAR = float(os.environ.get("PLANTAO_LIMIAR_PLANO", "0.9"))
+HORAS_DA_FILA = float(os.environ.get("PLANTAO_HORAS_DA_FILA", "10"))
+GATILHO = os.path.join(BASE, "gatilho.json")
+
+
+def _modulo(nome):
+    """Carrega um módulo irmão pelo caminho (com python -I o diretório do script não entra no sys.path)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(nome, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                                     nome + ".py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 for p in (FILA, FEITO, FALHOU, SAIDA, WORKTREES):
     os.makedirs(p, exist_ok=True)
@@ -560,7 +575,29 @@ def executar(caminho, ativo, motivo):
     log(f"tarefa {t['id']} terminou em {segundos:.0f} s → {os.path.basename(destino)}")
 
 
+def gatilho_do_plano():
+    """Com o plano do Claude em LIMIAR (90%) da janela, gera a fila de pendências de HORAS_DA_FILA uma vez."""
+    try:
+        e = _modulo("consumo").estimar()
+    except Exception as erro:
+        log(f"consumo: estimativa falhou ({type(erro).__name__}: {erro})")
+        return None
+    janela = e["inicio"].isoformat(timespec="minutes")
+    anterior = json.loads(ler(GATILHO)) if os.path.exists(GATILHO) else {}
+    if e["fracao"] >= LIMIAR and anterior.get("janela") != janela:
+        if len(glob.glob(os.path.join(FILA, "*.json"))) >= 30:
+            log(f"plano em {e['fracao']:.0%}: a fila já tem trabalho, não gera outra")
+        else:
+            qtd, horas, rodadas = _modulo("fila_pendencias").gerar(HORAS_DA_FILA)
+            log(f"plano em {e['fracao']:.0%} da janela: fila de pendências gerada ({qtd} tarefas, ~{horas:.1f} h)")
+        with open(GATILHO, "w", encoding="utf-8") as f:
+            json.dump({"janela": janela, "fracao": round(e["fracao"], 3),
+                       "quando": dt.datetime.now().isoformat(timespec="seconds")}, f)
+    return e
+
+
 def passada():
+    plano = gatilho_do_plano()
     ativo, motivo = limite_ativo()
     if ativo:
         colher_handoffs()
@@ -569,7 +606,8 @@ def passada():
         if t.get("so_no_limite") and not ativo:
             continue
         executar(caminho, ativo, motivo)
-    gravar_estado(modo="limite" if ativo else "conjunto", motivo=motivo, tarefa=None)
+    gravar_estado(modo="limite" if ativo else "conjunto", motivo=motivo, tarefa=None,
+                  plano=None if plano is None else f"{plano['fracao']:.0%} da janela desde {plano['inicio']:%H:%M}")
 
 
 if __name__ == "__main__":

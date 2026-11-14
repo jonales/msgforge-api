@@ -34,6 +34,15 @@ em todas as tarefas como regras, e o **contexto** que o plantão monta: o grafo 
 (`graphify query`, atualizado sozinho quando fica mais velho que o `main`) e o fonte das classes
 citadas pelo nome. Toda saída termina com a conferência dos caminhos citados (✓ existe, ✗ não).
 
+## Gatilho de 90% do plano
+A cada passada, o plantão estima o consumo do plano do Claude na janela de 5 horas
+(`consumo.py`, a partir dos tokens registrados nos transcritos e calibrado pelos estouros de
+limite já vistos; erro de ~20%). Ao chegar em `PLANTAO_LIMIAR_PLANO` (0.9), gera uma vez por
+janela a fila de pendências de `PLANTAO_HORAS_DA_FILA` horas (`fila_pendencias.py`): passos
+`[local:...]` dos HANDOFF, suíte e revisão das branches fora do main, refinamento do
+`.agente-local/backlog.md`, auditoria dos arquivos alterados e, para completar as horas, rodadas da
+suíte completa do main. `tarefa.py consumo` mostra a estimativa; `tarefa.py fila [horas]` gera já.
+
 ## Modo limite e passagem (HANDOFF)
 Quando o último erro `rate_limit` nos transcritos do Claude Code deste projeto é mais novo que a
 última resposta do Claude e ainda não passou o horário de volta, o plantão também executa os
