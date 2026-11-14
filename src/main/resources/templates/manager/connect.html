@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <!-- Nova instância guiada, passo 4: ler o QR (ou digitar o código). A instância já existe; quem
      abandona aqui volta pelo painel dela. O trecho ao vivo é o mesmo do painel (instance :: live). -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.wizard.stepOf(${step}, ${totalSteps})} + ': ' + #{'manager.wizard.step.' + ${step}} + ' · ' + ${instance.name})}"></head>

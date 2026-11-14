@@ -24,6 +24,28 @@
         <a class="topbar-link" th:if="${me.users}" th:href="@{/manager/users}" th:text="#{manager.topbar.users}">Usuários</a>
         <a class="topbar-link" th:if="${me.server}" th:href="@{/manager/server}" th:text="#{manager.nav.server}"
            th:attr="aria-current=${currentPage == 'server'} ? 'page' : null">Servidor</a>
+        <!-- Tema: Sistema, Claro ou Escuro. Um POST comum grava o cookie e volta para esta página -->
+        <details class="theme-menu" th:with="theme=${@managerTheme.choice()}">
+            <summary class="topbar-link">
+                <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
+                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    <path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/>
+                </svg>
+                <span class="theme-word" th:text="#{manager.theme.label}">Tema</span>
+                <span class="visually-hidden" th:text="': ' + #{'manager.theme.' + ${theme.value()}}">: Sistema</span>
+            </summary>
+            <form class="theme-options" th:action="@{/manager/theme}" method="post">
+                <input type="hidden" name="back" th:value="${@managerTheme.back()}">
+                <p class="theme-title" id="theme-title" th:text="#{manager.theme.choose}">Tema do Manager</p>
+                <div role="group" aria-labelledby="theme-title">
+                    <button type="submit" name="theme" class="theme-option" th:each="option : ${@managerTheme.choices()}"
+                            th:value="${option.value()}" th:attr="aria-pressed=${option == theme}">
+                        <span th:text="#{'manager.theme.' + ${option.value()}}">Sistema</span>
+                        <span class="theme-hint small" th:text="#{'manager.theme.' + ${option.value()} + '.hint'}">Segue o aparelho</span>
+                    </button>
+                </div>
+            </form>
+        </details>
         <form class="topbar-logout" th:action="@{/manager/logout}" method="post">
             <button type="submit" class="link" th:text="#{manager.signOut}">Sair</button>
         </form>

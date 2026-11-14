@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <!-- Servidor (ServerController): estado do SMTP e e-mail de teste (ADR 0011). Só leitura: a
      configuração vem das variáveis de ambiente. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.server.title})}"></head>

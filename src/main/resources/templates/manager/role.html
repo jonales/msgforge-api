@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org">
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <head th:replace="~{manager/fragments/layout :: head(${form.id == null} ? #{manager.roles.new} : ${form.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>

@@ -74,8 +74,10 @@ ajuda.
 ## Brand Commitments
 
 - Nome: Msgforge. Idioma da interface: português do Brasil.
-- O Manager atual (`src/main/resources/static/manager/manager.css`) usa claro/escuro pelo sistema e
-  verde como cor de ação; isso é implementação existente, não um compromisso de marca.
+- O Manager atual (`src/main/resources/static/manager/manager.css`) tem paleta em tons pastel, com
+  tema claro e escuro (Sistema por padrão, ou a escolha da pessoa no menu da conta), e mantém o
+  verde como cor de ação, o âmbar para espera e o vermelho para perigo. Isso é implementação
+  existente, não um compromisso de marca.
 
 ## Evidence on Hand
 
