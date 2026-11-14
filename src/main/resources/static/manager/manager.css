@@ -3,7 +3,7 @@
     --bg: #f6f7f9; --surface: #ffffff; --text: #1d2330; --muted: #5d6677; --border: #dde1e8;
     --accent: #12805c; --accent-text: #ffffff; --danger: #c0352b;
     --ok-bg: #e5f5ee; --ok-text: #0d5f43; --err-bg: #fdecea; --err-text: #8e241b;
-    --warn-bg: #fff6df; --warn-text: #6d4c00; --badge-wait: #a86b00;
+    --warn-bg: #fff6df; --warn-text: #6d4c00; --badge-wait: #946000;
     --radius: 10px; --gap: 16px;
     /* Escala de títulos (razão ~1.2): página, seção, subtítulo, corpo, apoio */
     --fs-h1: 1.75rem; --fs-h2: 1.2rem; --fs-h3: 1rem; --fs-body: .9375rem; --fs-small: .85rem;
@@ -23,8 +23,11 @@ body { margin: 0; background: var(--bg); color: var(--text);
        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent); }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; word-break: break-all; }
-h1 { font-size: 1.6rem; margin: .2rem 0; }
-h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
+/* Títulos pela escala (--fs-*): página > seção > subtítulo; o corpo fica em 15px */
+h1 { font-size: var(--fs-h1); line-height: 1.2; font-weight: 700; letter-spacing: -.015em; text-wrap: balance;
+     margin: .2rem 0; }
+h2 { font-size: var(--fs-h2); line-height: 1.3; font-weight: 650; margin: 0 0 .8rem; }
+h3 { font-size: var(--fs-h3); line-height: 1.4; font-weight: 600; }
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
 
@@ -57,8 +60,8 @@ h2 { font-size: 1.05rem; margin: 0 0 .8rem; }
 
 label { display: block; margin-bottom: 10px; }
 label > span { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
-input[type=text], input[type=password], input[type=url], input[type=search], input:not([type]), textarea, select {
-input[type=text], input[type=password], input[type=url], input[type=email], input:not([type]), textarea, select {
+input[type=text], input[type=password], input[type=url], input[type=search], input[type=email], input:not([type]),
+textarea, select {
     width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px;
     background: var(--bg); color: var(--text); font: inherit; }
 input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
@@ -193,9 +196,10 @@ label > .field-error, .field-error { display: block; margin: 4px 0 0; font-size:
 
 /* Nova instância guiada: uma coluna estreita, um assunto por passo */
 .wizard { max-width: 680px; }
-.wizard h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
-.wizard h1:focus { outline: none; }
-/* O foco no título é programático (anúncio do passo); o título não é um controle */
+.wizard h1 { margin: 0 0 .3rem; }
+/* O foco no título do passo é só programático (tabindex="-1", anúncio para leitor de tela): o título não
+   é um controle e o Tab nunca para nele, então o contorno sai sem tirar o foco visível de nada. */
+[data-step-heading][tabindex="-1"]:focus { outline: none; }
 .wizard .card > p.muted { margin: 0 0 16px; max-width: 62ch; }
 .wizard > p.muted { margin: 0 0 16px; max-width: 70ch; }
 .wizard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
