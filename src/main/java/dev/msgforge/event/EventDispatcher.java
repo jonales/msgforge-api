@@ -3,10 +3,23 @@ package dev.msgforge.event;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.DeliveryTarget.WebhookTarget;
+import dev.msgforge.event.GatewayEvent.ApplicationStartup;
+import dev.msgforge.event.GatewayEvent.CallReceived;
+import dev.msgforge.event.GatewayEvent.ChatsDeleted;
+import dev.msgforge.event.GatewayEvent.ChatsUpdated;
+import dev.msgforge.event.GatewayEvent.ChatsUpserted;
 import dev.msgforge.event.GatewayEvent.ConnectionUpdated;
+import dev.msgforge.event.GatewayEvent.ContactsUpdated;
+import dev.msgforge.event.GatewayEvent.ContactsUpserted;
+import dev.msgforge.event.GatewayEvent.GroupParticipantsUpdated;
+import dev.msgforge.event.GatewayEvent.GroupUpdated;
+import dev.msgforge.event.GatewayEvent.GroupsUpserted;
+import dev.msgforge.event.GatewayEvent.MessageDeleted;
 import dev.msgforge.event.GatewayEvent.MessageReceived;
 import dev.msgforge.event.GatewayEvent.MessageSent;
 import dev.msgforge.event.GatewayEvent.MessageStatusUpdated;
+import dev.msgforge.event.GatewayEvent.MessagesSynced;
+import dev.msgforge.event.GatewayEvent.PresenceUpdated;
 import dev.msgforge.event.GatewayEvent.QrCodeUpdated;
 import dev.msgforge.event.outbox.Outbox;
 import dev.msgforge.event.outbox.OutboxProperties;
@@ -16,7 +29,6 @@ import dev.msgforge.instance.InstanceStateService;
 import dev.msgforge.webhook.WebhookService;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -96,22 +108,25 @@ public class EventDispatcher {
 
     @EventListener
     public void on(GatewayEvent event) {
-        var type = switch (event) {
-            case QrCodeUpdated _ -> EventType.QRCODE_UPDATED;
-            case ConnectionUpdated c -> {
-                stateService.update(c.instanceName(), c.state(), c.wuid(), c.profileName());
-                yield EventType.CONNECTION_UPDATE;
+        var type = typeOf(event);
+        if (event instanceof ConnectionUpdated c) {
+            stateService.update(c.instanceName(), c.state(), c.wuid(), c.profileName());
+        }
+        DeliveryTarget target;
+        if (event instanceof ApplicationStartup) {
+            target = DeliveryTarget.APPLICATION;
+        } else {
+            target = snapshot(event.instanceName());
+            if (target == null) {
+                log.debug("Evento {} ignorado: instância {} não existe", type, event.instanceName());
+                return;
             }
-            case MessageSent _ -> EventType.SEND_MESSAGE;
-            case MessageReceived _ -> EventType.MESSAGES_UPSERT;
-            case MessageStatusUpdated _ -> EventType.MESSAGES_UPDATE;
-        };
-        var target = snapshot(event.instanceName());
-        if (target == null) {
-            log.debug("Evento {} ignorado: instância {} não existe", type, event.instanceName());
+        }
+        // Ninguém assina: nem monta o payload (PRESENCE_UPDATE e CONTACTS_* podem vir em volume)
+        if (!wanted(target, type)) {
             return;
         }
-        var data = dataOf(event);
+        var data = EventPayloads.dataOf(event, target.instanceId());
         var dateTime = OffsetDateTime.now().toString();
         Runnable delivery = outboxProperties.enabled()
                 ? () -> enqueue(target, type, data, dateTime)
@@ -129,6 +144,30 @@ public class EventDispatcher {
         }
     }
 
+    /** Evento do contrato de cada {@link GatewayEvent}. Um evento novo sem {@code case} não compila. */
+    static EventType typeOf(GatewayEvent event) {
+        return switch (event) {
+            case ApplicationStartup _ -> EventType.APPLICATION_STARTUP;
+            case QrCodeUpdated _ -> EventType.QRCODE_UPDATED;
+            case ConnectionUpdated _ -> EventType.CONNECTION_UPDATE;
+            case MessageSent _ -> EventType.SEND_MESSAGE;
+            case MessageReceived _ -> EventType.MESSAGES_UPSERT;
+            case MessageStatusUpdated _ -> EventType.MESSAGES_UPDATE;
+            case MessagesSynced _ -> EventType.MESSAGES_SET;
+            case MessageDeleted _ -> EventType.MESSAGES_DELETE;
+            case ContactsUpserted _ -> EventType.CONTACTS_UPSERT;
+            case ContactsUpdated _ -> EventType.CONTACTS_UPDATE;
+            case PresenceUpdated _ -> EventType.PRESENCE_UPDATE;
+            case ChatsUpserted _ -> EventType.CHATS_UPSERT;
+            case ChatsUpdated _ -> EventType.CHATS_UPDATE;
+            case ChatsDeleted _ -> EventType.CHATS_DELETE;
+            case GroupsUpserted _ -> EventType.GROUPS_UPSERT;
+            case GroupUpdated _ -> EventType.GROUP_UPDATE;
+            case GroupParticipantsUpdated _ -> EventType.GROUP_PARTICIPANTS_UPDATE;
+            case CallReceived _ -> EventType.CALL;
+        };
+    }
+
     /** Lido na transação de quem publicou: enxerga a instância recém-criada e ainda não commitada. */
     private DeliveryTarget snapshot(String instanceName) {
         var instance = instances.findByName(instanceName).orElse(null);
@@ -139,26 +178,24 @@ public class EventDispatcher {
                 .map(w -> new WebhookTarget(w.getUrl(), w.isEnabled(), w.isByEvents(), w.getEvents(),
                         webhooks.headersOf(w)))
                 .orElse(null);
-        return new DeliveryTarget(instance.getName(), instance.getToken(), instance.getOwnerJid(), webhook);
+        return new DeliveryTarget(instance.getName(), instance.getId().toString(), instance.getToken(),
+                instance.getOwnerJid(), webhook);
     }
 
-    private static Object dataOf(GatewayEvent event) {
-        return switch (event) {
-            case QrCodeUpdated q -> Map.of("qrcode", nonNull(nonNull(Map.of(
-                    "instance", q.instanceName()), "code", q.code(), "pairingCode", q.pairingCode()),
-                    "base64", q.base64()));
-            case ConnectionUpdated c -> {
-                var map = nonNull(Map.of("instance", c.instanceName(), "state", c.state().value()),
-                        "statusReason", c.statusReason());
-                yield nonNull(map, "wuid", c.wuid(), "profileName", c.profileName());
-            }
-            case MessageSent m -> Map.of(
-                    "key", Map.of("remoteJid", m.message().remoteJid(), "fromMe", true, "id", m.message().id()),
-                    "messageTimestamp", m.message().timestamp(),
-                    "status", "PENDING");
-            case MessageReceived r -> r.data();
-            case MessageStatusUpdated s -> s.data();
-        };
+    /** Algum destino recebe este evento? */
+    private boolean wanted(DeliveryTarget target, EventType type) {
+        return (target.webhook() != null && target.webhook().accepts(type)) || globalAccepts(type) || rabbitAccepts(type);
+    }
+
+    private boolean globalAccepts(EventType type) {
+        var global = properties.webhook();
+        return global.globalEnabled() && global.globalUrl() != null && !global.globalUrl().isBlank()
+                && (global.globalEvents().isEmpty() || global.globalEvents().contains(type.name()));
+    }
+
+    private boolean rabbitAccepts(EventType type) {
+        var rabbitmq = properties.rabbitmq();
+        return rabbitmq.enabled() && (rabbitmq.events().isEmpty() || rabbitmq.events().contains(type.name()));
     }
 
     /** Uma entrega de um evento: destino e envelope, iguais na outbox e na fila em memória. */
@@ -174,12 +211,12 @@ public class EventDispatcher {
         }
 
         var global = properties.webhook();
-        if (global.globalEnabled() && global.globalUrl() != null && !global.globalUrl().isBlank()) {
+        if (globalAccepts(type)) {
             list.add(new Delivery(Outbox.Type.WEBHOOK_GLOBAL, global.globalUrl(), Map.of(),
                     envelope(target, type, data, global.globalUrl(), dateTime)));
         }
 
-        if (properties.rabbitmq().enabled()) {
+        if (rabbitAccepts(type)) {
             list.add(new Delivery(Outbox.Type.RABBITMQ, properties.rabbitmq().exchange(), Map.of(),
                     envelope(target, type, data, null, dateTime)));
         }
@@ -188,7 +225,7 @@ public class EventDispatcher {
 
     /** Fila em memória (OUTBOX_ENABLED=false), com teto por instância (ADR 0006). */
     private void submitInMemory(DeliveryTarget target, EventType type, Object data, String dateTime) {
-        if (!deliveries.submit(target.instanceName(), () -> deliver(target, type, data, dateTime))) {
+        if (!deliveries.submit(target.orderKey(), () -> deliver(target, type, data, dateTime))) {
             log.warn("Evento {} da instância {} descartado: {} entregas já aguardando",
                     type, target.instanceName(), properties.webhook().maxPendingPerInstance());
         }
@@ -199,7 +236,7 @@ public class EventDispatcher {
             switch (d.type()) {
                 case WEBHOOK -> sender.sendUntrusted(d.destination(), type.payloadName(), d.body(), d.headers());
                 case WEBHOOK_GLOBAL -> sender.send(d.destination(), type.payloadName(), d.body(), d.headers());
-                case RABBITMQ -> publishRabbit(target.instanceName(), type, d.body());
+                case RABBITMQ -> publishRabbit(target.orderKey(), type, d.body());
             }
         }
     }
@@ -207,7 +244,7 @@ public class EventDispatcher {
     /** Outbox (ADR 0012): grava antes de entregar; o trabalhador entrega a partir da linha. */
     private void enqueue(DeliveryTarget target, EventType type, Object data, String dateTime) {
         var entries = deliveriesOf(target, type, data, dateTime).stream()
-                .map(d -> new Outbox.NewEntry(d.type(), target.instanceName(), type.payloadName(), d.destination(),
+                .map(d -> new Outbox.NewEntry(d.type(), target.orderKey(), type.payloadName(), d.destination(),
                         d.headers(), d.type() == Outbox.Type.WEBHOOK && blockPrivateNetworks,
                         json.writeValueAsString(d.body())))
                 .toList();
@@ -235,22 +272,14 @@ public class EventDispatcher {
             var props = new MessageProperties();
             props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
             var message = new org.springframework.amqp.core.Message(json.writeValueAsBytes(body), props);
-            rabbit.send(properties.rabbitmq().exchange(), instance + "." + type.payloadName(), message);
+            rabbit.send(properties.rabbitmq().exchange(), routingKey(instance, type.payloadName()), message);
         } catch (Exception e) {
             log.warn("Falha ao publicar {} no RabbitMQ: {}", type, e.getMessage());
         }
     }
 
-    /** Map.of não aceita null; adiciona a chave só se o valor existir. */
-    private static Map<String, Object> nonNull(Map<String, Object> base, String key, Object value) {
-        var map = new LinkedHashMap<String, Object>(base);
-        if (value != null) {
-            map.put(key, value);
-        }
-        return map;
-    }
-
-    private static Map<String, Object> nonNull(Map<String, Object> base, String k1, Object v1, String k2, Object v2) {
-        return nonNull(nonNull(base, k1, v1), k2, v2);
+    /** {@code {instancia}.{evento}}; os eventos da aplicação (sem instância) saem só com o evento. */
+    public static String routingKey(String orderKey, String event) {
+        return orderKey == null || orderKey.isEmpty() ? event : orderKey + "." + event;
     }
 }

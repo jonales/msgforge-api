@@ -1,6 +1,7 @@
 package dev.msgforge.event.outbox;
 
 import dev.msgforge.config.MsgforgeProperties;
+import dev.msgforge.event.EventDispatcher;
 import dev.msgforge.event.WebhookSender;
 import dev.msgforge.event.WebhookSender.Attempt;
 import dev.msgforge.event.outbox.Outbox.Entry;
@@ -194,7 +195,7 @@ public class OutboxWorker implements SmartLifecycle {
         var props = new MessageProperties();
         props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
         var message = new Message(entry.payload().getBytes(StandardCharsets.UTF_8), props);
-        rabbit.send(entry.destination(), entry.orderKey() + "." + entry.event(), message);
+        rabbit.send(entry.destination(), EventDispatcher.routingKey(entry.orderKey(), entry.event()), message);
         return new Attempt.Delivered();
     }
 

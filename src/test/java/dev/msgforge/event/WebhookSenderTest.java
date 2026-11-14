@@ -20,7 +20,7 @@ class WebhookSenderTest {
             RestClient.builder().requestFactory(HttpClientConfig.requestFactory(2000)).build(),
             JsonMapper.builder().build(),
             new MsgforgeProperties("http://localhost", null,
-                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(3, 10, 40), 1000, false),
+                    new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(3, 10, 40), 1000, false, java.util.List.of()),
                     null, "stub", null),
             new PrivateNetworkGuard(false));
 
@@ -77,7 +77,7 @@ class WebhookSenderTest {
                 RestClient.builder().requestFactory(HttpClientConfig.requestFactory(2000, false)).build(),
                 JsonMapper.builder().build(),
                 new MsgforgeProperties("http://localhost", null,
-                        new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 40), 1000, true),
+                        new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 40), 1000, true, java.util.List.of()),
                         null, "stub", null),
                 new PrivateNetworkGuard(true));
 

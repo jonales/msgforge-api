@@ -140,6 +140,7 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
                 java.util.List.copyOf(members));
         groups.put(key(instance, jid), group);
         log.info("[stub] grupo criado {} -> {} ({} participantes)", instance.getName(), jid, members.size());
+        events.publishEvent(new GatewayEvent.GroupsUpserted(instance.getName(), java.util.List.of(group)));
         return group;
     }
 
@@ -211,6 +212,10 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
             return new GroupInfo(group.id(), group.subject(), group.subjectOwner(), group.subjectTime(), group.creation(),
                     group.owner(), group.desc(), group.announce(), group.restrict(), java.util.List.copyOf(members.values()));
         });
+        if (!done.isEmpty()) {
+            events.publishEvent(new GatewayEvent.GroupParticipantsUpdated(instance.getName(), groupJid, self(instance),
+                    java.util.List.copyOf(done), action.name().toLowerCase(java.util.Locale.ROOT)));
+        }
         return done;
     }
 
@@ -233,6 +238,19 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
                                 g.desc(), g.announce(), set.adminsOnly(), g.participants());
             };
         });
+        var author = self(instance);
+        var name = instance.getName();
+        var event = switch (update) {
+            case GroupSubject su -> new GatewayEvent.GroupUpdated(name, groupJid, author, su.subject(), null, null, null);
+            case GroupDescription d -> new GatewayEvent.GroupUpdated(name, groupJid, author, null, d.description(), null, null);
+            case GroupPicture _ -> null;   // foto não vira groups.update (como no WhatsApp)
+            case GroupSetting set -> set.setting() == Setting.SEND_MESSAGES
+                    ? new GatewayEvent.GroupUpdated(name, groupJid, author, null, null, set.adminsOnly(), null)
+                    : new GatewayEvent.GroupUpdated(name, groupJid, author, null, null, null, set.adminsOnly());
+        };
+        if (event != null) {
+            events.publishEvent(event);
+        }
     }
 
     @Override
@@ -241,6 +259,9 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
             throw new dev.msgforge.common.ApiExceptionHandler.NotFoundException("Group not found: " + groupJid);
         }
         invites.remove(key(instance, groupJid));
+        // Como no WhatsApp: sair do grupo chega como a remoção da própria conta
+        events.publishEvent(new GatewayEvent.GroupParticipantsUpdated(instance.getName(), groupJid, self(instance),
+                java.util.List.of(self(instance)), "remove"));
     }
 
     private SentMessage sent(Instance instance, String jid) {

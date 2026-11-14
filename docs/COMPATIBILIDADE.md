@@ -32,17 +32,19 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 | POST `/webhook/set/{instance}`, GET `/webhook/find/{instance}` | ✅ |
 | Envelope (`event`, `instance`, `data`, `destination`, `date_time`, `sender`, `server_url`, `apikey`) | ✅ |
 | `webhookByEvents` (sufixo `/messages-upsert`) | ✅ |
-| Webhook global (`WEBHOOK_GLOBAL_URL`) | ✅ |
-| RabbitMQ (routing key `{instancia}.{evento}`) | ✅ |
+| Webhook global (`WEBHOOK_GLOBAL_URL`) | ✅ filtro por `WEBHOOK_GLOBAL_EVENTS` (lista; na Evolution, uma variável por evento); sem `byEvents` |
+| RabbitMQ (routing key `{instancia}.{evento}`) | ✅ filtro por `RABBITMQ_EVENTS` |
 | Retry de webhook (timeout, backoff exponencial) | ✅ (`WEBHOOK_REQUEST_TIMEOUT_MS`, `WEBHOOK_RETRY_*`) |
 | Validação de `events` (nomes da Evolution, qualquer caixa) | ✅ |
 | Ordem de entrega por instância (inclusive com retry) | ✅ (`WEBHOOK_MAX_PENDING_PER_INSTANCE`) |
 | Bloqueio opcional de webhook para rede interna (SSRF) | ✅ `WEBHOOK_BLOCK_PRIVATE_NETWORKS` (padrão `false`; sem equivalente na Evolution) |
 | Eventos emitidos: QRCODE_UPDATED, CONNECTION_UPDATE, SEND_MESSAGE, MESSAGES_UPSERT | ✅ |
+| APPLICATION_STARTUP | ✅ só webhook global e RabbitMQ, `data: {status: "started"}` (a Evolution declara o evento, mas não o emite) |
+| GROUPS_UPSERT, GROUP_UPDATE (`groups.update`), GROUP_PARTICIPANTS_UPDATE (`group-participants.update`) | ✅ stub e Cobalt (no Cobalt, das notificações do WhatsApp; não testado ao vivo). Diferente da Evolution, `GROUP_UPDATE` em `webhook.events` entrega o `groups.update`. `participantsData` só com `jid` e `phoneNumber` |
+| MESSAGES_SET, MESSAGES_DELETE, CONTACTS_UPSERT/UPDATE, PRESENCE_UPDATE, CHATS_UPSERT/UPDATE/DELETE, CALL | 🟡 só Cobalt, não testados ao vivo. Formatos e limites em `docs/eventos.md` |
 | MESSAGES_UPDATE (status SERVER_ACK / DELIVERY_ACK / READ / PLAYED) | 🟡 só com `MSGFORGE_GATEWAY=cobalt` |
 | `connection.update` com `wuid` e `profileName` ao conectar; `statusReason` 401/403/428 | 🟡 Cobalt |
 | `qrcode.updated` com `base64` (PNG em data URL) | 🟡 Cobalt (o stub não gera imagem) |
-| Demais eventos (MESSAGES_UPDATE, CONTACTS_*, CHATS_*, GROUPS_*) | ⬜ Fase 2/3 |
 
 ## Manager (painel web)
 | Item | Status |
@@ -79,7 +81,7 @@ Grupo inexistente no stub dá 404; no Cobalt, o erro do WhatsApp vira 500.
 | POST | `/group/revokeInviteCode/{instance}` | ✅ `{revoked: true, inviteCode}` |
 | GET | `/group/acceptInviteCode/{instance}?inviteCode=` | ✅ `{accepted: true, groupJid}`; aceita o código ou o link |
 | DELETE | `/group/leaveGroup/{instance}` | ✅ `{groupJid, leave: true}` |
-| | `inviteInfo`, `sendInvite`, `toggleEphemeral`, eventos `GROUPS_*` | ⬜ |
+| | `inviteInfo`, `sendInvite`, `toggleEphemeral` | ⬜ |
 
 ## Settings, Integrações (Typebot, Chatwoot etc.)
 ⬜ Fora do escopo: o foco é a API do WhatsApp.
@@ -99,6 +101,12 @@ O padrão é o stub, que não fala com o WhatsApp. `MSGFORGE_GATEWAY=cobalt` usa
 
 ## Diferenças conhecidas
 - Rotas de RabbitMQ: a Evolution usa filas por evento; aqui é um exchange tópico. Ajustar se algum consumidor depender dos nomes das filas.
+- Eventos além das mensagens (ver `docs/eventos.md`): `MESSAGES_SET` sem os campos `isLatest` e
+  `progress` no envelope; `CONTACTS_*` com `profilePicUrl` sempre null; `CHATS_UPDATE` só das
+  ações sincronizadas entre aparelhos (arquivar, silenciar, fixar, ler), e não a cada mensagem;
+  `CHATS_UPSERT` e `CONTACTS_UPSERT` repetem a lista inteira depois de reiniciar o processo (a
+  Evolution compara com o banco); `MESSAGES_DELETE` só quando o contato apaga (não há rota para
+  apagar); `GROUP_UPDATE` sem troca de foto e sem o `groups.update` do `fetchAllGroups`.
 - O payload de `MESSAGES_UPSERT` real depende do mapeamento Cobalt → formato Baileys (Fase 2).
 - Número sem WhatsApp: com o Cobalt, o número é consultado antes do envio (400 `exists:false`) e
   a mensagem vai para o JID devolvido pelo WhatsApp (no Brasil, o número com o 9 extra resolve sem

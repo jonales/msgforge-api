@@ -2,7 +2,13 @@ package dev.msgforge.event;
 
 import java.util.Locale;
 
-/** Eventos do contrato da API (usados em webhook.events). Os nomes são estáveis: não renomeie. */
+/**
+ * Eventos do contrato da API (usados em webhook.events). Os nomes são estáveis: não renomeie.
+ *
+ * <p>Dois nomes do contrato não seguem a regra geral: {@code GROUP_UPDATE} sai como
+ * {@code groups.update} e {@code GROUP_PARTICIPANTS_UPDATE} como {@code group-participants.update}
+ * (os nomes dos eventos do Baileys).
+ */
 public enum EventType {
     APPLICATION_STARTUP,
     QRCODE_UPDATED,
@@ -25,11 +31,15 @@ public enum EventType {
 
     /** Nome no payload: "messages.upsert". */
     public String payloadName() {
-        return name().toLowerCase(Locale.ROOT).replace('_', '.');
+        return switch (this) {
+            case GROUP_UPDATE -> "groups.update";
+            case GROUP_PARTICIPANTS_UPDATE -> "group-participants.update";
+            default -> name().toLowerCase(Locale.ROOT).replace('_', '.');
+        };
     }
 
-    /** Sufixo de URL quando webhook_by_events=true: "/messages-upsert". */
+    /** Sufixo de URL quando webhook_by_events=true: "/messages-upsert" (do nome no payload, trocando "." por "-"). */
     public String urlSuffix() {
-        return "/" + name().toLowerCase(Locale.ROOT).replace('_', '-');
+        return "/" + payloadName().replace('.', '-');
     }
 }

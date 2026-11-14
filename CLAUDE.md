@@ -112,7 +112,14 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   instância commitada).
 - `event/`: o gateway publica `GatewayEvent` (interface selada) e o `EventDispatcher` converte
   no envelope do contrato e entrega no webhook da instância, no webhook global e no RabbitMQ.
-  Um evento novo exige um `case` novo nos `switch` exaustivos; isso é proposital.
+  Um evento novo exige um `case` novo nos `switch` exaustivos; isso é proposital. Os eventos
+  trazem dados neutros e o `data` do contrato é montado em `EventPayloads` (formatos em
+  `docs/eventos.md`). Evento que nenhum destino assina (`webhook.events`, `WEBHOOK_GLOBAL_EVENTS`,
+  `RABBITMQ_EVENTS`) nem é montado nem vai para a outbox. `APPLICATION_STARTUP` (`StartupAnnouncer`)
+  não tem instância: só global e RabbitMQ, chave de ordem `""`. `GROUP_UPDATE` sai como
+  `groups.update` e `GROUP_PARTICIPANTS_UPDATE` como `group-participants.update` (`EventType`).
+  No Cobalt, `CobaltEvents` converte contatos, conversas, presença, app state, histórico, chamadas,
+  REVOKE e as notificações `w:gp2` (o motor aplica no Store, mas não avisa listener de grupo).
   **A entrega roda depois do commit e usa só um snapshot (`DeliveryTarget`)**; a thread de
   entrega nunca lê o banco (ADR 0004). As entregas de uma instância saem **em ordem** (ADR 0006).
   **Outbox** (ADR 0012, `event/outbox/`): o dispatcher grava cada entrega na tabela `outbox`
@@ -238,6 +245,12 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    observado ao vivo. A suíte do motor tem 16 falhas e 93 erros que já existem no `master`.
 5. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
+6. Eventos além das mensagens (`MESSAGES_SET`, `MESSAGES_DELETE`, `CONTACTS_*`, `PRESENCE_UPDATE`,
+   `CHATS_*`, `GROUPS_*`/`GROUP_*`, `CALL`) ainda não foram testados ao vivo no Cobalt. Limites:
+   `CHATS_UPSERT`/`CONTACTS_UPSERT` repetem a lista inteira depois de reiniciar o processo (o
+   filtro é por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
+   `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas pela
+   própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
 
 ## Memória entre sessões
 
