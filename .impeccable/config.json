@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "src/main/resources/templates/manager/users.html"
+        ],
+        "createdAt": "2026-11-14T15:10:28.853Z",
+        "reason": "Claude: falso positivo do scan estático, que não carrega o CSS de th:href; renderizado com manager.css, os títulos usam --fs-h1 1.75rem e o detector não acusa (verificado pelo agente de front, PR #37)"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "src/main/resources/templates/manager/instances.html"
+        ],
+        "createdAt": "2026-11-14T15:10:28.874Z",
+        "reason": "Claude: falso positivo do scan estático, que não carrega o CSS de th:href; renderizado com manager.css, os títulos usam --fs-h1 1.75rem e o detector não acusa (verificado pelo agente de front, PR #37)"
+      }
+    ]
+  }
+}
