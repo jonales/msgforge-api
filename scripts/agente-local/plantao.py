@@ -313,13 +313,22 @@ def t_testes(t):
     try:
         preparar_cobalt(pasta)
         comando = t.get("comando", "mvn-test")
-        codigo, saida = rodar(comando, pasta, **t.get("params", {}))
+        vezes = int(t.get("repeticoes", 1))
+        resultados = []
+        for _ in range(vezes):
+            codigo, saida = rodar(comando, pasta, **t.get("params", {}))
+            resultados.append(codigo)
+            if codigo != 0:
+                break
         total = contar_testes(pasta)
     finally:
         if temporario:
             remover_worktree(pasta)
     if codigo == 0:
-        return f"Passou (`{comando}` em `{ref[:9]}`): {total}."
+        return f"Passou (`{comando}` em `{ref[:9]}`, {vezes}x): {total}."
+    if len(resultados) > 1:
+        return (f"Instável: passou {len(resultados) - 1} vez(es) e falhou na {len(resultados)}ª "
+                f"(`{comando}` em `{ref[:9]}`).\n\n```\n{saida[-6000:]}\n```")
     analise = perguntar(MODELO_CODIGO, sistema("um engenheiro que investiga testes que falham"),
                         "Os testes falharam. Liste cada falha (classe, teste, mensagem) e a causa provável, "
                         "citando só o que aparece na saída.\n\n```\n" + saida + "\n```")
@@ -385,7 +394,68 @@ def t_patch(t):
     return "\n".join(rel) + f"\n\n```diff\n{diff[:12000]}\n```"
 
 
-TIPOS = {"pergunta": t_pergunta, "refinar": t_refinar, "resumo": t_resumo, "revisao": t_revisao,
+FOCOS = {
+    "bugs": "bugs de lógica, concorrência (threads, locks, condições de corrida), recursos não fechados, "
+            "exceções engolidas, null inesperado e segurança (injeção, segredo em log, validação de entrada)",
+    "regras": "violações das regras do projeto (CLAUDE.md e lições), quebra do contrato da API, nomes, "
+              "transações segurando o gateway, código do motor fora de gateway/cobalt",
+    "testes": "testes fracos ou instáveis: sleep em vez de latch, asserções que não provam o comportamento, "
+              "casos de erro e de borda que faltam, dependência de ordem ou de horário",
+    "front": "acessibilidade (rótulos, foco, contraste, teclado), CSP (script ou estilo inline), textos fora "
+             "de messages.properties, estados de erro e de carregamento",
+}
+
+
+def t_auditoria(t):
+    """Revisão de um arquivo inteiro, em partes numeradas, por um foco; 1ª linha = gravidade."""
+    arq = t["arquivo"]
+    linhas = ler(os.path.join(REPO, arq)).splitlines()
+    foco = FOCOS[t.get("foco", "bugs")]
+    achados, piores = [], []
+    for ini in range(0, max(1, len(linhas)), 220):
+        trecho = "\n".join(f"{n + 1:5d}  {l}" for n, l in enumerate(linhas[ini:ini + 240], start=ini))
+        r = perguntar(MODELO_CODIGO, sistema("um revisor de código rigoroso e econômico"),
+                      "REGRAS DO PROJETO:\n" + regras(6000) +
+                      f"\n\nArquivo `{arq}` (linhas {ini + 1} a {min(len(linhas), ini + 240)}, numeradas). "
+                      f"Procure SÓ: {foco}.\nComece a resposta com uma linha exatamente assim: "
+                      "`GRAVIDADE: alta`, `GRAVIDADE: média`, `GRAVIDADE: baixa` ou `GRAVIDADE: nada`. "
+                      "Depois, no máximo 5 achados, cada um com: linha, problema em uma frase, correção "
+                      "sugerida em uma frase. Só achados concretos, que dá para confirmar lendo o trecho; "
+                      "sem conselhos genéricos. Se não houver, só a linha GRAVIDADE: nada.\n\n```\n"
+                      + trecho + "\n```", ctx=24576)
+        m = re.search(r"GRAVIDADE:\s*(alta|média|media|baixa|nada)", r, re.I)
+        piores.append((m.group(1).lower().replace("media", "média") if m else "?"))
+        achados.append(f"### Linhas {ini + 1}+\n{r.strip()}")
+    ordem = ["alta", "média", "baixa", "?", "nada"]
+    pior = min(piores, key=ordem.index)
+    return f"GRAVIDADE-FINAL: {pior}\nARQUIVO: {arq}\nFOCO: {t.get('foco', 'bugs')}\n\n" + "\n\n".join(achados)
+
+
+def t_consolidar(t):
+    """Junta as auditorias e testes num relatório por gravidade (sem LLM)."""
+    grupos = {"alta": [], "média": [], "baixa": [], "?": [], "nada": []}
+    testes = []
+    for f in sorted(glob.glob(os.path.join(SAIDA, "*.md"))):
+        texto = ler(f)
+        ident = os.path.basename(f)[:-3]
+        m = re.search(r"GRAVIDADE-FINAL: (\S+)\nARQUIVO: (\S+)\nFOCO: (\S+)", texto)
+        if m:
+            grupos.setdefault(m.group(1), []).append(f"- `{m.group(2)}` ({m.group(3)}): `{ident}`")
+        elif "(testes)" in texto.splitlines()[0]:
+            linha = next((l for l in texto.splitlines() if l.startswith(("Passou", "Falhou", "Instável"))), "?")
+            testes.append(f"- `{ident}`: {linha}")
+    partes = ["# Relatório do plantão\n", f"_{dt.datetime.now():%Y-%m-%d %H:%M}_\n"]
+    for g in ["alta", "média", "baixa", "?"]:
+        partes.append(f"## Gravidade {g} ({len(grupos[g])})\n" + ("\n".join(grupos[g]) or "nenhum") + "\n")
+    partes.append(f"## Sem achados: {len(grupos['nada'])} auditorias\n")
+    partes.append("## Testes\n" + ("\n".join(testes) or "nenhum") + "\n")
+    relatorio = "\n".join(partes)
+    with open(os.path.join(BASE, "RELATORIO.md"), "w", encoding="utf-8") as f:
+        f.write(relatorio)
+    return relatorio
+
+
+TIPOS = {"auditoria": t_auditoria, "consolidar": t_consolidar, "pergunta": t_pergunta, "refinar": t_refinar, "resumo": t_resumo, "revisao": t_revisao,
          "testes": t_testes, "patch": t_patch}
 
 
