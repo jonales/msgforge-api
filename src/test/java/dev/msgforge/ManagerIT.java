@@ -280,4 +280,90 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("id=\"chats\"")));
     }
+
+    @Test
+    void settingsSectionRendersWithTheProxyCollapsed() throws Exception {
+        var name = createInstance();
+        mvc.perform(asManager(GET("/manager/instances/" + name)))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeExists("settings", "proxy", "behaviors"))
+                .andExpect(content().string(containsString("id=\"settings\"")))
+                .andExpect(content().string(containsString("name=\"rejectCall\"")))
+                .andExpect(content().string(containsString("Ainda sem efeito")))
+                .andExpect(content().string(containsString("<details class=\"disclosure\" id=\"proxy\">")))
+                .andExpect(content().string(containsString("type=\"password\"")));
+    }
+
+    @Test
+    void settingsFormSavesAndNeedsCsrf() throws Exception {
+        var name = createInstance();
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/settings"))
+                        .param("rejectCall", "true").param("historySync", "FULL"))
+                .andExpect(status().isForbidden());
+        assertThat(instances.findByName(name)).get().extracting(i -> i.getSettings().rejectCall()).isEqualTo(false);
+
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/settings")).with(csrf())
+                        .param("rejectCall", "true").param("msgCall", "Retorno depois")
+                        .param("readStatus", "true").param("historySync", "RECENT"))
+                .andExpect(redirectedUrl("/manager/instances/" + name + "#settings"))
+                .andExpect(flash().attribute("settingsSaved", true));
+        var saved = instances.findByName(name).orElseThrow();
+        assertThat(saved.getSettings().rejectCall()).isTrue();
+        assertThat(saved.getSettings().readStatus()).isTrue();
+        assertThat(saved.getSettings().groupsIgnore()).isFalse();
+        assertThat(saved.getSettings().msgCall()).isEqualTo("Retorno depois");
+        assertThat(saved.getHistorySync()).isEqualTo(dev.msgforge.instance.HistorySync.RECENT);
+
+        mvc.perform(asManager(GET("/manager/instances/" + name)).flashAttr("settingsSaved", true))
+                .andExpect(content().string(containsString("Configurações salvas")))
+                .andExpect(content().string(containsString("Retorno depois")));
+    }
+
+    @Test
+    void proxyFormKeepsThePasswordHiddenAndShowsErrorsByTheField() throws Exception {
+        var name = createInstance();
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf())
+                        .param("enabled", "true").param("protocol", "socks5").param("host", "10.0.0.5")
+                        .param("port", "1080").param("username", "cliente").param("password", "senha-secreta"))
+                .andExpect(redirectedUrl("/manager/instances/" + name + "#proxy"))
+                .andExpect(flash().attribute("proxySaved", true));
+        var encrypted = instances.findByName(name).orElseThrow().getProxy().orElseThrow().passwordEncrypted();
+        assertThat(encrypted).isNotNull();
+
+        mvc.perform(asManager(GET("/manager/instances/" + name)))
+                .andExpect(content().string(containsString("socks5://10.0.0.5:1080")))
+                .andExpect(content().string(containsString("Há uma senha guardada")))
+                .andExpect(content().string(Matchers.not(containsString("senha-secreta"))))
+                .andExpect(content().string(Matchers.not(containsString(encrypted))));
+
+        // Senha em branco, mesmo usuário: a guardada fica
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf())
+                        .param("enabled", "true").param("protocol", "socks5").param("host", "10.0.0.6")
+                        .param("port", "1080").param("username", "cliente").param("password", ""))
+                .andExpect(flash().attribute("proxySaved", true));
+        assertThat(instances.findByName(name).orElseThrow().getProxy().orElseThrow().passwordEncrypted())
+                .isEqualTo(encrypted);
+
+        var failed = mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf())
+                        .param("enabled", "true").param("protocol", "http").param("host", "10.0.0.7")
+                        .param("port", "99999").param("username", "cliente"))
+                .andExpect(redirectedUrl("/manager/instances/" + name + "#proxy"))
+                .andExpect(flash().attribute("fieldErrors",
+                        java.util.Map.of("proxy.port", "manager.proxy.error.port.invalid")))
+                .andReturn();
+        assertThat(instances.findByName(name).orElseThrow().getProxy().orElseThrow().host()).isEqualTo("10.0.0.6");
+
+        var flashed = failed.getFlashMap();
+        mvc.perform(asManager(GET("/manager/instances/" + name))
+                        .flashAttr("fieldErrors", flashed.get("fieldErrors")).flashAttr("proxy", flashed.get("proxy")))
+                .andExpect(content().string(containsString("<details class=\"disclosure\" id=\"proxy\" open")))
+                .andExpect(content().string(containsString("id=\"proxy-port-error\"")))
+                .andExpect(content().string(containsString("A porta precisa ser um número de 1 a 65535.")))
+                .andExpect(content().string(containsString("value=\"99999\"")))
+                .andExpect(content().string(containsString("value=\"10.0.0.7\"")));
+
+        mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf()))
+                .andExpect(flash().attribute("proxySaved", true));
+        assertThat(instances.findByName(name).orElseThrow().getProxy()).isEmpty();
+    }
 }

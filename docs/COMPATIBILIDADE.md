@@ -30,7 +30,26 @@ mensagens nem chamadas). No Cobalt (chamadas e leitura automática ainda não te
   `socks4a`, `socks5`/`socks`, `socks5h`. Diferente da referência, o proxy **não é testado** no
   create (a referência responde 400 "Invalid proxy"): um proxy morto aparece como falha no connect.
   A senha exige `SECRETS_ENCRYPTION_KEY` e fica cifrada (ADR 0014).
-- Não há rota para mudar essas configurações depois (`/settings/set`, `/proxy/set`: ⬜).
+- Depois do create, mudam pelo `/settings/set` e pelo `/proxy/set` (abaixo).
+
+## Settings e proxy
+| Método | Rota | Status |
+|---|---|---|
+| POST | `/settings/set/{instance}` | ✅ 201 `{settings: {instanceName, settings: {...}}}`. Os seis booleanos (`rejectCall`, `groupsIgnore`, `alwaysOnline`, `readMessages`, `readStatus`, `syncFullHistory`) são obrigatórios, como na referência; `msgCall` opcional (até 4096). Vale **na hora**, também na conexão aberta. `wavoipToken` é aceito e ignorado (sem chamadas de voz) |
+| GET | `/settings/find/{instance}` | ✅ `{rejectCall, msgCall, groupsIgnore, alwaysOnline, readMessages, readStatus, syncFullHistory}`; sem `wavoipToken`. `msgCall` vazio sai como `""` |
+| POST | `/proxy/set/{instance}` | ✅ 201 `{proxy: {instanceName, proxy: {enabled, host, port, protocol, username}}}`, **sem a senha** (a referência a devolve). `enabled` obrigatório; `false` remove o proxy (os outros campos são ignorados). Com `true`, `host`, `port` e `protocol` obrigatórios, validados como no create. Vale **a partir da próxima conexão** (abaixo) |
+| GET | `/proxy/find/{instance}` | ✅ `{enabled, host, port, protocol, username}`, **nunca a senha**. Sem proxy: `enabled: false` e os campos vazios (a referência devolve corpo vazio) |
+
+Diferenças:
+- `syncFullHistory` é sim/não, e a instância tem três níveis (`NONE`, `RECENT`, `FULL`; o Manager
+  escolhe entre os três). `true` = `FULL`; `false` desfaz só o `FULL` (vira `NONE`), e um `RECENT`
+  escolhido no Manager fica. O `find` responde `true` só para `FULL`. Como no create, vale no
+  próximo pareamento.
+- `alwaysOnline` continua **sem efeito** (ver o create, acima).
+- Proxy: como no create, **não é testado** (a referência responde 400 "Invalid proxy"). A conexão
+  aberta, ou esperando o QR, continua pelo caminho anterior; o proxy novo entra na próxima conexão
+  criada (por exemplo, quando o servidor reinicia e a sessão é restaurada). Sem `password`, a senha
+  guardada é apagada (a API grava o que veio). A senha exige `SECRETS_ENCRYPTION_KEY` e fica cifrada.
 
 ## Message
 | Método | Rota | Status |
@@ -101,7 +120,7 @@ Grupo inexistente no stub dá 404; no Cobalt, o erro do WhatsApp vira 500.
 | DELETE | `/group/leaveGroup/{instance}` | ✅ `{groupJid, leave: true}` |
 | | `inviteInfo`, `sendInvite`, `toggleEphemeral` | ⬜ |
 
-## Settings, Integrações (Typebot, Chatwoot etc.)
+## Integrações (Typebot, Chatwoot etc.)
 ⬜ Ainda não implementadas (o foco atual é a API do WhatsApp); no Manager aparecem como "Em breve".
 Abaixo, o mapa da interface da Evolution API **2.3.7** para quando cada uma entrar: rotas extraídas
 do código-fonte público (`*.router.ts`) e campos conferidos nele (levantamento de 2026-11-13). Só

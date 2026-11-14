@@ -66,9 +66,10 @@ ajuda.
   CDN); textos em `messages.properties`; controllers MVC chamam serviços, nunca a API por HTTP.
 - **Identidade:** o produto se apresenta só como Msgforge e não cita outros produtos como origem ou
   referência.
-- **Em aberto:** configurações por instância (rejeitar ligações, ignorar grupos, sempre online,
-  marcar como lidas), proxy por instância e entrega por WebSocket ou outras filas ainda não existem
-  no backend.
+- **Configurações por instância:** rejeitar ligações, ignorar grupos, marcar como lidas, status e
+  proxy existem e são editáveis no painel da instância. "Sempre online" é guardado, mas ainda sem
+  efeito, e a tela diz isso.
+- **Em aberto:** entrega por WebSocket ou outras filas ainda não existe no backend.
 
 ## Brand Commitments
 
