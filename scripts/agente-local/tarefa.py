@@ -11,7 +11,7 @@
     tarefa.py nota <id> "lição"                    # ensina o plantão (vai para licoes.md)
     tarefa.py licoes                               # lista o que ele já aprendeu
     tarefa.py consumo                              # estimativa do plano do Claude na janela de 5 h
-    tarefa.py calibrar 70                          # informa a % real que você vê, para acertar a estimativa
+    tarefa.py calibrar 70 [15:40]                  # informa a % real (e a hora de volta) que você vê
     tarefa.py fila [horas]                         # gera já a fila de pendências (padrão 10 h)
 """
 import argparse
@@ -98,6 +98,7 @@ sub.add_parser("licoes")
 sub.add_parser("consumo")
 s = sub.add_parser("calibrar")
 s.add_argument("porcentagem", type=float)
+s.add_argument("volta", nargs="?", help="hora em que o limite volta, ex.: 15:40")
 s = sub.add_parser("fila")
 s.add_argument("horas", nargs="?", type=float, default=10.0)
 a = p.parse_args()
@@ -129,7 +130,7 @@ elif a.cmd in ("consumo", "fila", "calibrar"):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     if a.cmd in ("consumo", "calibrar"):
-        e = mod.calibrar(a.porcentagem) if a.cmd == "calibrar" else mod.estimar()
+        e = mod.calibrar(a.porcentagem, a.volta) if a.cmd == "calibrar" else mod.estimar()
         print(f"janela desde {e['inicio']:%d/%m %H:%M}: {e['usado'] / 1e6:.1f} M de ~{e['orcamento'] / 1e6:.1f} M "
               f"({e['fracao']:.0%}); a fila automática sai em 90%")
     else:
