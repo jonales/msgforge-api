@@ -53,6 +53,7 @@ import dev.msgforge.instance.ConnectionState;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.instance.InstanceProxy;
 import dev.msgforge.instance.InstanceSettings;
+import dev.msgforge.instance.ProfileNameChanged;
 import dev.msgforge.security.PrivateNetworkGuard;
 import dev.msgforge.security.SecretCipher;
 import java.io.ByteArrayInputStream;
@@ -419,6 +420,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         }
     }
 
+    /** Nome do perfil válido: nem vazio nem o nome do aparelho (que o Store guarda antes do perfil). */
+    private String profileName(String candidate) {
+        return candidate == null || candidate.isBlank() || candidate.equals(config.deviceName()) ? null : candidate;
+    }
+
     private void registerListeners(Instance instance, Connection connection) {
         var id = instance.getId();
         var name = connection.instanceName;
@@ -426,10 +432,20 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         api.addLoggedInListener(whatsapp -> {
             var account = whatsapp.store().accountStore();
             var wuid = account.jid().map(jid -> jid.toUserJid().toString()).orElse(null);
-            var profile = account.name().orElse(null);
-            // Antes de o servidor informar o nome do perfil, o Store guarda o nome do aparelho
-            var profileName = profile == null || profile.equals(config.deviceName()) ? null : profile;
-            log.info("[cobalt] {}: conectada como {}", name, wuid);
+            // Conta Business: o nome vem no login (display_name do success). Conta comum: vem depois, pela
+            // sincronização do pushName (onNameChanged abaixo); até lá o Store guarda o nome do aparelho.
+            var profileName = profileName(account.name().orElse(null));
+            var source = profileName != null ? "login" : null;
+            if (profileName == null) {
+                // Reserva: o contato da própria conta, que a sincronização do pushName também preenche
+                profileName = account.jid()
+                        .flatMap(self -> whatsapp.store().contactStore().findContactByJid(self.withoutData()))
+                        .flatMap(contact -> contact.chosenName().or(contact::fullName))
+                        .map(this::profileName)
+                        .orElse(null);
+                source = profileName != null ? "contato próprio" : "a caminho (sincronização)";
+            }
+            log.info("[cobalt] {}: conectada como {}; nome do perfil: {}", name, wuid, source);
             account.lid().ifPresent(lid -> account.jid().ifPresent(phone -> connection.lids.learn(lid, phone)));
             sessions.save(id, SESSION_MARKER);
             // Antes do evento: quem reage ao connection.update "open" já pode enviar
@@ -438,6 +454,13 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.OPEN, REASON_OK,
                     wuid, profileName));
             connection.firstCode.complete(NO_CODE);
+        });
+        api.addNameChangedListener((whatsapp, oldName, newName) -> {
+            var profileName = profileName(newName);
+            if (profileName != null && connection.api == whatsapp) {
+                log.info("[cobalt] {}: nome do perfil recebido da sincronização", name);
+                events.publishEvent(new ProfileNameChanged(name, profileName));
+            }
         });
         api.addDisconnectedListener((whatsapp, reason) -> onDisconnected(id, connection, reason));
         var statuses = new SentStatusTracker(id,
