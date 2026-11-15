@@ -110,6 +110,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - `/group/*` (`GroupService` valida `groupJid` e participantes; o gateway recebe JIDs prontos).
   O stub guarda os grupos **em memória** por instância, para o `GroupIT` exercitar o fluxo
   inteiro. No Cobalt, `fetchAllGroups` usa `queryParticipatingGroups` (uma consulta só).
+  `findGroupInfos`/`participants` usam `queryGroupMetadata` (w:g2): a consulta MEX (`queryGroupInfo`)
+  devolvia announce/restrict sempre true e ninguém como admin. Editar grupo fora do cache do Store
+  (depois de reiniciar) era um no-op silencioso no motor; corrigido no cobalt-2.
 - `history/` (ADR 0008): tabela `message` por **SQL direto** (`MessageHistory`, sem entidade JPA).
   O `HistoryRecorder` grava as recebidas (`MessageReceived`), as enviadas (no `created()` do
   `MessageController`) e os status (`MessageStatusUpdated`, que **só avançam**). Repetidas são
@@ -327,10 +330,15 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 6. `/instance/create`: `alwaysOnline` é aceito e guardado, mas **ainda sem efeito** (o motor
    anuncia "disponível" no login e nada manda "indisponível"). `rejectCall` foi validado ao vivo
-   (2026-11-14); `msgCall` e a leitura automática (`readMessages`/`readStatus`) ainda não. O proxy não é testado no
+   (2026-11-14), e `msgCall`, `readMessages` e `groupsIgnore` também (2026-11-14). `readStatus`
+   foi corrigido depois do teste (os status chegam por `addNewStatusListener`, não pelo listener de
+   mensagens) e falta repetir ao vivo. O proxy não é testado no
    create (a referência devolve 400 "Invalid proxy").
-7. Eventos além das mensagens (`MESSAGES_SET`, `MESSAGES_DELETE`, `CONTACTS_*`, `PRESENCE_UPDATE`,
-   `CHATS_*`, `GROUPS_*`/`GROUP_*`, `CALL`) ainda não foram testados ao vivo no Cobalt. Limites:
+7. Eventos validados ao vivo no Cobalt em 2026-11-14 (duas instâncias): `GROUPS_UPSERT`,
+   `GROUP_UPDATE` (assunto, descrição, announce, restrict), `GROUP_PARTICIPANTS_UPDATE` (add, remove,
+   promote, demote), `CONTACTS_UPSERT`, `CHATS_UPSERT`, `SEND_MESSAGE` e `MESSAGES_UPDATE` em grupo.
+   Ainda não vistos ao vivo: `MESSAGES_SET`, `MESSAGES_DELETE`, `PRESENCE_UPDATE`, `CHATS_UPDATE`/`DELETE`,
+   `CONTACTS_UPDATE` e `CALL` (o motor recebeu o revoke, o chatstate e a chamada; faltou o webhook). Limites:
    `CHATS_UPSERT`/`CONTACTS_UPSERT` repetem a lista inteira depois de reiniciar o processo (o
    filtro é por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
    `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas pela
