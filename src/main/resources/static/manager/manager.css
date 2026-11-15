@@ -254,8 +254,10 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .media img { display: block; max-width: 100%; max-height: 320px; height: auto; border-radius: 6px; background: var(--bg); }
 .media.sticker img { width: 128px; height: 128px; object-fit: contain; background: none; }
 .media video { display: block; width: 100%; max-height: 360px; border-radius: 6px; background: var(--bg); }
-/* Largura mínima: estreito, o player esconde a barra de progresso e a duração */
-.media audio { display: block; width: min(300px, 70vw); min-width: min(260px, 64vw); }
+/* O player nunca passa do balão; o balão com áudio pode ficar mais largo, porque estreito o player
+   esconde a barra de progresso e a duração (no celular, 80% cortava o menu do player) */
+.media audio { display: block; width: 300px; max-width: 100%; }
+.bubble:has(.media audio) { max-width: min(92%, 34rem); }
 /* O Safari não toca OGG/Opus (nota de voz): o link baixa o arquivo */
 .media-download { justify-self: start; color: var(--muted); }
 .media figcaption { display: grid; gap: 2px; }
