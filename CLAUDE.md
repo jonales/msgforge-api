@@ -261,10 +261,33 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
   - [x] mensagem de teste
   - [x] logout e exclusão
   - [x] histórico no pareamento por instância (rádios no card "Conectar", select no criar)
-  - [x] configurações da instância (interruptores, histórico, proxy recolhido em `<details>`; a senha
-    nunca volta para a tela e, em branco, a guardada fica)
+  - [x] configurações da instância: uma tela por grupo em `/manager/instances/{n}/settings/{grupo}`
+    (`calls`, `reading`, `presence`, `history`, `proxy`, `webhook`; `/settings` leva ao primeiro que a
+    pessoa pode mudar), com abas que mostram o estado guardado. Cada grupo salva só o que é dele
+    (`POST /settings/{grupo}` lê o resto do banco; o proxy e o webhook mantêm `POST /proxy` e
+    `POST /webhook`). `webhook` pede `EVENTS_CONFIGURE`, os outros `ACCOUNT_CONFIGURE`. A senha do proxy
+    nunca volta para a tela e, em branco, a guardada fica; `alwaysOnline` aparece como "Ainda sem
+    efeito". Erros do serviço voltam para a tela do grupo (`ManagerExceptionHandler.backTo`).
   - [x] mensagens: conversas e conversa aberta, lidas do histórico (`/manager/instances/{n}/messages`,
-    atualiza por htmx; o envio de teste do Manager também vai para o histórico)
+    atualiza por htmx; o envio de teste do Manager também vai para o histórico). Cada tipo é lido do
+    JSON gravado por `web/MessageContent` (selado; tipo novo = record + `case` no template + texto
+    `manager.messages.kind.*`; desconhecido vira rótulo neutro). Lista dividida em Pessoas e Grupos
+    (`ChatList`); o nome do grupo vem do motor (`GroupNames`, uma consulta por instância, 5 min, nunca
+    do pushName de quem mandou). Na conversa: separador de dia, remetente (pushName + número, LID
+    como veio) só no começo de cada sequência (`ManagerViews.rows`). Apagada para todos vira
+    `protocolMessage` REVOKE no histórico (`MessageHistory.markRevoked`). O fragmento `chatItem` fica
+    dentro de um `th:if="false"` (só sai quando inserido).
+  - [x] mídia na conversa: `ManagerMediaController` (`/messages/media?jid&id&fromMe`, "ver conversas",
+    só mensagem que está no histórico) chama `WhatsAppGateway.downloadMedia` (Cobalt: Store +
+    `downloadMedia`, em memória, teto de 25 MB; stub: o base64 enviado, em memória). Inline só
+    imagem raster, áudio e vídeo (`INLINE`); o resto sai como download `octet-stream`, sempre com
+    `nosniff` e CSP `sandbox`. Mídia que falha (desconectada, fora do Store) vira o aviso do tipo
+    (`manager.js` marca `.media-failed`).
+  - [x] menu lateral do painel (`layout :: panelNav(nome, can, atual)`): âncoras das seções do painel
+    (`#connect`, `#send`, `#danger`) e as páginas de mensagens e configurações, só o
+    que o `PanelAccess` permite, item atual com `aria-current="page"`, "Integrações" como "Em breve".
+    No celular vira abas que quebram linha. O painel mostra o motor real (`WhatsAppGateway.engine`),
+    nunca o `integration` do contrato.
   - [x] nova instância guiada (`NewInstanceController`): `/manager/instances/new` → `/new/connection`
     (QR ou código, com número) → `/new/history` (cria e conecta) → `/{n}/connect` (QR ao vivo, o
     mesmo trecho `instance :: live`). Uma página por passo, rascunho na sessão: voltar e recarregar

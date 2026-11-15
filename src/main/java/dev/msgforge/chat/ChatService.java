@@ -43,6 +43,15 @@ public class ChatService {
         return new ChatDtos.MessagesPage(total, (total + pageSize - 1) / pageSize, current, records);
     }
 
+    /**
+     * A mídia de uma mensagem gravada, baixada e decifrada pelo motor, em memória. Vazio se o motor
+     * não tem a mensagem; lança {@code MediaTooLargeException} acima de {@code maxBytes}.
+     */
+    public java.util.Optional<WhatsAppGateway.MediaContent> downloadMedia(String instanceName, MessageKey key,
+                                                                          long maxBytes) {
+        return gateway.downloadMedia(instances.get(instanceName), key, maxBytes);
+    }
+
     public List<ChatDtos.ChatSummary> findChats(String instanceName) {
         var instance = instances.get(instanceName);
         return history.chats(instance.getId()).stream()

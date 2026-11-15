@@ -131,3 +131,34 @@
     });
     document.addEventListener('htmx:afterSettle', apply);
 })();
+
+// Mensagens: mídia que não carregou (instância desconectada, fora do motor, grande demais) dá lugar
+// ao aviso do tipo. O evento "error" de <img>, <audio> e <video> não sobe: escuta na captura.
+// Painel: o menu leva a âncoras; a do proxy fica num <details>, que abre ao chegar nele.
+(function () {
+    'use strict';
+
+    document.addEventListener('error', function (evt) {
+        var target = evt.target;
+        if (target && target.hasAttribute && target.hasAttribute('data-media')) {
+            var box = target.closest('.media');
+            if (box) {
+                box.classList.add('media-failed');
+            }
+        }
+    }, true);
+
+    function openTarget() {
+        if (!location.hash || location.hash.length < 2) {
+            return;
+        }
+        var target = document.getElementById(decodeURIComponent(location.hash.substring(1)));
+        if (target && target.tagName === 'DETAILS' && !target.open) {
+            target.open = true;
+            target.scrollIntoView();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', openTarget);
+    window.addEventListener('hashchange', openTarget);
+})();

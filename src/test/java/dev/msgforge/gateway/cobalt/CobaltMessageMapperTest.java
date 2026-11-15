@@ -98,6 +98,25 @@ class CobaltMessageMapperTest {
     }
 
     @Test
+    void pollsKeepTheQuestionAndTheOptionsAndMediaKeepTheSize() {
+        var poll = CobaltWhatsAppGateway.poll(new dev.msgforge.gateway.WhatsAppGateway.Poll(
+                "5561999999999@s.whatsapp.net", "Qual dia?", 1, java.util.List.of("Seg", "Ter"), null));
+        var data = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, false,
+                LinkedMessageContainer.of(poll)), INSTANCE).orElseThrow();
+        var fields = map(map(data.get("message")).get("pollCreationMessage"));
+        assertThat(fields).containsEntry("name", "Qual dia?").containsEntry("selectableOptionsCount", 1);
+        assertThat(fields.get("options")).isEqualTo(java.util.List.of(Map.of("optionName", "Seg"),
+                Map.of("optionName", "Ter")));
+        // Sem os bytes de chave: o JSON não leva o encKey
+        assertThat(fields).doesNotContainKey("encKey");
+
+        var document = new DocumentMessageBuilder().fileName("a.pdf").mediaSize(2048L).build();
+        var doc = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, false,
+                LinkedMessageContainer.of(document)), INSTANCE).orElseThrow();
+        assertThat(map(map(doc.get("message")).get("documentMessage"))).containsEntry("fileLength", 2048L);
+    }
+
+    @Test
     void statusUpdatesUseTheContractNames() {
         var data = CobaltMessageMapper.statusUpdate(
                 message("120363000000000000@g.us", "5561988887777@s.whatsapp.net", true, LinkedMessageContainer.of("x")),

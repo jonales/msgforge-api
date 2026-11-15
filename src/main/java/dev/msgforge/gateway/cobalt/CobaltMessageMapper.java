@@ -8,6 +8,8 @@ import com.github.auties00.cobalt.wire.linked.chat.ChatMessageInfo;
 import com.github.auties00.cobalt.wire.linked.message.EmptyMessage;
 import com.github.auties00.cobalt.wire.linked.message.Message;
 import com.github.auties00.cobalt.wire.linked.message.contact.ContactMessage;
+import com.github.auties00.cobalt.wire.linked.message.contact.ContactsArrayMessage;
+import com.github.auties00.cobalt.wire.linked.message.poll.PollCreationMessage;
 import com.github.auties00.cobalt.wire.linked.message.group.SenderKeyDistributionMessage;
 import com.github.auties00.cobalt.wire.linked.message.location.LocationMessage;
 import com.github.auties00.cobalt.wire.linked.message.media.AudioMessage;
@@ -138,12 +140,16 @@ final class CobaltMessageMapper {
                 image.caption().ifPresent(v -> fields.put("caption", v));
                 image.mimetype().ifPresent(v -> fields.put("mimetype", v));
                 image.mediaUrl().ifPresent(v -> fields.put("url", v));
+                size(image.fileLength(), fields);
+                image.width().ifPresent(v -> fields.put("width", v));
+                image.height().ifPresent(v -> fields.put("height", v));
                 yield new Content("imageMessage", fields);
             }
             case VideoMessage video -> {
                 video.caption().ifPresent(v -> fields.put("caption", v));
                 video.mimetype().ifPresent(v -> fields.put("mimetype", v));
                 seconds(video.seconds(), fields);
+                size(video.fileLength(), fields);
                 if (video.gifPlayback()) {
                     fields.put("gifPlayback", true);
                 }
@@ -152,6 +158,7 @@ final class CobaltMessageMapper {
             case AudioMessage audio -> {
                 audio.mimetype().ifPresent(v -> fields.put("mimetype", v));
                 seconds(audio.seconds(), fields);
+                size(audio.fileLength(), fields);
                 fields.put("ptt", audio.ptt());
                 yield new Content("audioMessage", fields);
             }
@@ -160,11 +167,13 @@ final class CobaltMessageMapper {
                 document.title().ifPresent(v -> fields.put("title", v));
                 document.caption().ifPresent(v -> fields.put("caption", v));
                 document.mimetype().ifPresent(v -> fields.put("mimetype", v));
+                size(document.fileLength(), fields);
                 yield new Content("documentMessage", fields);
             }
             case StickerMessage sticker -> {
                 sticker.mimetype().ifPresent(v -> fields.put("mimetype", v));
                 fields.put("isAnimated", sticker.isAnimated());
+                size(sticker.fileLength(), fields);
                 yield new Content("stickerMessage", fields);
             }
             case LocationMessage location -> {
@@ -183,8 +192,28 @@ final class CobaltMessageMapper {
                 contact.displayName().ifPresent(v -> fields.put("displayName", v));
                 yield new Content("contactMessage", fields);
             }
+            case ContactsArrayMessage array -> {
+                array.displayName().ifPresent(v -> fields.put("displayName", v));
+                fields.put("contacts", array.contacts().stream()
+                        .map(c -> c.displayName().<Map<String, Object>>map(n -> Map.of("displayName", n)).orElse(Map.of()))
+                        .toList());
+                yield new Content("contactsArrayMessage", fields);
+            }
+            case PollCreationMessage poll -> {
+                poll.name().ifPresent(v -> fields.put("name", v));
+                fields.put("options", poll.options().stream()
+                        .map(o -> o.optionName().<Map<String, Object>>map(n -> Map.of("optionName", n)).orElse(Map.of()))
+                        .toList());
+                poll.selectableOptionsCount().ifPresent(v -> fields.put("selectableOptionsCount", v));
+                yield new Content("pollCreationMessage", fields);
+            }
             default -> new Content(genericName(message), fields);
         };
+    }
+
+    /** Tamanho em bytes, como o {@code fileLength} do Baileys. */
+    private static void size(java.util.OptionalLong length, Map<String, Object> fields) {
+        length.ifPresent(v -> fields.put("fileLength", v));
     }
 
     private static void seconds(OptionalInt duration, Map<String, Object> fields) {

@@ -247,6 +247,11 @@ public class InstanceService {
     }
 
     /** Dá para guardar senha de proxy? (precisa de {@code SECRETS_ENCRYPTION_KEY}) */
+    /** O motor do WhatsApp em uso ({@code stub} ou {@code cobalt}), para o Manager mostrar. */
+    public String engine() {
+        return gateway.engine();
+    }
+
     public boolean secretsEnabled() {
         return secrets.enabled();
     }

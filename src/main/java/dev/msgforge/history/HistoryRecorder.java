@@ -68,6 +68,16 @@ public class HistoryRecorder {
                 text(data.get("status")))));
     }
 
+    /** Apagada para todos: o histórico guarda só o aviso (o conteúdo some, como no WhatsApp). */
+    @EventListener
+    public void on(dev.msgforge.event.GatewayEvent.MessageDeleted event) {
+        if (!properties.enabled()) {
+            return;
+        }
+        guarded(event.instanceName(), () -> instanceId(event.instanceName())
+                .ifPresent(id -> history.markRevoked(id, event.remoteJid(), event.id())));
+    }
+
     private java.util.Optional<UUID> instanceId(String name) {
         return instances.findByName(name).map(Instance::getId);
     }

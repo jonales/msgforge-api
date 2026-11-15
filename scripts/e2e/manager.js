@@ -64,7 +64,7 @@ const { chromium } = require('playwright');
   const sent = await page.request.post(base + '/message/sendText/' + name, {
     headers: { apikey: key }, data: { number: '5561911111111', text: 'olá pelo e2e' } });
   if (sent.status() !== 201) throw new Error('envio pela API: ' + sent.status());
-  await page.click('a.button[href$="/messages"]'); await page.waitForURL('**/manager/instances/' + name + '/messages');
+  await page.click('.panel-nav a[href$="/messages"]'); await page.waitForURL('**/manager/instances/' + name + '/messages');
   await page.click('.chat-list .chat'); await page.waitForSelector('.bubble.mine >> text=olá pelo e2e');
   step('mensagens: conversa aberta mostra o envio');
   await page.screenshot({ path: shots + '/2b-mensagens.png', fullPage: true });

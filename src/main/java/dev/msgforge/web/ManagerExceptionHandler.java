@@ -60,6 +60,13 @@ class ManagerExceptionHandler {
         var parts = request.getRequestURI().split("/");
         // ["", "manager", "instances", "{nome}", "{acao}"]
         if (parts.length >= 5 && "instances".equals(parts[2])) {
+            // Configurações: volta para a tela do grupo, onde está o formulário que falhou
+            if ("webhook".equals(parts[4]) || "proxy".equals(parts[4])) {
+                return "/manager/instances/" + parts[3] + "/settings/" + parts[4];
+            }
+            if ("settings".equals(parts[4]) && parts.length >= 6 && ManagerController.SETTINGS_GROUPS.contains(parts[5])) {
+                return "/manager/instances/" + parts[3] + "/settings/" + parts[5];
+            }
             return "/manager/instances/" + parts[3];
         }
         return "/manager";

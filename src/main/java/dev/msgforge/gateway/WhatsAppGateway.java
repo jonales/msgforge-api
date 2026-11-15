@@ -73,6 +73,29 @@ public interface WhatsAppGateway {
 
     void leaveGroup(Instance instance, String groupJid);
 
+    /**
+     * O motor em uso ({@code stub} ou {@code cobalt}), para o Manager mostrar. Não é o campo
+     * {@code integration} do contrato, que continua com o valor fixo da API.
+     */
+    String engine();
+
+    /**
+     * Baixa e decifra, em memória, a mídia de uma mensagem já recebida ou enviada. Vazio quando o motor
+     * não tem a mensagem (fora do Store) ou ela não tem mídia. Acima de {@code maxBytes}, lança
+     * {@link MediaTooLargeException} sem ler o resto.
+     */
+    java.util.Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, long maxBytes);
+
+    /** Mídia decifrada; {@code mimeType} é o que a mensagem declara (pode faltar). */
+    record MediaContent(byte[] bytes, String mimeType) {}
+
+    /** A mídia passa do limite pedido em {@link #downloadMedia}. */
+    class MediaTooLargeException extends RuntimeException {
+        public MediaTooLargeException(long maxBytes) {
+            super("A mídia passa de " + maxBytes + " bytes");
+        }
+    }
+
     enum ParticipantAction { ADD, REMOVE, PROMOTE, DEMOTE }
 
     /** {@code admin}: null, "admin" ou "superadmin" (o criador). */

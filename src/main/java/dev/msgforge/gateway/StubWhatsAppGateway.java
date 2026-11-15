@@ -60,7 +60,9 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
     @Override
     public SentMessage sendMedia(Instance instance, OutgoingMedia media) {
         log.info("[stub] sendMedia {} -> {} ({})", instance.getName(), media.jid(), media.mediaType());
-        return sent(instance, media.jid());
+        var sent = sent(instance, media.jid());
+        remember(instance, sent, media.media(), media.mimeType());
+        return sent;
     }
 
     @Override
@@ -73,7 +75,11 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
             case Poll p -> "enquete '" + p.name() + "' (" + p.values().size() + " opções)";
         };
         log.info("[stub] send {} -> {}: {}", instance.getName(), message.jid(), kind);
-        return sent(instance, message.jid());
+        var sent = sent(instance, message.jid());
+        if (message instanceof VoiceNote voice) {
+            remember(instance, sent, voice.audio(), "audio/ogg; codecs=opus");
+        }
+        return sent;
     }
 
     /** No stub, todo número bem formado "tem WhatsApp". */
@@ -269,6 +275,53 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
         // Como no WhatsApp: sair do grupo chega como a remoção da própria conta
         events.publishEvent(new GatewayEvent.GroupParticipantsUpdated(instance.getName(), groupJid, self(instance),
                 java.util.List.of(self(instance)), "remove"));
+    }
+
+    @Override
+    public String engine() {
+        return "stub";
+    }
+
+    // ---- Mídia: o stub guarda em memória a que foi enviada em base64 (URL não é baixada), para o
+    // Manager mostrar e os testes exercitarem o download. Poucas e pequenas: é só para desenvolvimento.
+
+    private static final int MEDIA_KEPT = 50;
+    private static final int MEDIA_MAX_BYTES = 5 * 1024 * 1024;
+
+    private final java.util.Map<String, MediaContent> media = java.util.Collections.synchronizedMap(
+            new java.util.LinkedHashMap<>(16, 0.75f, false) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, MediaContent> eldest) {
+                    return size() > MEDIA_KEPT;
+                }
+            });
+
+    private void remember(Instance instance, SentMessage sent, String content, String mimeType) {
+        if (content == null || content.startsWith("http://") || content.startsWith("https://")) {
+            return;
+        }
+        var data = content.startsWith("data:") && content.contains(",") ? content.substring(content.indexOf(',') + 1) : content;
+        try {
+            var bytes = java.util.Base64.getMimeDecoder().decode(data);
+            if (bytes.length <= MEDIA_MAX_BYTES) {
+                media.put(mediaKey(instance, sent.remoteJid(), sent.id()), new MediaContent(bytes, mimeType));
+            }
+        } catch (IllegalArgumentException e) {
+            log.debug("[stub] mídia de {} não é base64; não fica guardada", instance.getName());
+        }
+    }
+
+    private static String mediaKey(Instance instance, String remoteJid, String id) {
+        return instance.getName() + "|" + remoteJid + "|" + id;
+    }
+
+    @Override
+    public java.util.Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, long maxBytes) {
+        var found = media.get(mediaKey(instance, key.remoteJid(), key.id()));
+        if (found != null && found.bytes().length > maxBytes) {
+            throw new MediaTooLargeException(maxBytes);
+        }
+        return java.util.Optional.ofNullable(found);
     }
 
     private SentMessage sent(Instance instance, String jid) {

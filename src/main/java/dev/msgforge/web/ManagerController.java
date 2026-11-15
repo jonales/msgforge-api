@@ -127,23 +127,9 @@ public class ManagerController {
         model.addAttribute("can", can);
         model.addAttribute("instance", InstanceDetail.of(instance, instances.stateOf(instance)));
         model.addAttribute("live", screens.live(name, can.connect()));
-        model.addAttribute("webhook", webhooks.find(name).map(WebhookView::of).orElse(WebhookView.EMPTY));
-        model.addAttribute("eventNames", EVENT_NAMES);
         model.addAttribute("historyOptions", HISTORY_OPTIONS);
-        if (!model.containsAttribute("settings")) {
-            model.addAttribute("settings", SettingsView.of(instance));
-        }
-        if (!model.containsAttribute("proxy")) {
-            model.addAttribute("proxy", ProxyView.of(instance));
-        }
-        // O proxy fica recolhido, salvo logo depois de salvá-lo ou com erro nele
-        var errors = model.getAttribute("fieldErrors");
-        model.addAttribute("proxyOpen", model.containsAttribute("proxySaved")
-                || errors instanceof java.util.Map<?, ?> map && map.keySet().stream()
-                        .anyMatch(key -> key.toString().startsWith("proxy.")));
-        model.addAttribute("behaviors", SettingsView.BEHAVIORS);
-        model.addAttribute("proxyProtocols", ProxyView.PROTOCOLS);
-        model.addAttribute("secretsEnabled", instances.secretsEnabled());
+        // O motor real (Cobalt ou o simulado); o "integration" do contrato fica só na API
+        model.addAttribute("engine", instances.engine());
         return "manager/instance";
     }
 
@@ -187,33 +173,106 @@ public class ManagerController {
         guard.require(name, Permission.EVENTS_CONFIGURE);
         webhooks.set(name, new WebhookConfig(enabled, url.trim(), null, byEvents, false,
                 events == null ? List.of() : events));
-        flash.addFlashAttribute("success", "manager.flash.webhookSaved");
-        return redirectTo(name);
+        flash.addFlashAttribute("saved", "webhook");
+        return "redirect:" + settingsPage(name, "webhook");
     }
 
-    /** Comportamentos e histórico do pareamento. Valem na hora, também na conexão em curso. */
-    @PostMapping("/instances/{name}/settings")
-    public String settings(@PathVariable String name,
-                           @RequestParam(defaultValue = "false") boolean rejectCall,
-                           @RequestParam(required = false) String msgCall,
-                           @RequestParam(defaultValue = "false") boolean groupsIgnore,
-                           @RequestParam(defaultValue = "false") boolean alwaysOnline,
-                           @RequestParam(defaultValue = "false") boolean readMessages,
-                           @RequestParam(defaultValue = "false") boolean readStatus,
-                           @RequestParam(required = false) String historySync,
-                           RedirectAttributes flash) {
-        guard.require(name, Permission.ACCOUNT_CONFIGURE);
-        var typed = new SettingsView(rejectCall, msgCall == null ? "" : msgCall, groupsIgnore, alwaysOnline,
-                readMessages, readStatus, historySync == null ? null : HistorySync.parse(historySync).name());
-        try {
-            var settings = new InstanceSettings(rejectCall, InstanceService.msgCall(msgCall), groupsIgnore,
-                    alwaysOnline, readMessages, readStatus);
-            instances.updateSettings(name, settings, historySync == null ? null : HistorySync.parse(historySync));
-        } catch (InvalidFieldException e) {
-            return invalid(name, "settings", typed, e, flash);
+    // ------------------------------------------------------------ configurações (uma tela por grupo)
+
+    /** Os grupos de configuração, na ordem das abas; {@code webhook} pede outra permissão. */
+    static final List<String> SETTINGS_GROUPS = List.of("calls", "reading", "presence", "history", "proxy", "webhook");
+
+    static Permission permissionOf(String group) {
+        if (!SETTINGS_GROUPS.contains(group)) {
+            throw new dev.msgforge.common.ApiExceptionHandler.NotFoundException("Unknown settings group: " + group);
         }
-        flash.addFlashAttribute("settingsSaved", true);
-        return redirectTo(name) + "#settings";
+        return "webhook".equals(group) ? Permission.EVENTS_CONFIGURE : Permission.ACCOUNT_CONFIGURE;
+    }
+
+    /** "Configurações" leva ao primeiro grupo que a pessoa pode mudar. */
+    @GetMapping("/instances/{name}/settings")
+    public String settingsHome(@PathVariable String name) {
+        var check = guard.current();
+        var can = PanelAccess.of(ManagerAccess.on(check, guard.visible(check, name)));
+        if (!can.settings()) {
+            throw new AccessDeniedException("Sem permissão de configurar a instância");
+        }
+        return "redirect:" + settingsPage(name, can.account() ? "calls" : "webhook");
+    }
+
+    /** Um grupo de configurações: abas no topo, um formulário e um "salvar" por grupo. */
+    @GetMapping("/instances/{name}/settings/{group}")
+    public String settingsGroup(@PathVariable String name, @PathVariable String group, Model model) {
+        var check = guard.current();
+        var instance = guard.require(check, name, permissionOf(group));
+        model.addAttribute("can", PanelAccess.of(ManagerAccess.on(check, instance)));
+        model.addAttribute("instance", InstanceDetail.of(instance, instances.stateOf(instance)));
+        model.addAttribute("group", group);
+        model.addAttribute("groups", SETTINGS_GROUPS);
+        if (!model.containsAttribute("settings")) {
+            model.addAttribute("settings", SettingsView.of(instance));
+        }
+        if (!model.containsAttribute("proxy")) {
+            model.addAttribute("proxy", ProxyView.of(instance));
+        }
+        model.addAttribute("savedProxy", ProxyView.of(instance));
+        model.addAttribute("savedSettings", SettingsView.of(instance));
+        model.addAttribute("webhook", webhooks.find(name).map(WebhookView::of).orElse(WebhookView.EMPTY));
+        model.addAttribute("eventNames", EVENT_NAMES);
+        model.addAttribute("historyOptions", HISTORY_OPTIONS);
+        model.addAttribute("proxyProtocols", ProxyView.PROTOCOLS);
+        model.addAttribute("secretsEnabled", instances.secretsEnabled());
+        return "manager/settings";
+    }
+
+    /**
+     * Salva um grupo e só ele: o que não está no formulário fica como estava (um interruptor ausente
+     * do POST de outro grupo não pode desligar nada). Vale na hora, também na conexão em curso.
+     */
+    @PostMapping("/instances/{name}/settings/{group}")
+    public String saveSettings(@PathVariable String name, @PathVariable String group,
+                               @RequestParam(defaultValue = "false") boolean rejectCall,
+                               @RequestParam(required = false) String msgCall,
+                               @RequestParam(defaultValue = "false") boolean groupsIgnore,
+                               @RequestParam(defaultValue = "false") boolean alwaysOnline,
+                               @RequestParam(defaultValue = "false") boolean readMessages,
+                               @RequestParam(defaultValue = "false") boolean readStatus,
+                               @RequestParam(required = false) String historySync,
+                               RedirectAttributes flash) {
+        if (!List.of("calls", "reading", "presence", "history").contains(group)) {
+            throw new dev.msgforge.common.ApiExceptionHandler.NotFoundException("Unknown settings group: " + group);
+        }
+        var instance = guard.require(name, Permission.ACCOUNT_CONFIGURE);
+        var s = instance.getSettings();
+        var stored = SettingsView.of(instance);
+        try {
+            var settings = switch (group) {
+                case "calls" -> new InstanceSettings(rejectCall, InstanceService.msgCall(msgCall), s.groupsIgnore(),
+                        s.alwaysOnline(), s.readMessages(), s.readStatus());
+                case "reading" -> new InstanceSettings(s.rejectCall(), s.msgCall(), groupsIgnore, s.alwaysOnline(),
+                        readMessages, readStatus);
+                case "presence" -> new InstanceSettings(s.rejectCall(), s.msgCall(), s.groupsIgnore(), alwaysOnline,
+                        s.readMessages(), s.readStatus());
+                default -> s;
+            };
+            var history = "history".equals(group) && historySync != null ? HistorySync.parse(historySync) : null;
+            instances.updateSettings(name, settings, history);
+        } catch (InvalidFieldException e) {
+            // Volta com o que foi digitado neste grupo; os outros, como estão guardados
+            var typed = new SettingsView(rejectCall, msgCall == null ? "" : msgCall, stored.groupsIgnore(),
+                    stored.alwaysOnline(), stored.readMessages(), stored.readStatus(), stored.historySync());
+            flash.addFlashAttribute("settings", typed);
+            flash.addFlashAttribute("fieldErrors", java.util.Map.of("settings." + e.field(),
+                    "manager.settings.error." + e.field() + "." + e.reason()));
+            return "redirect:" + settingsPage(name, group);
+        }
+        flash.addFlashAttribute("saved", group);
+        return "redirect:" + settingsPage(name, group);
+    }
+
+    static String settingsPage(String name, String group) {
+        return "/manager/instances/" + UriUtils.encodePathSegment(name, java.nio.charset.StandardCharsets.UTF_8)
+                + "/settings/" + group;
     }
 
     /**
@@ -238,19 +297,13 @@ public class ManagerController {
                     removePassword ? null : password);
             instances.updateProxy(name, enabled, fields, !removePassword);
         } catch (InvalidFieldException e) {
-            return invalid(name, "proxy", typed, e, flash);
+            flash.addFlashAttribute("proxy", typed);
+            flash.addFlashAttribute("fieldErrors", java.util.Map.of("proxy." + e.field(),
+                    "manager.proxy.error." + e.field() + "." + e.reason()));
+            return "redirect:" + settingsPage(name, "proxy");
         }
-        flash.addFlashAttribute("proxySaved", true);
-        return redirectTo(name) + "#proxy";
-    }
-
-    /** Volta para a tela com o que foi digitado (sem senha) e o erro preso ao campo. */
-    private static String invalid(String name, String form, Object typed, InvalidFieldException e,
-                                  RedirectAttributes flash) {
-        flash.addFlashAttribute(form, typed);
-        flash.addFlashAttribute("fieldErrors", java.util.Map.of(form + "." + e.field(),
-                "manager." + form + ".error." + e.field() + "." + e.reason()));
-        return redirectTo(name) + "#" + form;
+        flash.addFlashAttribute("saved", "proxy");
+        return "redirect:" + settingsPage(name, "proxy");
     }
 
     private static String orEmpty(String value) {
@@ -276,8 +329,10 @@ public class ManagerController {
 
     @GetMapping("/instances/{name}/messages")
     public String messages(@PathVariable String name, Model model) {
-        var instance = guard.require(name, Permission.CHAT_VIEW);
+        var check = guard.current();
+        var instance = guard.require(check, name, Permission.CHAT_VIEW);
         model.addAttribute("instanceName", instance.getName());
+        model.addAttribute("can", PanelAccess.of(ManagerAccess.on(check, instance)));
         model.addAttribute("chats", chatRows(name));
         return "manager/messages";
     }
@@ -321,7 +376,7 @@ public class ManagerController {
 
     // ------------------------------------------------------------ apoio
 
-    private List<ManagerViews.ChatRow> chatRows(String name) {
+    private ManagerViews.ChatList chatRows(String name) {
         return screens.chatRows(name);
     }
 
