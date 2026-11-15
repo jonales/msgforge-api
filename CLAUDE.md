@@ -292,11 +292,27 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     imagem raster, áudio e vídeo (`INLINE`); o resto sai como download `octet-stream`, sempre com
     `nosniff` e CSP `sandbox`. Mídia que falha (desconectada, fora do Store) vira o aviso do tipo
     (`manager.js` marca `.media-failed`).
-  - [x] menu lateral do painel (`layout :: panelNav(nome, can, atual)`): âncoras das seções do painel
-    (`#connect`, `#send`, `#danger`) e as páginas de mensagens e configurações, só o
-    que o `PanelAccess` permite, item atual com `aria-current="page"`, "Integrações" como "Em breve".
-    No celular vira abas que quebram linha. O painel mostra o motor real (`WhatsAppGateway.engine`),
+  - [x] menu do painel (`layout :: panelNav(nome, can, atual)`): **cada item é uma tela** (nunca
+    âncora): Visão geral `/{n}` (resumo: estado, número, perfil, motor, histórico, aviso de webhook
+    em nova tentativa e atalhos; o resumo `/{n}/summary` é buscado de novo a cada evento `live` do
+    SSE, `hx-trigger="sse:live"`), Conexão `/{n}/connection` ("ver status": trecho ao vivo
+    `instance-connection :: live`, que o SSE e a conexão guiada também usam; formulário de conectar
+    só fora do ar; desconectar e excluir na zona de perigo), Mensagens, Envio de teste `/{n}/send`
+    (`CHAT_SEND`) e Configurações. Só o que o `PanelAccess` permite, item atual com
+    `aria-current="page"`, "Integrações" apagado com o selo "Em breve". No celular, faixa de abas
+    numa linha que rola dentro dela mesma (44 px). Trilha `layout :: panelCrumbs(nome, chave)` em
+    todas as telas da instância. Os POSTs voltam para a tela do formulário (`redirectTo(nome, tela)`
+    e `ManagerExceptionHandler.backTo`). O painel mostra o motor real (`WhatsAppGateway.engine`),
     nunca o `integration` do contrato.
+  - [x] mensagens sem rolar a página (`body.page-fill`): lista e conversa rolam cada uma no seu
+    painel; a conversa abre na mais recente e só desce sozinha se a pessoa já estava no fim
+    (`manager.js`). Abrir uma conversa empurra `?jid=` na URL (`hx-push-url`; o `htmx-config` não
+    guarda cópia, então voltar recarrega). No celular (≤ 980 px), lista e conversa são telas
+    separadas (`:has(#conversation[data-open])`), com "Conversas" para voltar.
+  - [x] responder na conversa (`POST /{n}/messages/reply`, `CHAT_SEND`): a caixa fica **fora** do
+    trecho que o SSE troca (não apaga o que está sendo digitado); o `manager.js` leva o jid da
+    conversa aberta. Pelo htmx devolve a conversa; erro = 422 com o aviso. A assinatura do atendente
+    está em aberto (perguntas no PR).
   - [x] nova instância guiada (`NewInstanceController`): `/manager/instances/new` → `/new/connection`
     (QR ou código, com número) → `/new/history` (cria e conecta) → `/{n}/connect` (QR ao vivo, o
     mesmo trecho `instance :: live`). Uma página por passo, rascunho na sessão: voltar e recarregar

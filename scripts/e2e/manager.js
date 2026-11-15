@@ -43,6 +43,9 @@ const { chromium } = require('playwright');
 
   await page.goto(base + '/manager/instances/' + name);
   await page.waitForSelector('.resume a[href$="/connect"]'); step('painel oferece retomar a conexão');
+  await page.click('.panel-nav a[href$="/connection"]'); await page.waitForURL('**/manager/instances/' + name + '/connection');
+  await page.waitForSelector('.panel-nav a[href$="/connection"][aria-current=page]'); step('menu: Conexão é uma tela própria');
+  await page.goto(base + '/manager/instances/' + name + '/settings/webhook');
 
   await page.fill('input[name=url]', 'https://example.com/hook');
   await page.check('input[name=events][value=MESSAGES_UPSERT]');
@@ -87,7 +90,7 @@ const { chromium } = require('playwright');
   await mobile.screenshot({ path: shots + '/4b-lista-celular.png', fullPage: true });
   step('lista no celular 390px, rolagem horizontal: ' + listOverflow);
 
-  await page.goto(base + '/manager/instances/' + name);
+  await page.goto(base + '/manager/instances/' + name + '/connection');
   await page.check('input[name=confirm]'); await page.click('button.danger');
   await page.waitForURL(base + '/manager'); await page.waitForSelector('.flash.success'); step('instância excluída');
 
