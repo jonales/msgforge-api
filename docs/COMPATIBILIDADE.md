@@ -93,7 +93,7 @@ Diferenças:
 |---|---|---|
 | POST | `/chat/whatsappNumbers/{instance}` | ✅ `[{exists, jid, number}]`, um por número pedido (repetidos também), na ordem; `jid` é o que o WhatsApp conhece (celular brasileiro pode vir sem o nono dígito); número sem formato de telefone (ou grupo) volta `exists:false, jid:null` sem consultar o WhatsApp; até 100 por chamada |
 | POST | `/chat/markMessageAsRead/{instance}` | 🟡 Cobalt: mensagem conhecida na sessão é lida uma a uma; desconhecida marca a conversa inteira; `fromMe:true` é ignorada |
-| POST | `/chat/sendPresence/{instance}` | 🟡 `{number, presence, delay}` → 201 `{presence}`; `composing`/`recording` com `delay` voltam ao normal depois (teto 20 s); `paused` = `available` no Cobalt |
+| POST | `/chat/sendPresence/{instance}` | 🟡 `{number, presence, delay}` → 201 `{presence}`; `composing`/`recording` com `delay` voltam ao normal depois (teto 20 s); `paused` encerra o "digitando"; `available`/`unavailable` mudam a presença da conta |
 | POST | `/chat/fetchProfilePictureUrl/{instance}` | ✅ `{wuid, profilePictureUrl}` (null se não houver ou a privacidade esconder) |
 | POST | `/chat/fetchProfile/{instance}` | 🟡 `{wuid, name, numberExists, picture, status}`; sem `number`, a própria conta; `name` só de contatos da sessão; sem dados de conta comercial |
 | POST | `/chat/updateProfileName`, `updateProfileStatus`, `updateProfilePicture` | ✅ `{update: "success"}`; foto só JPEG/PNG |

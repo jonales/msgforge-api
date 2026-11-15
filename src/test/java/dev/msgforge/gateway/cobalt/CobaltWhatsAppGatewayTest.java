@@ -513,9 +513,12 @@ class CobaltWhatsAppGatewayTest {
 
     @Test
     void pausedPresenceEndsTyping() {
-        assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.PAUSED))
-                .isEqualTo(ContactStatus.AVAILABLE);
-        assertThat(CobaltWhatsAppGateway.contactStatus(dev.msgforge.gateway.WhatsAppGateway.Presence.RECORDING))
+        // No Cobalt, o "pausado" da conversa é UNAVAILABLE; AVAILABLE no editChatState lança exceção
+        assertThat(CobaltWhatsAppGateway.chatState(dev.msgforge.gateway.WhatsAppGateway.Presence.PAUSED))
+                .isEqualTo(ContactStatus.UNAVAILABLE);
+        assertThat(CobaltWhatsAppGateway.chatState(dev.msgforge.gateway.WhatsAppGateway.Presence.COMPOSING))
+                .isEqualTo(ContactStatus.COMPOSING);
+        assertThat(CobaltWhatsAppGateway.chatState(dev.msgforge.gateway.WhatsAppGateway.Presence.RECORDING))
                 .isEqualTo(ContactStatus.RECORDING);
     }
 
