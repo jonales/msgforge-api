@@ -126,4 +126,22 @@ class MessageContentTest {
         // Tipo da linha diferente da chave guardada: vale a chave
         assertThat(MessageContent.of("unknown", Map.of("conversation", "oi"))).isEqualTo(new Text("oi"));
     }
+
+    @Test
+    void storedMediaComesOutOfTheWrappersAndOldRowsHaveNone() {
+        var key = java.util.Base64.getEncoder().encodeToString(new byte[]{9, 9, 9});
+        var image = Map.<String, Object>of("directPath", "/v/t62/a.enc", "mediaKey", key, "mimetype", "image/jpeg",
+                "fileLength", 10);
+        var wrapped = Map.<String, Object>of("viewOnceMessageV2", Map.of("message", Map.of("imageMessage", image)));
+        var stored = MessageContent.stored("viewOnceMessageV2", wrapped).orElseThrow();
+        assertThat(stored.messageType()).isEqualTo("imageMessage");
+        assertThat(stored.directPath()).isEqualTo("/v/t62/a.enc");
+        assertThat(stored.mediaKey()).containsExactly(9, 9, 9);
+        assertThat(stored.fileLength()).isEqualTo(10L);
+        // Gravada antes dos campos de mídia (só url e mimetype): sem como baixar
+        assertThat(MessageContent.stored("imageMessage", Map.of("imageMessage",
+                Map.of("url", "https://mmg.whatsapp.net/x", "mimetype", "image/jpeg")))).isEmpty();
+        assertThat(MessageContent.stored("conversation", Map.of("conversation", "oi"))).isEmpty();
+        assertThat(MessageContent.stored(null, null)).isEmpty();
+    }
 }

@@ -134,6 +134,25 @@ public sealed interface MessageContent {
         return parse(key, message.get(key), 0);
     }
 
+    /**
+     * Os campos de mídia gravados (url, mediaKey, directPath...), já fora dos envelopes, para o motor
+     * baixar a mídia sem a mensagem na memória dele. Vazio em mensagem antiga, sem esses campos.
+     */
+    static java.util.Optional<dev.msgforge.gateway.StoredMedia> stored(String type, Map<String, Object> message) {
+        if (message == null || message.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        var key = type != null && message.containsKey(type) ? type : message.keySet().iterator().next();
+        Object content = message.get(key);
+        for (var depth = 0; depth < 3 && WRAPPERS.contains(key) && content instanceof Map<?, ?> fields
+                && fields.get("message") instanceof Map<?, ?> inner && !inner.isEmpty(); depth++) {
+            key = String.valueOf(inner.keySet().iterator().next());
+            content = inner.get(key);
+        }
+        return content instanceof Map<?, ?> fields
+                ? dev.msgforge.gateway.StoredMedia.of(key, fields) : java.util.Optional.empty();
+    }
+
     private static MessageContent parse(String type, Object content, int depth) {
         var fields = content instanceof Map<?, ?> map ? map : Map.of();
         if (WRAPPERS.contains(type) && depth < 3 && fields.get("message") instanceof Map<?, ?> inner && !inner.isEmpty()) {

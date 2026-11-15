@@ -316,7 +316,14 @@ public class StubWhatsAppGateway implements WhatsAppGateway {
     }
 
     @Override
-    public java.util.Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, long maxBytes) {
+    public boolean hasMedia(Instance instance, MessageKey key) {
+        return media.containsKey(mediaKey(instance, key.remoteJid(), key.id()));
+    }
+
+    @Override
+    public java.util.Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, StoredMedia stored,
+                                                         long maxBytes) {
+        // O stub não tem CDN: só a mídia guardada em memória (stored é ignorado)
         var found = media.get(mediaKey(instance, key.remoteJid(), key.id()));
         if (found != null && found.bytes().length > maxBytes) {
             throw new MediaTooLargeException(maxBytes);

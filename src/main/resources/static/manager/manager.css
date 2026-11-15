@@ -254,7 +254,10 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .media img { display: block; max-width: 100%; max-height: 320px; height: auto; border-radius: 6px; background: var(--bg); }
 .media.sticker img { width: 128px; height: 128px; object-fit: contain; background: none; }
 .media video { display: block; width: 100%; max-height: 360px; border-radius: 6px; background: var(--bg); }
-.media audio { display: block; width: min(100%, 300px); }
+/* Largura mínima: estreito, o player esconde a barra de progresso e a duração */
+.media audio { display: block; width: min(300px, 70vw); min-width: min(260px, 64vw); }
+/* O Safari não toca OGG/Opus (nota de voz): o link baixa o arquivo */
+.media-download { justify-self: start; color: var(--muted); }
 .media figcaption { display: grid; gap: 2px; }
 .media-meta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; font-weight: 600; }
 /* Sem a mídia (desconectada, fora do motor, grande demais): o manager.js marca e fica o aviso */
@@ -273,6 +276,12 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .poll-options { margin: 4px 0 0; padding-left: 1.2rem; display: grid; gap: 2px; }
 .revoked, .unknown { font-style: italic; color: var(--muted); }
 .reaction { font-size: var(--fs-small); }
+/* Reações junto da mensagem alvo (a última de cada pessoa) */
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; }
+.reaction-chip { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border: 1px solid var(--border);
+    border-radius: 999px; background: var(--bg); }
+/* O emoji com folga própria: sem ela, "❤️Você" e "Reagiu 🙏a:" grudam */
+.reaction-emoji { margin: 0 0.2em; }
 
 /* Painel da instância: menu à esquerda, uma tela por item. No celular, o menu vira uma faixa de abas
    numa linha só, que rola para o lado dentro dela mesma (a página não rola). */
