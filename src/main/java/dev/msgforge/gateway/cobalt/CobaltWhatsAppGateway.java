@@ -1136,6 +1136,15 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         return new Profile(jid, true, name, profilePictureUrl(connection, target), status);
     }
 
+    /** Foto como o WhatsApp Web envia (JPEG quadrado de 640, sem metadados); imagem ilegível é 400. */
+    private static byte[] normalizedPicture(byte[] bytes) {
+        try {
+            return dev.msgforge.gateway.media.ProfilePictures.normalize(bytes);
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException("picture must be a readable JPEG or PNG image");
+        }
+    }
+
     /** O nome do contato no Store: o escolhido pela pessoa (pushName) ou o da agenda. */
     private static Optional<String> contactName(com.github.auties00.cobalt.store.linked.LinkedWhatsAppStore store,
                                                 Jid jid) {
@@ -1190,8 +1199,9 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 if (!MediaSignatures.isImage(bytes)) {
                     throw new BadRequestException("picture must be a JPEG or PNG image");
                 }
+                var jpeg = normalizedPicture(bytes);
                 call(() -> {
-                    connection.api.editProfilePicture(SizedInputStream.of(bytes));
+                    connection.api.editProfilePicture(SizedInputStream.of(jpeg));
                     return null;
                 }, "alteração da foto");
             }
@@ -1325,7 +1335,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                     throw new BadRequestException("image must be a JPEG or PNG image");
                 }
                 editGroup(connection, group, edit.picture(
-                        com.github.auties00.cobalt.wire.linked.chat.group.GroupPicture.of(bytes)), "foto do grupo");
+                        com.github.auties00.cobalt.wire.linked.chat.group.GroupPicture.of(normalizedPicture(bytes))),
+                        "foto do grupo");
             }
             case GroupSetting setting -> {
                 var policy = setting.adminsOnly() ? ChatPolicy.ADMINS : ChatPolicy.ANYONE;
