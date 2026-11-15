@@ -6,15 +6,14 @@
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide instance-panel">
-    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.integrations')}"></nav>
-    <header class="panel-head">
-        <h1 th:text="#{manager.panelNav.integrations}">Integrações</h1>
-        <p class="muted" th:text="#{manager.integrationsPage.intro}">Cada instância terá as suas.</p>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'integrations')}"></nav>
     <div class="panel-main">
+        <header class="panel-head">
+            <h1 th:text="#{manager.panelNav.integrations}">Integrações</h1>
+            <p class="muted" th:text="#{manager.integrationsPage.intro}">Cada instância terá as suas.</p>
+        </header>
     <!-- Integrações que já funcionam: cada uma abre a própria configuração -->
     <section class="card" aria-labelledby="live-title">
         <h2 id="live-title" th:text="#{manager.integrations.available}">Disponíveis</h2>

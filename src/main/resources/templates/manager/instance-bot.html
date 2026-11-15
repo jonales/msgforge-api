@@ -1,35 +1,46 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
-<!-- Integrações → Bot com IA (ADR 0015). Três perguntas, nesta ordem: qual modelo, quando o bot
-     responde, e o que acontece quando um atendente assume. A chave nunca volta para a tela. -->
+<!-- Integrações → Bot com IA (ADR 0015). Uma aba por pergunta (URL própria, como as Configurações):
+     qual modelo, quando o bot responde, o que acontece quando um atendente assume, ajustes e o teste.
+     Cada aba salva só o que é dela. A chave nunca volta para a tela. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.bot.title} + ' · ' + ${instance.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide instance-panel" th:with="errors=${fieldErrors != null ? fieldErrors : {:}}">
-    <nav class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
-        <a th:href="@{/manager}" th:text="#{manager.breadcrumb.instances}">Instâncias</a>
-        <span aria-hidden="true">/</span>
-        <a th:href="@{/manager/instances/{n}(n=${instance.name})}" th:text="${instance.name}">vendas</a>
-        <span aria-hidden="true">/</span>
-        <a th:href="@{/manager/instances/{n}/integrations(n=${instance.name})}" th:text="#{manager.panelNav.integrations}">Integrações</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page" th:text="#{manager.bot.title}">Bot com IA</span>
-    </nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
-    <header class="panel-head">
-        <h1 th:text="#{manager.bot.title}">Bot com IA</h1>
-        <p class="muted" th:text="#{manager.bot.intro}">Responde sozinho nas conversas.</p>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'integrations')}"></nav>
     <div class="panel-main">
-        <p class="saved flash success" role="status" th:if="${saved == 'bot'}" th:text="#{manager.bot.saved}">Salvo.</p>
+        <p class="panel-back"><a th:href="@{/manager/instances/{n}/integrations(n=${instance.name})}" th:text="#{manager.bot.back}">← Integrações</a></p>
+        <header class="panel-head">
+            <h1 th:text="#{manager.bot.title}">Bot com IA</h1>
+            <p class="muted" th:text="#{manager.bot.intro}">Responde sozinho nas conversas.</p>
+        </header>
+        <!-- Abas: cada uma com o estado guardado; sem modelo configurado, só a primeira abre -->
+        <nav class="settings-tabs" th:attr="aria-label=#{manager.bot.tabs}">
+            <ul>
+                <li th:each="t : ${tabs}">
+                    <a th:if="${savedBot.configured or t == 'model'}"
+                       th:href="@{/manager/instances/{n}/integrations/bot/{t}(n=${instance.name},t=${t})}"
+                       th:attr="aria-current=${t == tab} ? 'page' : null">
+                        <span class="tab-title" th:text="#{'manager.bot.tab.' + ${t}}">Modelo</span>
+                        <span class="tab-state small"
+                              th:text="#{${savedBot.tabStateKey(t)}(${savedBot.pauseMinutes}, ${savedBot.contextMessages})}">Ligado</span>
+                    </a>
+                    <span class="tab-disabled" th:unless="${savedBot.configured or t == 'model'}">
+                        <span class="tab-title" th:text="#{'manager.bot.tab.' + ${t}}">Quando responde</span>
+                        <span class="small" th:text="#{manager.bot.tabState.needsModel}">Salve o modelo antes</span>
+                    </span>
+                </li>
+            </ul>
+        </nav>
+        <p class="saved flash success" role="status" th:if="${saved == tab}" th:text="#{manager.bot.saved}">Salvo.</p>
 
-        <form th:action="@{/manager/instances/{n}/integrations/bot(n=${instance.name})}" method="post"
-              class="bot-form" autocomplete="off">
+        <form th:unless="${tab == 'test'}" th:action="@{/manager/instances/{n}/integrations/bot/{t}(n=${instance.name},t=${tab})}"
+              method="post" class="bot-form" autocomplete="off">
 
-            <section class="card" aria-labelledby="bot-model-title">
+            <section class="card" aria-labelledby="bot-model-title" th:if="${tab == 'model'}">
                 <h2 id="bot-model-title" th:text="#{manager.bot.model.title}">Modelo</h2>
                 <label class="toggle" for="bot-enabled">
                     <span class="toggle-text">
@@ -80,7 +91,7 @@
                 </label>
             </section>
 
-            <section class="card" aria-labelledby="bot-trigger-title">
+            <section class="card" aria-labelledby="bot-trigger-title" th:if="${tab == 'trigger'}">
                 <h2 id="bot-trigger-title" th:text="#{manager.bot.trigger.title}">Quando o bot responde</h2>
                 <fieldset class="choices">
                     <legend th:text="#{manager.bot.trigger}">O bot entra na conversa</legend>
@@ -127,7 +138,7 @@
                 </label>
             </section>
 
-            <section class="card" aria-labelledby="bot-human-title">
+            <section class="card" aria-labelledby="bot-human-title" th:if="${tab == 'handoff'}">
                 <h2 id="bot-human-title" th:text="#{manager.bot.human.title}">Quando um atendente assume</h2>
                 <label class="toggle" for="bot-pause">
                     <span class="toggle-text">
@@ -155,8 +166,8 @@
                 </label>
             </section>
 
-            <details class="card disclosure">
-                <summary><span class="summary-title" th:text="#{manager.bot.advanced}">Avançado</span></summary>
+            <section class="card" aria-labelledby="bot-advanced-title" th:if="${tab == 'advanced'}">
+                <h2 id="bot-advanced-title" th:text="#{manager.bot.advanced}">Avançado</h2>
                 <div class="field-row">
                     <label th:with="err=${errors['bot.contextMessages']}">
                         <span th:text="#{manager.bot.contextMessages}">Mensagens de memória</span>
@@ -173,18 +184,18 @@
                         <span class="hint" id="bot-typing-hint" th:text="#{manager.bot.typingSeconds.hint}">0 a 10.</span>
                     </label>
                 </div>
-            </details>
+            </section>
 
             <div class="form-actions">
-                <button type="submit" class="primary" th:text="#{manager.bot.submit}">Salvar o bot</button>
+                <button type="submit" class="primary" th:text="#{manager.bot.submit}">Salvar</button>
             </div>
         </form>
 
-        <section class="card" aria-labelledby="bot-test-title" th:if="${bot.configured}">
+        <section class="card" aria-labelledby="bot-test-title" th:if="${tab == 'test'}">
             <h2 id="bot-test-title" th:text="#{manager.bot.test.title}">Testar agora</h2>
             <p class="muted small" th:text="#{manager.bot.test.intro}">Nada vai para o WhatsApp.</p>
-            <form th:action="@{/manager/instances/{n}/integrations/bot/test(n=${instance.name})}" method="post"
-                  th:attr="hx-post=@{/manager/instances/{n}/integrations/bot/test(n=${instance.name})}"
+            <form th:action="@{/manager/instances/{n}/integrations/bot/test/ask(n=${instance.name})}" method="post"
+                  th:attr="hx-post=@{/manager/instances/{n}/integrations/bot/test/ask(n=${instance.name})}"
                   hx-target="#bot-test-result" hx-swap="outerHTML" class="bot-test">
                 <label>
                     <span th:text="#{manager.bot.test.text}">Mensagem do cliente</span>

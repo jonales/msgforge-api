@@ -5,17 +5,16 @@
      (a página não rola). No celular, a lista e a conversa são telas separadas. -->
 <body class="page-fill">
 <header th:replace="~{manager/fragments/layout :: header}"></header>
-<main class="container wide">
-    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instanceName}, 'manager.messages.title')}"></nav>
+<main class="container wide instance-panel">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
-    <header class="panel-head">
-        <h1 th:text="#{manager.messages.title}">Mensagens</h1>
-        <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instanceName}, ${can}, 'messages')}"></nav>
     <div class="panel-main">
+        <header class="panel-head">
+            <h1 th:text="#{manager.messages.title}">Mensagens</h1>
+            <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>
+        </header>
     <!-- Ao vivo pelo SSE (eventos "chats" e "conversation:{jid}"); o polling é a reserva (manager.js) -->
     <div class="messages-layout" hx-ext="sse"
          th:attr="sse-connect=@{/manager/stream/instances/{n}/messages(n=${instanceName})}">

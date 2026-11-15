@@ -5,18 +5,17 @@
 <head th:replace="~{manager/fragments/layout :: head(#{'manager.settings.group.' + ${group}} + ' · ' + ${instance.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
-<main class="container wide"
+<main class="container wide instance-panel"
       th:with="errors=${fieldErrors != null ? fieldErrors : {:}},base=@{/manager/instances/{n}(n=${instance.name})}">
-    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.settings.title')}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
-    <header class="panel-head">
-        <h1 th:text="#{manager.settings.title}">Configurações</h1>
-        <p class="muted" th:text="#{manager.settings.pageIntro}">Escolha um grupo.</p>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'settings')}"></nav>
     <div class="panel-main">
+        <header class="panel-head">
+            <h1 th:text="#{manager.settings.title}">Configurações</h1>
+            <p class="muted" th:text="#{manager.settings.pageIntro}">Escolha um grupo.</p>
+        </header>
         <!-- Abas: cada grupo com o estado guardado, para ver tudo sem abrir um por um -->
         <nav class="settings-tabs" th:attr="aria-label=#{manager.settings.tabs}">
             <ul>

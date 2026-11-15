@@ -91,15 +91,22 @@ class BotIT extends IntegrationTest {
         return "http://127.0.0.1:" + model.getAddress().getPort() + "/v1";
     }
 
+    private void saveTab(String tab, String... pairs) throws Exception {
+        var request = asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot/" + tab));
+        for (int i = 0; i < pairs.length; i += 2) {
+            request.param(pairs[i], pairs[i + 1]);
+        }
+        mvc.perform(request).andExpect(flash().attribute("saved", tab));
+    }
+
+    /** Cada aba salva só o que é dela: o modelo primeiro, depois as outras. */
     private void configure(String trigger, String keywords, String resumeMode) throws Exception {
-        mvc.perform(asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot"))
-                        .param("enabled", "true").param("baseUrl", base()).param("model", "modelo-teste")
-                        .param("apiKey", "sk-segredo-do-cliente").param("systemPrompt", "Você é o atendente da Loja.")
-                        .param("triggerMode", trigger).param("keywords", keywords).param("stopKeyword", "sair")
-                        .param("sessionMinutes", "0").param("ignoreGroups", "true").param("pauseOnHuman", "true")
-                        .param("resumeMode", resumeMode).param("pauseMinutes", "30").param("contextMessages", "10")
-                        .param("typingSeconds", "0"))
-                .andExpect(flash().attribute("saved", "bot"));
+        saveTab("model", "enabled", "true", "baseUrl", base(), "model", "modelo-teste",
+                "apiKey", "sk-segredo-do-cliente", "systemPrompt", "Você é o atendente da Loja.");
+        saveTab("trigger", "triggerMode", trigger, "keywords", keywords, "stopKeyword", "sair",
+                "sessionMinutes", "0", "ignoreGroups", "true");
+        saveTab("handoff", "pauseOnHuman", "true", "resumeMode", resumeMode, "pauseMinutes", "30");
+        saveTab("advanced", "contextMessages", "10", "typingSeconds", "0");
     }
 
     private void receive(String from, String text) {
@@ -199,13 +206,23 @@ class BotIT extends IntegrationTest {
 
     @Test
     void keywordModeOnlyStartsOnAKeywordAndTheFormValidates() throws Exception {
-        mvc.perform(asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot"))
-                        .param("enabled", "true").param("baseUrl", base()).param("model", "m")
-                        .param("triggerMode", "KEYWORD").param("keywords", " , "))
-                .andExpect(flash().attribute("fieldErrors", Map.of("bot.keywords", "manager.bot.error.keywords.required")));
-        mvc.perform(asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot"))
+        // Sem modelo, as outras abas levam para a primeira
+        mvc.perform(asManager(MockMvcRequestBuilders.get("/manager/instances/" + name + "/integrations/bot/trigger")))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot/model"))
                         .param("baseUrl", "ftp://x").param("model", "m"))
                 .andExpect(flash().attribute("fieldErrors", Map.of("bot.baseUrl", "manager.bot.error.baseUrl.invalid")));
+
+        configure("KEYWORD", "orçamento, preço", "AUTOMATIC");
+        mvc.perform(asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot/trigger"))
+                        .param("triggerMode", "KEYWORD").param("keywords", " , "))
+                .andExpect(flash().attribute("fieldErrors", Map.of("bot.keywords", "manager.bot.error.keywords.required")));
+        // Salvar a aba "Avançado" não mexe no modelo nem no gatilho
+        saveTab("advanced", "contextMessages", "12", "typingSeconds", "0");
+        var stored = jdbc.queryForMap("SELECT b.enabled, b.trigger_mode, b.context_messages FROM instance_bot b "
+                + "JOIN instance i ON i.id = b.instance_id WHERE i.name = ?", name);
+        assertThat(stored).containsEntry("enabled", true).containsEntry("trigger_mode", "KEYWORD")
+                .containsEntry("context_messages", 12);
 
         configure("KEYWORD", "orçamento, preço", "AUTOMATIC");
         receive(ANA, "bom dia");
@@ -224,10 +241,13 @@ class BotIT extends IntegrationTest {
                 .andExpect(content().string(containsString("/integrations/bot")))
                 .andExpect(content().string(containsString("Ligado")));
         mvc.perform(asManager(MockMvcRequestBuilders.get("/manager/instances/" + name + "/integrations/bot")))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(asManager(MockMvcRequestBuilders.get("/manager/instances/" + name + "/integrations/bot/model")))
                 .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Quando responde")))
                 .andExpect(content().string(containsString("Guardada. Em branco, continua a mesma")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("sk-segredo"))));
-        mvc.perform(asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot/test"))
+        mvc.perform(asManager(MockMvcRequestBuilders.post("/manager/instances/" + name + "/integrations/bot/test/ask"))
                         .header("HX-Request", "true").param("text", "teste da tela"))
                 .andExpect(content().string(containsString("Resposta: teste da tela")));
         assertThat(botReplies(ANA)).hasSize(2);

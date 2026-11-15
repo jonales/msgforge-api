@@ -6,16 +6,15 @@
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide instance-panel connection-page">
-    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.connection')}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
-    <header class="panel-head">
-        <h1 th:text="#{manager.panelNav.connection}">Conexão</h1>
-        <p class="muted" th:text="#{manager.connectionPage.intro}">Estado da conexão.</p>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'connection')}"></nav>
     <div class="panel-main">
+        <header class="panel-head">
+            <h1 th:text="#{manager.panelNav.connection}">Conexão</h1>
+            <p class="muted" th:text="#{manager.connectionPage.intro}">Estado da conexão.</p>
+        </header>
 
     <!-- Trecho vivo: estado + QR. Chega pelo SSE (evento "live"); o polling (3 s enquanto não
          conecta, 15 s depois) é a reserva quando o stream não está aberto (manager.js). A conexão

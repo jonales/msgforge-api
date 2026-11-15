@@ -6,19 +6,18 @@
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide instance-panel">
-    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, null)}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <div class="flash warning" role="status" th:if="${createdToken}">
         <span th:text="#{manager.flash.token}">Token</span> <code th:text="${createdToken}">TOKEN</code>
     </div>
 
-    <header class="panel-head">
-        <h1 th:text="${instance.name}">vendas</h1>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'overview')}"></nav>
     <div class="panel-main">
+        <header class="panel-head">
+            <h1 th:text="${instance.name}">vendas</h1>
+        </header>
     <!-- Criada pela conexão guiada e abandonada antes de ler o QR: retoma do passo onde parou -->
     <section class="card resume" th:if="${instance.pending() and can.connect}" aria-labelledby="pending-title">
         <h2 id="pending-title" th:text="#{manager.pending.title}">Ainda não conectada</h2>

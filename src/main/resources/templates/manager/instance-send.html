@@ -5,17 +5,16 @@
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide instance-panel">
-    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.send')}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
-    <header class="panel-head">
-        <h1 th:text="#{manager.panelNav.send}">Envio de teste</h1>
-        <p class="muted" th:text="#{manager.sendPage.intro}">Mande uma mensagem.</p>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'send')}"></nav>
     <div class="panel-main">
+        <header class="panel-head">
+            <h1 th:text="#{manager.panelNav.send}">Envio de teste</h1>
+            <p class="muted" th:text="#{manager.sendPage.intro}">Mande uma mensagem.</p>
+        </header>
         <section class="card send-card" id="send" aria-labelledby="send-title">
             <h2 id="send-title" th:text="#{manager.send.title}">Mensagem de teste</h2>
             <form th:action="@{/manager/instances/{n}/send(n=${instance.name})}" method="post">

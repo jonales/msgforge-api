@@ -290,7 +290,16 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .container.wide { max-width: 1200px; }
 .panel-head { margin-bottom: 14px; }
 .panel-head p { margin: 4px 0 0; max-width: 75ch; }
-.panel-shell { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; }
+.panel-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: start; }
+/* O painel usa a largura da tela: o menu encosta à esquerda e o conteúdo fica com o resto (centrado em
+   1200px, sobravam duas faixas vazias nas telas largas) */
+.container.instance-panel { max-width: none; margin: 0; }
+@media (min-width: 861px) { .container.instance-panel { padding: 20px 32px 32px; } }
+.panel-nav-head { display: grid; gap: 4px; margin: 0 0 12px; padding: 0 12px 12px; border-bottom: 1px solid var(--border); }
+.panel-back a, a.panel-back { color: var(--muted); text-decoration: none; font-size: var(--fs-small); }
+.panel-back a:hover, a.panel-back:hover { color: var(--text); text-decoration: underline; }
+.panel-back { margin: 0 0 6px; }
+.panel-nav-title { margin: 0; font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
 .panel-main { min-width: 0; }
 .panel-nav { position: sticky; top: 12px; }
 .panel-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -301,6 +310,7 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 @media (max-width: 860px) {
     .panel-shell { grid-template-columns: minmax(0, 1fr); gap: 16px; }
     .panel-nav { position: static; margin: 0 -16px; }
+    .panel-nav-head { margin: 0; padding: 0 16px 8px; border-bottom: 0; }
     .panel-nav ul { display: flex; gap: 0; padding: 0 16px; overflow-x: auto; overscroll-behavior-x: contain;
         scrollbar-width: none; border-bottom: 1px solid var(--border);
         /* As bordas somem aos poucos: a aba cortada mostra que a faixa continua */
@@ -349,7 +359,7 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 /* Configurações: abas por grupo, cada uma com o estado guardado; quebram linha no celular */
 .settings-tabs { margin-bottom: var(--gap); }
 .settings-tabs ul { list-style: none; margin: 0; padding: 0; display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; }
 .settings-tabs a { display: grid; align-content: start; gap: 2px; min-height: 44px; height: 100%; padding: 8px 12px; border: 1px solid var(--border);
     border-radius: 8px; background: var(--surface); color: var(--text); text-decoration: none; }
 .settings-tabs a:hover { border-color: var(--control-border); background: var(--hover); }
@@ -694,3 +704,7 @@ label.checkbox input { accent-color: var(--accent); }
 .bot-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .bot-controls button { min-height: 36px; font-size: var(--fs-small); }
 .bot-form input[type=number] { max-width: 12rem; }
+/* Formulários do painel numa largura de leitura: na tela larga, um campo de 1500px cansa o olho */
+.bot-form, .bot-test, .settings-group, .send-card { max-width: 960px; }
+.settings-tabs .tab-disabled { display: grid; gap: 2px; min-height: 44px; height: 100%; padding: 8px 12px;
+    border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); }
