@@ -74,3 +74,13 @@ real, a passagem de vez entre papéis e a entrega. O refinamento roda em dois pa
 o Pesquisador só junta fatos do contexto (com caminho) e o Redator escreve a especificação a
 partir deles. Com a fila vazia, o plantão gera sozinho uma fila de pendências de
 `PLANTAO_HORAS_SE_OCIOSO` horas (padrão 2; 0 desliga), no máximo uma vez nesse intervalo.
+
+## Fila automática
+
+`fila_pendencias.py` monta a fila (no gatilho de 90% do plano e quando o plantão fica ocioso) nesta ordem:
+passos `[local:...]` dos HANDOFF, branches fora do main (suíte e revisão), suíte do main, backlog sem
+levantamento recente, auditoria de **testes que faltam** nos arquivos alterados em 3 dias, tarefas que
+devolvem **tabelas** (contrato x código, eventos, variáveis, permissões do Manager, cobertura de testes),
+revisão e plano de testes dos levantamentos recentes (o mais recente de cada pedido, até 20) e, para
+encher, até 6 suítes do main e os `*IT` um a um. A auditoria de "bugs" saiu: nenhum achado do modelo
+local se confirmou.
