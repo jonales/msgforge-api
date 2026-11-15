@@ -148,6 +148,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         volatile boolean loggedIn;
         /** LID → número: Store do Cobalt e, como reforço, os nós recebidos. */
         volatile LidResolver lids = new LidResolver();
+        /** Último estado de cada índice do app state nesta conexão (para não repetir CHATS_UPDATE). */
+        final java.util.Map<String, String> appState = new java.util.concurrent.ConcurrentHashMap<>();
         /** messages.update das mensagens enviadas, a partir dos recibos. */
         volatile SentStatusTracker statuses;
         /** Configurações (rejectCall, groupsIgnore...): lidas no connect, trocadas por {@code settingsChanged}. */
@@ -609,8 +611,22 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 events.publishEvent(new GatewayEvent.ChatsUpserted(name, fresh));
             }
         }));
-        api.addWebAppStateActionListener((whatsapp, action, index) -> guarded(name, "app state", () ->
-                CobaltEvents.appState(name, action, index, connection.lids).ifPresent(events::publishEvent)));
+        api.addWebAppStateActionListener((whatsapp, action, index) -> guarded(name, "app state", () -> {
+            // Ressincronização: a mesma ação, com o mesmo estado, não vira outro evento
+            var state = CobaltEvents.fingerprint(action);
+            if (index != null && state != null && state.equals(connection.appState.put(index, state))) {
+                return;
+            }
+            CobaltEvents.appState(name, action, index, connection.lids).ifPresent(events::publishEvent);
+        }));
+        // Recado e foto de um contato: CONTACTS_UPDATE (grupos têm os eventos de grupo)
+        api.addContactTextStatusListener((whatsapp, contact, status) -> guarded(name, "recado", () ->
+                contactChanged(name, connection, contact)));
+        api.addProfilePictureChangedListener((whatsapp, jid) -> guarded(name, "foto", () -> {
+            if (jid != null && !jid.hasGroupOrCommunityServer()) {
+                contactChanged(name, connection, jid);
+            }
+        }));
         api.addWebHistorySyncMessagesListener((whatsapp, chats, last) -> guarded(name, "histórico", () -> {
             var messages = chats.stream()
                     .flatMap(chat -> chat.messages())
@@ -1134,6 +1150,18 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                         .orElse(null);
         var status = optional(connection, () -> connection.api.queryAbout(target)).orElse(null);
         return new Profile(jid, true, name, profilePictureUrl(connection, target), status);
+    }
+
+    /** Um contato mudou o recado ou a foto: CONTACTS_UPDATE com o número (ou o LID sem tradução). */
+    private void contactChanged(String name, Connection connection, Jid jid) {
+        if (jid == null) {
+            return;
+        }
+        var target = jid.withoutData();
+        var pushName = connection.api.store().contactStore().findContactByJid(target)
+                .flatMap(contact -> contact.chosenName().or(contact::fullName)).orElse(null);
+        events.publishEvent(new GatewayEvent.ContactsUpdated(name,
+                List.of(new GatewayEvent.Contact(connection.lids.apply(target), pushName))));
     }
 
     @Override

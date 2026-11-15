@@ -118,6 +118,23 @@ final class CobaltEvents {
         });
     }
 
+    /**
+     * O estado que a ação diz, para reconhecer a mesma ação reenviada: uma ressincronização do app
+     * state (o motor baixa o retrato da coleção inteira, por exemplo depois de arquivar uma conversa)
+     * repete o estado de todas as conversas. Null = sempre um evento (limpar e apagar a conversa).
+     */
+    static String fingerprint(SyncAction<?> action) {
+        return switch (action) {
+            case ArchiveChatAction a -> "archive:" + a.archived();
+            case MuteAction m -> "mute:" + m.muted() + ":" + m.muteEndTimestamp().orElse(null);
+            case PinAction p -> "pin:" + p.pinned();
+            case MarkChatAsReadAction r -> "read:" + r.read();
+            case LockChatAction l -> "lock:" + l.locked();
+            case ContactAction c -> "contact:" + c.fullName().orElse("") + ":" + c.firstName().orElse("");
+            default -> null;
+        };
+    }
+
     /** O JID do índice (segundo item do array). */
     static Optional<Jid> indexJid(String index) {
         if (index == null || index.isBlank()) {

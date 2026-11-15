@@ -410,7 +410,11 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    Ainda não vistos ao vivo: `MESSAGES_SET`, `MESSAGES_DELETE`, `PRESENCE_UPDATE`, `CHATS_UPDATE`/`DELETE`,
    `CONTACTS_UPDATE` e `CALL` (o motor recebeu o revoke, o chatstate e a chamada; faltou o webhook). Limites:
    `CHATS_UPSERT`/`CONTACTS_UPSERT` repetem a lista inteira depois de reiniciar o processo (o
-   filtro é por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
+   filtro é por conexão, em memória); o `CHATS_UPDATE` ignora a ação de app state que repete o estado
+   já visto na conexão (`CobaltEvents.fingerprint`), mas o primeiro retrato da coleção depois de
+   reiniciar ainda sai uma vez por conversa (o motor não diz se a ação veio de retrato ou de patch);
+   `CONTACTS_UPDATE` sai também na troca de recado e de foto de um contato (validado ao vivo em
+   2026-11-15, junto com `MESSAGES_DELETE`, `PRESENCE_UPDATE` e `CALL`); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
    `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas pela
    própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
 
