@@ -13,6 +13,7 @@
     tarefa.py consumo                              # estimativa do plano do Claude na janela de 5 h
     tarefa.py calibrar 70 [15:40]                  # informa a % real (e a hora de volta) que você vê
     tarefa.py fila [horas]                         # gera já a fila de pendências (padrão 10 h)
+    tarefa.py ao-vivo                              # acompanha no terminal quem está pensando, ao vivo
 """
 import argparse
 import datetime as dt
@@ -69,6 +70,72 @@ def nota(ident, texto):
     print("lição registrada; vale a partir da próxima tarefa")
 
 
+
+CORES = {"Pesquisador": "36", "Redator": "35", "Revisor": "33", "Auditor": "33", "Programador": "32",
+         "Consultor": "34", "Investigador de testes": "31", "Resumidor": "34", "Relator": "35"}
+
+
+def ao_vivo():
+    """Segue o .agente-local/ao-vivo.log e mostra, colorido, cada papel pensando e passando a vez."""
+    import sys
+    import time
+    caminho = os.path.join(BASE, "ao-vivo.log")
+    while not os.path.exists(caminho):
+        time.sleep(1)
+    f = open(caminho, encoding="utf-8", errors="replace")
+    f.seek(max(0, os.path.getsize(caminho) - 6000))
+    buf, cor, pos = f.read(), "0", f.tell()
+    i = buf.find("\x1a")  # começa numa tarefa inteira
+    buf = buf[i:] if i >= 0 else ""
+    out = sys.stdout
+
+    def c(codigo, texto):
+        return f"\033[{codigo}m{texto}\033[0m"
+    try:
+        while True:
+            while buf:
+                m = min((buf.find(x) for x in "\x1a\x1c\x1d\x1e" if buf.find(x) >= 0), default=-1)
+                if m != 0:
+                    texto = buf if m < 0 else buf[:m]
+                    if texto.strip():
+                        out.write(c(cor, texto.strip("\n") + ("" if m < 0 else "\n")))
+                    buf = "" if m < 0 else buf[m:]
+                    continue
+                fim = buf.find("\n")
+                if fim < 0:
+                    break  # marcador ainda incompleto
+                tipo, campos, buf = buf[0], buf[1:fim].split("\x1f"), buf[fim + 1:]
+                if tipo == "\x1a" and campos[0] == "tarefa":
+                    _, ident, kind, fila, texto = (campos + [""] * 5)[:5]
+                    out.write("\n" + c("1;37", f"━━ {ident} · {kind} · {fila} na fila ━━") + "\n" + c("2", texto) + "\n")
+                elif tipo == "\x1a" and campos[0] == "entregue":
+                    ok = campos[3] == "feito"
+                    out.write("\n" + c("1;32" if ok else "1;31", f"{'✔' if ok else '✘'} {campos[1]} entregue em {campos[2]} s → {campos[3]}") + "\n")
+                elif tipo == "\x1a" and campos[0] == "ocioso":
+                    out.write("\n" + c("1;34", f"fila vazia: {campos[1]} pendências geradas (~{campos[2]} h)") + "\n")
+                elif tipo == "\x1e":
+                    papel, modelo, tokens = (campos + ["", "", ""])[:3]
+                    cor = CORES.get(papel, "37")
+                    out.write("\n" + c("1;" + cor, f"▶ {papel}") + c("2", f" ({modelo}, contexto ~{tokens} tokens) pensando…") + "\n")
+                elif tipo == "\x1c":
+                    out.write("\n" + c("1", f"↪ {campos[0]} passa a vez para {campos[1]}") + "\n")
+                elif tipo == "\x1d":
+                    if campos[0] == "fim":
+                        out.write("\n" + c("2", f"◀ {campos[1]} s, {campos[2]} tokens") + "\n")
+                    else:
+                        out.write("\n" + c("31", f"◀ erro: {campos[1]}") + "\n")
+                    cor = "0"
+            out.flush()
+            time.sleep(0.3)
+            if os.path.getsize(caminho) < pos:  # girou
+                f = open(caminho, encoding="utf-8", errors="replace")
+            novo = f.read()
+            pos = f.tell()
+            buf += novo
+    except KeyboardInterrupt:
+        out.write("\033[0m\n")
+
+
 p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 sub = p.add_subparsers(dest="cmd", required=True)
 for nome in ("refinar", "pergunta", "resumo", "patch"):
@@ -99,6 +166,7 @@ sub.add_parser("consumo")
 s = sub.add_parser("calibrar")
 s.add_argument("porcentagem", type=float)
 s.add_argument("volta", nargs="?", help="hora em que o limite volta, ex.: 15:40")
+sub.add_parser("ao-vivo")
 s = sub.add_parser("fila")
 s.add_argument("horas", nargs="?", type=float, default=10.0)
 a = p.parse_args()
@@ -123,6 +191,8 @@ elif a.cmd == "ver":
     ver(a.id)
 elif a.cmd == "nota":
     nota(a.id, a.texto)
+elif a.cmd == "ao-vivo":
+    ao_vivo()
 elif a.cmd in ("consumo", "fila", "calibrar"):
     import importlib.util
     nome = "fila_pendencias" if a.cmd == "fila" else "consumo"
