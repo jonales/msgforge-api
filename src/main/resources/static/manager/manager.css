@@ -297,10 +297,16 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 @media (min-width: 861px) { .container.instance-panel { padding: 20px 32px 32px; } }
 .panel-nav-head { display: grid; gap: 4px; margin: 0 0 12px; padding: 0 12px 12px; border-bottom: 1px solid var(--border); }
 .panel-back a, a.panel-back { color: var(--muted); text-decoration: none; font-size: var(--fs-small); }
+/* A volta para a lista não é um item do menu: sem o recuo dos itens, alinhada ao nome da instância */
+.panel-nav a.panel-back { display: inline; min-height: 0; padding: 0; border-radius: 0; }
+.panel-nav a.panel-back:hover { background: none; }
 .panel-back a:hover, a.panel-back:hover { color: var(--text); text-decoration: underline; }
 .panel-back { margin: 0 0 6px; }
 .panel-nav-title { margin: 0; font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
-.panel-main { min-width: 0; }
+/* Uma largura só para o conteúdo de todas as telas do painel (título, abas e cartões terminam no mesmo
+   ponto); Mensagens, com lista e conversa lado a lado, usa a largura toda */
+.panel-main { min-width: 0; max-width: 1120px; }
+.panel-main.panel-main-full { max-width: none; }
 .panel-nav { position: sticky; top: 12px; }
 .panel-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .panel-nav a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px;
@@ -336,8 +342,9 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
     font-size: var(--fs-body); flex-wrap: wrap; }
 .overview-warn a { color: inherit; font-weight: 600; }
 .overview-action { margin: 16px 0 0; }
-.shortcuts { margin-top: 28px; }
-.shortcuts h2 { font-size: var(--fs-h3); margin: 0 0 8px; }
+.shortcuts { margin-top: var(--gap); }
+.shortcuts h2 { margin: 0 0 8px; }
+.shortcuts .shortcut-list li:last-child { border-bottom: 0; }
 .shortcut-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--border); }
 .shortcut-list li { border-bottom: 1px solid var(--border); }
 .shortcut-list a { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center;
@@ -354,7 +361,6 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
     .connection-page:has(#live[data-announce-key="open"]) .connect-form { display: none; }
 }
 .danger-zone > p.muted { margin: -4px 0 14px; max-width: 70ch; }
-.send-card { max-width: 640px; }
 
 /* Configurações: abas por grupo, cada uma com o estado guardado; quebram linha no celular */
 .settings-tabs { margin-bottom: var(--gap); }
@@ -704,7 +710,6 @@ label.checkbox input { accent-color: var(--accent); }
 .bot-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .bot-controls button { min-height: 36px; font-size: var(--fs-small); }
 .bot-form input[type=number] { max-width: 12rem; }
-/* Formulários do painel numa largura de leitura: na tela larga, um campo de 1500px cansa o olho */
-.bot-form, .bot-test, .settings-group, .send-card { max-width: 960px; }
 .settings-tabs .tab-disabled { display: grid; gap: 2px; min-height: 44px; height: 100%; padding: 8px 12px;
     border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); }

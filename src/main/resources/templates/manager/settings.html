@@ -166,16 +166,27 @@
 
             <!-- Webhook e eventos -->
             <form th:if="${group == 'webhook'}" th:action="@{/manager/instances/{n}/webhook(n=${instance.name})}" method="post">
+                <!-- Liga e desliga como os outros grupos: interruptor com descrição -->
+                <label class="toggle" for="webhook-enabled">
+                    <span class="toggle-text">
+                        <strong th:text="#{manager.webhook.enabled}">Enviar eventos para o webhook</strong>
+                        <span class="muted small" id="webhook-enabled-desc" th:text="#{manager.webhook.enabled.desc}">Descrição</span>
+                    </span>
+                    <input type="checkbox" role="switch" class="switch" id="webhook-enabled" name="enabled" value="true"
+                           th:checked="${webhook.enabled}" aria-describedby="webhook-enabled-desc">
+                </label>
                 <label>
                     <span th:text="#{manager.webhook.url}">URL</span>
                     <input name="url" type="url" required th:value="${webhook.url}" placeholder="https://">
                 </label>
-                <div class="checks">
-                    <label class="check"><input type="checkbox" name="enabled" value="true" th:checked="${webhook.enabled}">
-                        <span th:text="#{manager.webhook.enabled}">Ativo</span></label>
-                    <label class="check"><input type="checkbox" name="byEvents" value="true" th:checked="${webhook.byEvents}">
-                        <span th:text="#{manager.webhook.byEvents}">Por evento</span></label>
-                </div>
+                <label class="toggle" for="webhook-by-events">
+                    <span class="toggle-text">
+                        <strong th:text="#{manager.webhook.byEvents}">Uma URL por evento</strong>
+                        <span class="muted small" id="webhook-by-events-desc" th:text="#{manager.webhook.byEvents.desc}">Descrição</span>
+                    </span>
+                    <input type="checkbox" role="switch" class="switch" id="webhook-by-events" name="byEvents" value="true"
+                           th:checked="${webhook.byEvents}" aria-describedby="webhook-by-events-desc">
+                </label>
                 <fieldset>
                     <legend th:text="#{manager.webhook.events}">Eventos</legend>
                     <p class="muted small" th:text="#{manager.webhook.eventsHint}">Nenhum = todos</p>

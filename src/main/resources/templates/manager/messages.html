@@ -10,7 +10,7 @@
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instanceName}, ${can}, 'messages')}"></nav>
-    <div class="panel-main">
+    <div class="panel-main panel-main-full">
         <header class="panel-head">
             <h1 th:text="#{manager.messages.title}">Mensagens</h1>
             <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>

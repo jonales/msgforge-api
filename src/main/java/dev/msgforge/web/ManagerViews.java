@@ -76,6 +76,11 @@ public final class ManagerViews {
             return "open".equals(state);
         }
 
+        /** O número como no resto do Manager ("+55..."); null sem número. */
+        public String displayNumber() {
+            return number == null || number.isBlank() ? null : number.matches("\\d+") ? "+" + number : number;
+        }
+
         /** Criada e ainda sem conexão: o painel oferece retomar a conexão guiada. */
         public boolean pending() {
             return !paired && !open();

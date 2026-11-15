@@ -16,7 +16,8 @@
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'overview')}"></nav>
     <div class="panel-main">
         <header class="panel-head">
-            <h1 th:text="${instance.name}">vendas</h1>
+            <h1 th:text="#{manager.panelNav.overview}">Visão geral</h1>
+            <p class="muted" th:text="#{manager.overview.intro}">Estado e atalhos desta instância.</p>
         </header>
     <!-- Criada pela conexão guiada e abandonada antes de ler o QR: retoma do passo onde parou -->
     <section class="card resume" th:if="${instance.pending() and can.connect}" aria-labelledby="pending-title">
@@ -42,7 +43,7 @@
         <dl class="facts">
             <div>
                 <dt th:text="#{manager.col.number}">Número</dt>
-                <dd><span class="number" th:text="${instance.number} ?: '—'">5561999999999</span></dd>
+                <dd><span class="number" th:text="${instance.displayNumber()} ?: '—'">+5561999999999</span></dd>
             </div>
             <div>
                 <dt th:text="#{manager.col.profile}">Perfil</dt>
@@ -78,7 +79,7 @@
     </section>
     </div>
 
-    <section class="shortcuts" aria-labelledby="shortcuts-title">
+    <section class="card shortcuts" aria-labelledby="shortcuts-title">
         <h2 id="shortcuts-title" th:text="#{manager.overview.shortcuts}">Atalhos</h2>
         <ul class="shortcut-list">
             <li>
@@ -103,6 +104,12 @@
                 <a th:href="@{/manager/instances/{n}/settings(n=${instance.name})}">
                     <strong th:text="#{manager.panelNav.settings}">Configurações</strong>
                     <span class="muted small" th:text="#{manager.overview.go.settings}">Chamadas, leitura</span>
+                </a>
+            </li>
+            <li>
+                <a th:href="@{/manager/instances/{n}/integrations(n=${instance.name})}">
+                    <strong th:text="#{manager.panelNav.integrations}">Integrações</strong>
+                    <span class="muted small" th:text="#{manager.overview.go.integrations}">Bot com IA</span>
                 </a>
             </li>
         </ul>
