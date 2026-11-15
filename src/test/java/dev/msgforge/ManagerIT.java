@@ -273,11 +273,11 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(view().name("manager/messages"))
                 .andExpect(model().attributeExists("chats", "can"))
                 .andExpect(content().string(Matchers.containsString("oi, tudo bem?")))
-                // Menu do painel, com "Mensagens" como página atual, e o caminho volta ao painel
+                // Menu do painel, com "Mensagens" como página atual e o nome da instância no topo
                 .andExpect(content().string(Matchers.containsString("class=\"panel-nav\"")))
                 .andExpect(content().string(Matchers.containsString(
                         "href=\"/manager/instances/" + name + "/messages\" aria-current=\"page\"")))
-                .andExpect(content().string(Matchers.containsString("href=\"/manager/instances/" + name + "\">" + name)))
+                .andExpect(content().string(Matchers.containsString("class=\"panel-nav-title\">" + name + "</p>")))
                 .andExpect(content().string(Matchers.containsString("Ana &lt;b&gt;")))   // escapado
                 // Tempo real (ADR 0013): o stream das conversas, com o polling de reserva
                 .andExpect(content().string(Matchers.containsString(
@@ -513,8 +513,8 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/connect\""))))
                 .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/delete\""))))
                 .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/send\""))))
-                .andExpect(content().string(containsString("class=\"breadcrumb\"")))
-                .andExpect(content().string(containsString("panel-nav-soon")));
+                .andExpect(content().string(containsString("class=\"panel-nav-title\"")))
+                .andExpect(content().string(containsString("href=\"" + panel + "/integrations\"")));
         // O resumo sozinho (o que o SSE pede de novo)
         mvc.perform(asManager(GET(panel + "/summary")))
                 .andExpect(status().isOk())
@@ -529,7 +529,7 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(containsString("action=\"" + panel + "/connect\"")))
                 .andExpect(content().string(containsString("action=\"" + panel + "/logout\"")))
                 .andExpect(content().string(containsString("action=\"" + panel + "/delete\"")))
-                .andExpect(content().string(containsString("href=\"" + panel + "\">" + name + "</a>")));
+                .andExpect(content().string(containsString("class=\"panel-nav-title\">" + name + "</p>")));
 
         // Envio de teste: tela própria, e o envio volta para ela
         mvc.perform(asManager(GET(panel + "/send")))
@@ -1046,7 +1046,7 @@ class ManagerIT extends IntegrationTest {
         var soon = page.substring(start, page.indexOf("</section>", start));
         assertThat(soon)
                 .contains("Em breve").contains("Cloud API oficial").contains("Typebot").contains("Chatwoot")
-                .contains("OpenAI").contains("Dify").contains("Flowise").contains("n8n")
+                .doesNotContain("OpenAI").contains("Dify").contains("Flowise").contains("n8n")
                 .doesNotContain("<a ").doesNotContain("<button").doesNotContain("href=");
     }
 

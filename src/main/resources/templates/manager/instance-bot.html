@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
+<!-- Integrações → Bot com IA (ADR 0015). Uma aba por pergunta (URL própria, como as Configurações):
+     qual modelo, quando o bot responde, o que acontece quando um atendente assume, ajustes e o teste.
+     Cada aba salva só o que é dela. A chave nunca volta para a tela. -->
+<head th:replace="~{manager/fragments/layout :: head(#{manager.bot.title} + ' · ' + ${instance.name})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container wide instance-panel" th:with="errors=${fieldErrors != null ? fieldErrors : {:}}">
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+
+    <div class="panel-shell">
+    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'integrations')}"></nav>
+    <div class="panel-main">
+        <p class="panel-back"><a th:href="@{/manager/instances/{n}/integrations(n=${instance.name})}" th:text="#{manager.bot.back}">← Integrações</a></p>
+        <header class="panel-head">
+            <h1 th:text="#{manager.bot.title}">Bot com IA</h1>
+            <p class="muted" th:text="#{manager.bot.intro}">Responde sozinho nas conversas.</p>
+        </header>
+        <!-- Abas: cada uma com o estado guardado; sem modelo configurado, só a primeira abre -->
+        <nav class="settings-tabs" th:attr="aria-label=#{manager.bot.tabs}">
+            <ul>
+                <li th:each="t : ${tabs}">
+                    <a th:if="${savedBot.configured or t == 'model'}"
+                       th:href="@{/manager/instances/{n}/integrations/bot/{t}(n=${instance.name},t=${t})}"
+                       th:attr="aria-current=${t == tab} ? 'page' : null">
+                        <span class="tab-title" th:text="#{'manager.bot.tab.' + ${t}}">Modelo</span>
+                        <span class="tab-state small"
+                              th:text="#{${savedBot.tabStateKey(t)}(${savedBot.pauseMinutes}, ${savedBot.contextMessages})}">Ligado</span>
+                    </a>
+                    <span class="tab-disabled" th:unless="${savedBot.configured or t == 'model'}">
+                        <span class="tab-title" th:text="#{'manager.bot.tab.' + ${t}}">Quando responde</span>
+                        <span class="small" th:text="#{manager.bot.tabState.needsModel}">Salve o modelo antes</span>
+                    </span>
+                </li>
+            </ul>
+        </nav>
+        <p class="saved flash success" role="status" th:if="${saved == tab}" th:text="#{manager.bot.saved}">Salvo.</p>
+
+        <form th:unless="${tab == 'test'}" th:action="@{/manager/instances/{n}/integrations/bot/{t}(n=${instance.name},t=${tab})}"
+              method="post" class="bot-form" autocomplete="off">
+
+            <section class="card" aria-labelledby="bot-model-title" th:if="${tab == 'model'}">
+                <h2 id="bot-model-title" th:text="#{manager.bot.model.title}">Modelo</h2>
+                <label class="toggle" for="bot-enabled">
+                    <span class="toggle-text">
+                        <strong th:text="#{manager.bot.enabled}">Bot ligado</strong>
+                        <span class="muted small" id="bot-enabled-desc" th:text="#{manager.bot.enabled.desc}">Descrição</span>
+                    </span>
+                    <input type="checkbox" role="switch" class="switch" id="bot-enabled" name="enabled" value="true"
+                           th:checked="${bot.enabled}" aria-describedby="bot-enabled-desc">
+                </label>
+
+                <label th:with="err=${errors['bot.baseUrl']}">
+                    <span th:text="#{manager.bot.baseUrl}">Endereço da API</span>
+                    <input name="baseUrl" type="url" required maxlength="500" spellcheck="false" th:value="${bot.baseUrl}"
+                           th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='bot-baseUrl-hint' + (${err != null} ? ' bot-baseUrl-error' : '')">
+                    <span class="field-error" id="bot-baseUrl-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                    <span class="hint" id="bot-baseUrl-hint" th:text="#{manager.bot.baseUrl.hint}">Compatível com a OpenAI.</span>
+                </label>
+
+                <label th:with="err=${errors['bot.model']}">
+                    <span th:text="#{manager.bot.modelName}">Modelo</span>
+                    <input name="model" required maxlength="120" spellcheck="false" th:value="${bot.model}"
+                           th:placeholder="#{manager.bot.modelName.placeholder}"
+                           th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'bot-model-error' : null">
+                    <span class="field-error" id="bot-model-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                </label>
+
+                <label th:with="err=${errors['bot.apiKey']}">
+                    <span th:text="#{manager.bot.apiKey}">Chave da API</span>
+                    <input name="apiKey" type="password" autocomplete="new-password" maxlength="500"
+                           th:placeholder="${bot.hasApiKey} ? #{manager.bot.apiKey.kept} : ''"
+                           th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='bot-apiKey-hint' + (${err != null} ? ' bot-apiKey-error' : '')">
+                    <span class="field-error" id="bot-apiKey-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                    <span class="hint" id="bot-apiKey-hint"
+                          th:text="${secretsEnabled} ? #{manager.bot.apiKey.hint} : #{manager.bot.apiKey.noSecrets}">Cifrada.</span>
+                </label>
+                <label class="checkbox" th:if="${bot.hasApiKey}">
+                    <input type="checkbox" name="removeApiKey" value="true">
+                    <span th:text="#{manager.bot.apiKey.remove}">Apagar a chave guardada</span>
+                </label>
+
+                <label th:with="err=${errors['bot.systemPrompt']}">
+                    <span th:text="#{manager.bot.systemPrompt}">Instruções</span>
+                    <textarea name="systemPrompt" rows="6" maxlength="8000" th:text="${bot.systemPrompt}"
+                              th:placeholder="#{manager.bot.systemPrompt.placeholder}"
+                              th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='bot-prompt-hint' + (${err != null} ? ' bot-prompt-error' : '')"></textarea>
+                    <span class="field-error" id="bot-prompt-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                    <span class="hint" id="bot-prompt-hint" th:text="#{manager.bot.systemPrompt.hint}">Quem é o bot.</span>
+                </label>
+            </section>
+
+            <section class="card" aria-labelledby="bot-trigger-title" th:if="${tab == 'trigger'}">
+                <h2 id="bot-trigger-title" th:text="#{manager.bot.trigger.title}">Quando o bot responde</h2>
+                <fieldset class="choices">
+                    <legend th:text="#{manager.bot.trigger}">O bot entra na conversa</legend>
+                    <label class="choice" th:each="t : ${bot.triggers()}">
+                        <input type="radio" name="triggerMode" th:value="${t}" th:checked="${t == bot.triggerMode}">
+                        <span>
+                            <strong th:text="#{'manager.bot.trigger.' + ${t}}">Em toda conversa</strong>
+                            <span class="muted small" th:text="#{'manager.bot.trigger.' + ${t} + '.desc'}">Descrição</span>
+                        </span>
+                    </label>
+                </fieldset>
+
+                <label th:with="err=${errors['bot.keywords']}">
+                    <span th:text="#{manager.bot.keywords}">Palavras-chave</span>
+                    <textarea name="keywords" rows="2" maxlength="1000" th:text="${bot.keywords}"
+                              th:placeholder="#{manager.bot.keywords.placeholder}"
+                              th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='bot-keywords-hint' + (${err != null} ? ' bot-keywords-error' : '')"></textarea>
+                    <span class="field-error" id="bot-keywords-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                    <span class="hint" id="bot-keywords-hint" th:text="#{manager.bot.keywords.hint}">Separe por vírgula.</span>
+                </label>
+
+                <div class="field-row">
+                    <label>
+                        <span th:text="#{manager.bot.stopKeyword}">Palavra para encerrar</span>
+                        <input name="stopKeyword" maxlength="60" th:value="${bot.stopKeyword}" aria-describedby="bot-stop-hint">
+                        <span class="hint" id="bot-stop-hint" th:text="#{manager.bot.stopKeyword.hint}">Ex.: sair.</span>
+                    </label>
+                    <label th:with="err=${errors['bot.sessionMinutes']}">
+                        <span th:text="#{manager.bot.sessionMinutes}">Encerrar depois de (minutos sem mensagens)</span>
+                        <input name="sessionMinutes" type="number" min="0" max="10080" th:value="${bot.sessionMinutes}"
+                               th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='bot-session-hint' + (${err != null} ? ' bot-session-error' : '')">
+                        <span class="field-error" id="bot-session-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                        <span class="hint" id="bot-session-hint" th:text="#{manager.bot.sessionMinutes.hint}">0 = não encerra.</span>
+                    </label>
+                </div>
+
+                <label class="toggle" for="bot-groups">
+                    <span class="toggle-text">
+                        <strong th:text="#{manager.bot.ignoreGroups}">Não responder em grupos</strong>
+                        <span class="muted small" id="bot-groups-desc" th:text="#{manager.bot.ignoreGroups.desc}">Descrição</span>
+                    </span>
+                    <input type="checkbox" role="switch" class="switch" id="bot-groups" name="ignoreGroups" value="true"
+                           th:checked="${bot.ignoreGroups}" aria-describedby="bot-groups-desc">
+                </label>
+            </section>
+
+            <section class="card" aria-labelledby="bot-human-title" th:if="${tab == 'handoff'}">
+                <h2 id="bot-human-title" th:text="#{manager.bot.human.title}">Quando um atendente assume</h2>
+                <label class="toggle" for="bot-pause">
+                    <span class="toggle-text">
+                        <strong th:text="#{manager.bot.pauseOnHuman}">Pausar o bot quando um atendente responder</strong>
+                        <span class="muted small" id="bot-pause-desc" th:text="#{manager.bot.pauseOnHuman.desc}">Descrição</span>
+                    </span>
+                    <input type="checkbox" role="switch" class="switch" id="bot-pause" name="pauseOnHuman" value="true"
+                           th:checked="${bot.pauseOnHuman}" aria-describedby="bot-pause-desc">
+                </label>
+                <fieldset class="choices">
+                    <legend th:text="#{manager.bot.resume}">Depois da pausa, o bot volta</legend>
+                    <label class="choice" th:each="r : ${bot.resumeModes()}">
+                        <input type="radio" name="resumeMode" th:value="${r}" th:checked="${r == bot.resumeMode}">
+                        <span>
+                            <strong th:text="#{'manager.bot.resume.' + ${r}}">Sozinho</strong>
+                            <span class="muted small" th:text="#{'manager.bot.resume.' + ${r} + '.desc'}">Descrição</span>
+                        </span>
+                    </label>
+                </fieldset>
+                <label th:with="err=${errors['bot.pauseMinutes']}">
+                    <span th:text="#{manager.bot.pauseMinutes}">Volta sozinho depois de (minutos)</span>
+                    <input name="pauseMinutes" type="number" min="1" max="10080" th:value="${bot.pauseMinutes}"
+                           th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'bot-pauseMin-error' : null">
+                    <span class="field-error" id="bot-pauseMin-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                </label>
+            </section>
+
+            <section class="card" aria-labelledby="bot-advanced-title" th:if="${tab == 'advanced'}">
+                <h2 id="bot-advanced-title" th:text="#{manager.bot.advanced}">Avançado</h2>
+                <div class="field-row">
+                    <label th:with="err=${errors['bot.contextMessages']}">
+                        <span th:text="#{manager.bot.contextMessages}">Mensagens de memória</span>
+                        <input name="contextMessages" type="number" min="1" max="50" th:value="${bot.contextMessages}"
+                               aria-describedby="bot-context-hint">
+                        <span class="field-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                        <span class="hint" id="bot-context-hint" th:text="#{manager.bot.contextMessages.hint}">Até 50.</span>
+                    </label>
+                    <label th:with="err=${errors['bot.typingSeconds']}">
+                        <span th:text="#{manager.bot.typingSeconds}">"Digitando..." antes de responder (segundos)</span>
+                        <input name="typingSeconds" type="number" min="0" max="10" th:value="${bot.typingSeconds}"
+                               aria-describedby="bot-typing-hint">
+                        <span class="field-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                        <span class="hint" id="bot-typing-hint" th:text="#{manager.bot.typingSeconds.hint}">0 a 10.</span>
+                    </label>
+                </div>
+            </section>
+
+            <div class="form-actions">
+                <button type="submit" class="primary" th:text="#{manager.bot.submit}">Salvar</button>
+            </div>
+        </form>
+
+        <section class="card" aria-labelledby="bot-test-title" th:if="${tab == 'test'}">
+            <h2 id="bot-test-title" th:text="#{manager.bot.test.title}">Testar agora</h2>
+            <p class="muted small" th:text="#{manager.bot.test.intro}">Nada vai para o WhatsApp.</p>
+            <form th:action="@{/manager/instances/{n}/integrations/bot/test/ask(n=${instance.name})}" method="post"
+                  th:attr="hx-post=@{/manager/instances/{n}/integrations/bot/test/ask(n=${instance.name})}"
+                  hx-target="#bot-test-result" hx-swap="outerHTML" class="bot-test">
+                <label>
+                    <span th:text="#{manager.bot.test.text}">Mensagem do cliente</span>
+                    <textarea name="text" rows="2" maxlength="2000" required></textarea>
+                </label>
+                <div class="form-actions">
+                    <button type="submit" th:text="#{manager.bot.test.submit}">Perguntar ao bot</button>
+                </div>
+            </form>
+            <div id="bot-test-result" th:fragment="testResult" role="status" aria-live="polite">
+                <p class="bubble-preview" th:if="${testReply}" th:text="${testReply}">Olá!</p>
+                <p class="field-error" th:if="${testError}">
+                    <span th:text="#{${testError}}">Falhou.</span>
+                    <span class="muted small" th:if="${testDetail}" th:text="${testDetail}">detalhe</span>
+                </p>
+            </div>
+        </section>
+    </div>
+    </div>
+</main>
+</body>
+</html>

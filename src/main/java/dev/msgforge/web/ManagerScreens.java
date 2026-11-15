@@ -34,10 +34,13 @@ public class ManagerScreens {
     private final DeliveryHealth deliveries;
     private final GroupNames groupNames;
     private final MessageHistory history;
+    private final dev.msgforge.bot.BotService bots;
 
     public ManagerScreens(InstanceService instances, QrCodeCache qrCodes, ChatService chats,
-                          DeliveryHealth deliveries, GroupNames groupNames, MessageHistory history) {
+                          DeliveryHealth deliveries, GroupNames groupNames, MessageHistory history,
+                          dev.msgforge.bot.BotService bots) {
         this.groupNames = groupNames;
+        this.bots = bots;
         this.history = history;
         this.instances = instances;
         this.qrCodes = qrCodes;
@@ -145,8 +148,9 @@ public class ManagerScreens {
         var chatName = group ? groupNames.of(name).get(jid)
                 : found.records().stream().filter(m -> !m.key().fromMe()).map(m -> m.pushName())
                         .filter(n -> n != null && !n.isBlank()).findFirst().orElse(null);
+        var bot = bots.state(name, jid).map(ManagerViews.BotChip::of).orElse(null);
         return new Conversation(jid, chatName, ManagerViews.rows(ordered, group, java.time.LocalDate.now()),
-                current, found.pages());
+                current, found.pages(), bot);
     }
 
     /**

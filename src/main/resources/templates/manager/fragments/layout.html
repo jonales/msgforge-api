@@ -76,24 +76,21 @@
     </ol>
 </nav>
 
-<!-- Trilha das telas do painel: "Instâncias / nome / Tela". Na visão geral (current nulo), o nome é a
-     página atual. -->
-<nav th:fragment="panelCrumbs(name, current)" class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
-    <a th:href="@{/manager}" th:text="#{manager.breadcrumb.instances}">Instâncias</a>
-    <span aria-hidden="true">/</span>
-    <span th:if="${current == null}" aria-current="page" th:text="${name}">vendas</span>
-    <th:block th:if="${current != null}">
-        <a th:href="@{/manager/instances/{n}(n=${name})}" th:text="${name}">vendas</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page" th:text="#{${current}}">Conexão</span>
-    </th:block>
-</nav>
+<!-- Volta de uma tela solta da instância (a leitura do QR da criação guiada) para o painel dela -->
+<p th:fragment="panelCrumbs(name, current)" class="panel-back">
+    <a th:href="@{/manager/instances/{n}(n=${name})}" th:text="'← ' + ${name}">← vendas</a>
+</p>
 
 <!-- Menu do painel da instância: cada item é uma tela própria (URL própria; voltar e recarregar
      funcionam) e o atual leva aria-current="page". Só os itens que a pessoa pode abrir (PanelAccess);
      a rota confere de novo. No celular, vira uma faixa de abas numa linha só, que rola dentro dela
      mesma (a página não rola para o lado). -->
 <nav th:fragment="panelNav(name, can, current)" class="panel-nav" th:attr="aria-label=#{manager.panelNav.label}">
+    <!-- Quem é a instância e a volta para a lista ficam no topo do menu (sem trilha repetindo o menu) -->
+    <div class="panel-nav-head">
+        <a class="panel-back" th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a>
+        <p class="panel-nav-title" th:text="${name}">vendas</p>
+    </div>
     <ul>
         <li><a th:href="@{/manager/instances/{n}(n=${name})}" th:attr="aria-current=${current == 'overview'} ? 'page' : null"
                th:text="#{manager.panelNav.overview}">Visão geral</a></li>
@@ -106,12 +103,9 @@
         <!-- Uma tela por grupo (chamadas, leitura, presença, histórico, proxy, webhook) -->
         <li th:if="${can.settings()}"><a th:href="@{/manager/instances/{n}/settings(n=${name})}" th:attr="aria-current=${current == 'settings'} ? 'page' : null"
                th:text="#{manager.panelNav.settings}">Configurações</a></li>
-        <!-- Tela própria por instância; as integrações ainda não funcionam (marca "Em breve") -->
-        <li class="panel-nav-soon"><a th:href="@{/manager/instances/{n}/integrations(n=${name})}"
-               th:attr="aria-current=${current == 'integrations'} ? 'page' : null">
-            <span th:text="#{manager.panelNav.integrations}">Integrações</span>
-            <span class="soon-tag tag" th:text="#{manager.soon.tag}">Em breve</span>
-        </a></li>
+        <!-- Integrações da instância (bot com IA e as que vêm "Em breve") -->
+        <li><a th:href="@{/manager/instances/{n}/integrations(n=${name})}" th:attr="aria-current=${current == 'integrations'} ? 'page' : null"
+               th:text="#{manager.panelNav.integrations}">Integrações</a></li>
     </ul>
 </nav>
 

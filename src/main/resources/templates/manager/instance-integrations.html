@@ -1,23 +1,43 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
-<!-- Painel da instância, Integrações: cada instância terá as próprias. Sem backend ainda: só aparecem,
-     sem link nem botão (PRODUCT.md, "Em breve"). -->
+<!-- Painel da instância, Integrações: as que funcionam (bot com IA, ADR 0015) abrem a própria
+     configuração; as que ainda não existem só aparecem, sem link nem botão (PRODUCT.md, "Em breve"). -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.integrations} + ' · ' + ${instance.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide instance-panel">
-    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.integrations')}"></nav>
-    <header class="panel-head">
-        <h1 th:text="#{manager.panelNav.integrations}">Integrações</h1>
-        <p class="muted" th:text="#{manager.integrationsPage.intro}">Cada instância terá as suas.</p>
-    </header>
 
     <div class="panel-shell">
     <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'integrations')}"></nav>
     <div class="panel-main">
+        <header class="panel-head">
+            <h1 th:text="#{manager.panelNav.integrations}">Integrações</h1>
+            <p class="muted" th:text="#{manager.integrationsPage.intro}">Cada instância terá as suas.</p>
+        </header>
+    <!-- Integrações que já funcionam: cada uma abre a própria configuração -->
+    <section class="card" aria-labelledby="live-title">
+        <h2 id="live-title" th:text="#{manager.integrations.available}">Disponíveis</h2>
+        <ul class="integration-list">
+            <li>
+                <a class="integration" th:href="@{/manager/instances/{n}/integrations/bot(n=${instance.name})}"
+                   th:if="${can.account}">
+                    <span class="soon-name" th:text="#{manager.bot.title}">Bot com IA</span>
+                    <span class="soon-what" th:text="#{manager.bot.what}">Responde sozinho com IA</span>
+                    <span class="badge" th:classappend="${botEnabled} ? 'open' : 'close'"
+                          th:text="${botEnabled} ? #{manager.integrations.on} : #{manager.integrations.off}">Desligado</span>
+                </a>
+                <span class="integration" th:unless="${can.account}">
+                    <span class="soon-name" th:text="#{manager.bot.title}">Bot com IA</span>
+                    <span class="soon-what" th:text="#{manager.bot.what}">Responde sozinho com IA</span>
+                    <span class="badge" th:classappend="${botEnabled} ? 'open' : 'close'"
+                          th:text="${botEnabled} ? #{manager.integrations.on} : #{manager.integrations.off}">Desligado</span>
+                </span>
+            </li>
+        </ul>
+    </section>
     <section class="card soon" aria-labelledby="soon-title">
         <div class="soon-head">
-            <h2 id="soon-title" th:text="#{manager.soon.title}">Canais e integrações</h2>
+            <h2 id="soon-title" th:text="#{manager.soon.title}">Em breve</h2>
             <p class="muted small" th:text="#{manager.soon.text}">Hoje o Msgforge conecta pelo WhatsApp.</p>
         </div>
         <div class="soon-groups">

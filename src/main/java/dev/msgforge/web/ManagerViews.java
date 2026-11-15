@@ -76,6 +76,11 @@ public final class ManagerViews {
             return "open".equals(state);
         }
 
+        /** O número como no resto do Manager ("+55..."); null sem número. */
+        public String displayNumber() {
+            return number == null || number.isBlank() ? null : number.matches("\\d+") ? "+" + number : number;
+        }
+
         /** Criada e ainda sem conexão: o painel oferece retomar a conexão guiada. */
         public boolean pending() {
             return !paired && !open();
@@ -389,7 +394,8 @@ public final class ManagerViews {
      * Página da conversa, da mais antiga para a mais nova; {@code page} 1 é a mais recente.
      * {@code name}: o nome do contato ou do grupo, se conhecido.
      */
-    public record Conversation(String jid, String name, List<MessageRow> rows, int page, long pages) {
+    /** @param bot o bot nesta conversa; null quando a instância não tem bot ligado */
+    public record Conversation(String jid, String name, List<MessageRow> rows, int page, long pages, BotChip bot) {
 
         public boolean hasOlder() {
             return page < pages;
@@ -410,6 +416,26 @@ public final class ManagerViews {
 
         public String label() {
             return name != null && !name.isBlank() ? name : phoneOrJid(jid);
+        }
+    }
+
+    /**
+     * O bot numa conversa: {@code state} é active, paused ou idle (ainda não entrou, ou encerrou);
+     * {@code until} é a hora em que volta sozinho (null numa pausa até reativar).
+     */
+    public record BotChip(String state, String until) {
+
+        static BotChip of(dev.msgforge.bot.BotService.ChatState s) {
+            return switch (s.status()) {
+                case ACTIVE -> new BotChip("active", null);
+                case PAUSED -> new BotChip("paused", s.pausedUntil() == null ? null
+                        : CLOCK_MINUTES.format(s.pausedUntil()));
+                case CLOSED -> new BotChip("idle", null);
+            };
+        }
+
+        public boolean paused() {
+            return "paused".equals(state);
         }
     }
 

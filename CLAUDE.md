@@ -188,6 +188,15 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.
 - `web/`: o **Manager**, front-end em Thymeleaf em `/manager` (ADR 0005). Veja a seção
   "Front-end" abaixo.
+- `bot/` (ADR 0015): bot com IA por instância (`instance_bot`, configurado em Integrações → Bot com IA,
+  fora do contrato). Provedor compatível com a OpenAI (`ChatModelClient`, sem redirect, endereço privado
+  só com `BOT_ALLOW_PRIVATE_NETWORKS`, erro nunca com a chave nem o corpo); chave cifrada (ADR 0014).
+  `BotRules` (puras) decidem: gatilho `ALL`/`KEYWORD`/`EXACT` (sem acento nem caixa), sessão por
+  conversa em `bot_session` (expira por `session_minutes`, palavra de encerrar; encerrada no `ALL` só
+  volta reativada) e pausa quando um atendente responde (Manager chama `humanReplied`; mensagem da
+  própria conta que não é eco do bot nem envio da Msgforge = celular), volta `AUTOMATIC` ou `MANUAL`.
+  Uma conversa por vez (`OrderedExecutor`), memória pelo histórico, envio com `sent_by = BOT`. Na
+  conversa do Manager: estado do bot e Pausar/Reativar (`ManagerBotController`, "enviar mensagens").
 - `access/` (ADR 0010, seção "Fase 2"): organizações, usuários (`app_user`), papéis e vínculos.
   Catálogo **fixo** de permissões (`Permission`); papéis são **dados** de cada organização
   (`role` + `role_permission`), com os modelos de `RoleTemplate`. Toda instância tem
@@ -269,7 +278,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     continuar a conexão, ver conexão, reconectar), número e perfil, aviso de webhook em nova tentativa
     (`DeliveryHealth`, uma consulta à fila viva da outbox), estado vazio que leva à criação guiada,
     busca e filtro no navegador só acima de 8 instâncias (`SEARCH_THRESHOLD`). Canais e integrações
-    ficam por instância (`/{n}/integrations`, "Em breve", sem link nem botão), não na lista. Escala de títulos em `--fs-*` no `manager.css`
+    ficam por instância (`/{n}/integrations`: o bot com IA e os "Em breve", sem link nem botão), não na lista. Escala de títulos em `--fs-*` no `manager.css`
   - [x] criar instância
   - [x] conectar (QR/pairing ao vivo)
   - [x] webhook

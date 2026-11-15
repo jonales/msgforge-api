@@ -25,3 +25,4 @@ Uma decisão aceita não é editada; se ela mudar, crie um ADR novo que a substi
 | [0012](0012-outbox-para-entregas.md) | Outbox no PostgreSQL para entregas de eventos e notificações | aceita |
 | [0013](0013-tempo-real-no-manager-com-sse.md) | Tempo real no Manager com Server-Sent Events | aceita |
 | [0014](0014-segredos-cifrados-no-banco.md) | Segredos cifrados no banco (senha do proxy da instância), com `SECRETS_ENCRYPTION_KEY` | aceita |
+| [0015](0015-bot-com-ia-por-instancia.md) | Bot com IA por instância (compatível com a API da OpenAI), com gatilho, sessão e pausa quando o atendente assume | aceita |

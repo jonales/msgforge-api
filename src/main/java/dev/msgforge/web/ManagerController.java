@@ -51,12 +51,14 @@ public class ManagerController {
     private final ManagerAccess guard;
     private final AccessService access;
     private final ManagerAuthor author;
+    private final dev.msgforge.bot.BotService bots;
 
     public ManagerController(InstanceService instances, WebhookService webhooks, MessageService messages,
                              QrCodeCache qrCodes, ManagerScreens screens,
                              dev.msgforge.history.HistoryRecorder history, ManagerAccess guard,
-                             AccessService access, ManagerAuthor author) {
+                             AccessService access, ManagerAuthor author, dev.msgforge.bot.BotService bots) {
         this.guard = guard;
+        this.bots = bots;
         this.author = author;
         this.access = access;
         this.instances = instances;
@@ -74,7 +76,7 @@ public class ManagerController {
 
     /** Canais e integrações sem backend: aparecem como "Em breve" (PRODUCT.md), sem link nem botão. */
     static final List<String> SOON_CHANNELS = List.of("cloudApi");
-    static final List<String> SOON_INTEGRATIONS = List.of("typebot", "chatwoot", "openai", "dify", "flowise", "n8n");
+    static final List<String> SOON_INTEGRATIONS = List.of("typebot", "chatwoot", "dify", "flowise", "n8n");
 
     /** Só as instâncias em que a pessoa tem "ver status"; o resumo conta só essas. */
     @GetMapping({"", "/"})
@@ -181,6 +183,8 @@ public class ManagerController {
         panel(model, check, guard.require(check, name, Permission.INSTANCE_VIEW));
         model.addAttribute("soonChannels", SOON_CHANNELS);
         model.addAttribute("soonIntegrations", SOON_INTEGRATIONS);
+        var instance = guard.require(check, name, Permission.INSTANCE_VIEW);
+        model.addAttribute("botEnabled", ManagerBotController.botOn(bots, instance));
         return "manager/instance-integrations";
     }
 
@@ -403,6 +407,7 @@ public class ManagerController {
         model.addAttribute("instanceName", instance.getName());
         model.addAttribute("can", PanelAccess.of(ManagerAccess.on(check, instance)));
         model.addAttribute("chats", chatRows(name));
+        model.addAttribute("botEnabled", ManagerBotController.botOn(bots, instance));
         if (jid != null && !jid.isBlank()) {
             model.addAttribute("conversation", screens.conversation(name, jid.trim(), 1));
         }
@@ -449,6 +454,7 @@ public class ManagerController {
                 var sent = messages.sendText(name, jid, signed, null, null);
                 history.recordSent(sent.instance(), sent.message(), "conversation",
                         java.util.Map.of("conversation", signed), sender.sentBy());
+                bots.humanReplied(name, jid);   // um atendente assumiu: o bot pausa (se configurado)
             } catch (dev.msgforge.common.ApiExceptionHandler.BadRequestException
                      | dev.msgforge.gateway.WhatsAppGateway.GatewayException e) {
                 failure = "manager.messages.reply.failed";
