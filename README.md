@@ -66,8 +66,8 @@ real, veja [Motores do WhatsApp](docs/motores.md).
 
 [AGPL-3.0-only](LICENSE): use, estude, modifique e distribua à vontade. Quem oferecer a Msgforge
 modificada como serviço pela rede precisa disponibilizar o código-fonte aos usuários. Para usar sem
-essas obrigações (num serviço de código fechado, por exemplo), há licença comercial com o titular
-([NOTICE](NOTICE)). Contribuições seguem o [CONTRIBUTING.md](CONTRIBUTING.md). As bibliotecas
+essas obrigações (num serviço de código fechado, por exemplo), há licença comercial com o titular:
+[abra uma issue](https://github.com/jonales/msgforge-api/issues) pedindo o contato ([NOTICE](NOTICE)). Contribuições seguem o [CONTRIBUTING.md](CONTRIBUTING.md). As bibliotecas
 distribuídas mantêm as próprias licenças ([THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)); o motor
 cobalt-2 é MIT.
 

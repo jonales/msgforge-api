@@ -9,7 +9,8 @@ Quem oferece este programa, modificado, a usuários pela rede precisa oferecer a
 correspondente (seção 13 da AGPL).
 
 Licença comercial: para usar a Msgforge sem as obrigações da AGPL (por exemplo, num serviço com
-código fechado), é possível contratar uma licença comercial com o titular dos direitos acima.
+código fechado), é possível contratar uma licença comercial com o titular dos direitos acima: abra uma
+issue em https://github.com/jonales/msgforge-api/issues pedindo o contato comercial.
 
 Bibliotecas de terceiros distribuídas junto mantêm as próprias licenças: veja THIRD-PARTY-NOTICES.md.
 O motor do WhatsApp (cobalt-2) é licenciado sob a MIT.
