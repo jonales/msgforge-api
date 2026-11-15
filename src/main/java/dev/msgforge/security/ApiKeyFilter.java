@@ -38,11 +38,14 @@ public class ApiKeyFilter extends OncePerRequestFilter {
     private final MsgforgeProperties properties;
     private final InstanceRepository instances;
     private final ApiKeyAttemptLimiter limiter;
+    private final ProxyHeadersAdvisor proxies;
 
-    public ApiKeyFilter(MsgforgeProperties properties, InstanceRepository instances, ApiKeyAttemptLimiter limiter) {
+    public ApiKeyFilter(MsgforgeProperties properties, InstanceRepository instances, ApiKeyAttemptLimiter limiter,
+                        ProxyHeadersAdvisor proxies) {
         this.properties = properties;
         this.instances = instances;
         this.limiter = limiter;
+        this.proxies = proxies;
     }
 
     @Override
@@ -56,12 +59,16 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         var ip = request.getRemoteAddr();
+        proxies.seen(ip);
         if (limiter.blocked(ip)) {
             tooManyAttempts(response, limiter.retryAfterSeconds(ip));
             return;
         }
         if (!authenticate(request)) {
             limiter.failed(ip);
+            if (limiter.blocked(ip)) {
+                proxies.blocked(ip);   // acabou de passar do limite
+            }
             unauthorized(response);
             return;
         }

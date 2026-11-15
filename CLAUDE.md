@@ -118,7 +118,12 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   (ou status desconhecido) entra como `PENDING`: `List.of(...).contains(null)` lança NPE.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
-  não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log).
+  não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log). O ffmpeg roda
+  com `-protocol_whitelist pipe` (uma playlist hls/concat no stdin não abre arquivo nem URL).
+  `MediaDownloader` baixa a mídia por URL **sempre** pelo `PrivateNetworkGuard.inspect` (com ou sem
+  `WEBHOOK_BLOCK_PRIVATE_NETWORKS`), sem redirect automático: segue até 5, checando cada destino, e
+  o erro não traz a mensagem da exceção de rede. Nos testes com servidor em 127.0.0.1, passe um
+  `MediaDownloader` com outra checagem (construtor de pacote do `CobaltWhatsAppGateway`).
   `MediaSignatures` recusa um "vídeo" sem assinatura MP4/WebM antes do ffprobe (que travaria ~10 s).
 - `instance/InstanceService`: `create`/`connect`/`logout`/`delete` **não seguram transação**
   enquanto o gateway trabalha (os eventos do motor chegam por outras threads e precisam ver a
@@ -167,7 +172,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     Tokens de instância novos também exigem 32+ caracteres (os antigos continuam valendo).
   - IP real atrás de proxy: `RemoteIpValve` do Tomcat (`forward-headers-strategy: native`), que só
     aceita o `X-Forwarded-For` de `TRUSTED_PROXIES` (CIDRs; vazio = ignora). Os limitadores
-    continuam lendo `getRemoteAddr()`.
+    continuam lendo `getRemoteAddr()`. Com `TRUSTED_PROXIES` vazio, o `ProxyHeadersAdvisor` avisa no
+    log (uma vez) quando a API recebe de IP privado e a cada bloqueio de IP privado.
 - `common/ApiExceptionHandler`: erros no formato `{status, error, response: {message: [...]}}`.
   Violação de constraint vira 400 (pelo nome da constraint); exceções do Spring com status
   (`ErrorResponse`) mantêm o status; o resto vira 500 sem detalhes.
@@ -306,8 +312,11 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
    Figurinha, botões e listas ainda não existem.
 2. O RabbitMQ usa um exchange tópico, e não filas por evento (`docs/COMPATIBILIDADE.md`).
-3. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect). Vem desligado por
-   padrão.
+3. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect, sem fixar o IP), nem
+   nos webhooks nem na mídia por URL. Para webhooks vem desligado por padrão; para a mídia vale
+   sempre. Pendências do motor (cobalt-2): o download da mídia recebida (CB-01) e o link preview
+   (CB-02) fazem GET sem filtro de rede e com redirect livre; o ffmpeg embutido no motor abre a
+   mídia sem lista de formatos e protocolos (parte do MF-04 da auditoria de 2026-11-14).
 4. **Cobalt ao vivo** (rodada de 2026-11-12/13 com dois números): tudo o que o teste ao vivo achou
    foi corrigido no motor (resolve de 30 s, restart pedindo QR, ack 479 em conta Business, sessão
    Signal, aparelho vinculado, mídia e áudio, fila offline, aviso de código de segurança no Web,
