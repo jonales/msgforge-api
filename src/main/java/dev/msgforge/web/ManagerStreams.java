@@ -46,7 +46,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  *
  * <p>Robustez: comentário de batida a cada {@link #HEARTBEAT} (proxies não derrubam a conexão
  * ociosa, e uma conexão morta ou uma sessão encerrada é descoberta), no máximo
- * {@link #MAX_PER_SESSION} conexões por sessão, e a conexão fecha sozinha em {@link #TIMEOUT}
+ * {@link #MAX_PER_SESSION} conexões por sessão (passou, a mais antiga dá lugar à nova), e a conexão fecha sozinha em {@link #TIMEOUT}
  * (o navegador reconecta e passa de novo pela sessão). No desligamento, os streams fecham antes
  * do desligamento gracioso do servidor, que senão esperaria por eles.
  */
@@ -67,7 +67,7 @@ public class ManagerStreams implements SmartLifecycle {
 
     /** Uma aba com o stream aberto. */
     private record Subscriber(String channel, SseEmitter emitter, HttpSession session, String sessionId,
-                              ManagerPrincipal who) {}
+                              ManagerPrincipal who, long openedAt) {}
 
     private final ManagerScreens screens;
     private final FragmentRenderer renderer;
@@ -111,12 +111,16 @@ public class ManagerStreams implements SmartLifecycle {
         if (!reserve(session.getId())) {
             // Abas que a sessão deixou para trás (navegação) só seriam descobertas na próxima batida
             probe(session.getId());
-            if (!reserve(session.getId())) {
-                return null;
+            // Ainda cheio: quem navega depressa deixa streams que o servidor não viu fechar. A mais
+            // antiga da sessão dá lugar à nova (uma aba de verdade que perca a sua reconecta sozinha).
+            while (!reserve(session.getId())) {
+                if (!evictOldest(session.getId())) {
+                    return null;
+                }
             }
         }
         var emitter = new SseEmitter(TIMEOUT.toMillis());
-        var subscriber = new Subscriber(channel, emitter, session, session.getId(), who);
+        var subscriber = new Subscriber(channel, emitter, session, session.getId(), who, System.nanoTime());
         channels.computeIfAbsent(channel, _ -> ConcurrentHashMap.newKeySet()).add(subscriber);
         emitter.onCompletion(() -> remove(subscriber));
         emitter.onTimeout(() -> {
@@ -158,6 +162,23 @@ public class ManagerStreams implements SmartLifecycle {
                 }
             }
         }
+    }
+
+    /** Fecha a conexão mais antiga da sessão; false se a sessão não tem nenhuma. */
+    private boolean evictOldest(String sessionId) {
+        var oldest = channels.values().stream().flatMap(Set::stream)
+                .filter(s -> s.sessionId().equals(sessionId))
+                .min(java.util.Comparator.comparingLong(Subscriber::openedAt));
+        if (oldest.isEmpty()) {
+            return false;
+        }
+        remove(oldest.get());
+        try {
+            oldest.get().emitter().complete();
+        } catch (IllegalStateException alreadyClosed) {
+            // já fechada
+        }
+        return true;
     }
 
     /** Conexões abertas no canal (para testes e diagnóstico). */

@@ -403,6 +403,11 @@ public final class ManagerViews {
             return isGroup(jid);
         }
 
+        /** O número ("+55 ..." ou o LID como veio) abaixo do nome; null quando o título já é o número. */
+        public String subtitle() {
+            return group() || name == null || name.isBlank() ? null : phoneOrJid(jid);
+        }
+
         public String label() {
             return name != null && !name.isBlank() ? name : phoneOrJid(jid);
         }

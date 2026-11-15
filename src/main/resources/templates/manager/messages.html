@@ -73,7 +73,8 @@
                         <span th:text="${conversation.label()}">Ana</span>
                         <span class="tag tag-neutral" th:if="${conversation.group()}" th:text="#{manager.messages.groupTag}">Grupo</span>
                     </h2>
-                    <code class="muted small" th:text="${conversation.jid}">5561...@s.whatsapp.net</code>
+                    <span class="muted small conversation-number" th:if="${conversation.subtitle()}"
+                          th:text="${conversation.subtitle()}">+55 61 99999-9999</span>
                 </header>
                 <!-- Só esta parte rola; o cabeçalho da conversa fica sempre à vista. O manager.js leva
                      a rolagem para a mensagem mais recente. -->

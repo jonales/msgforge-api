@@ -75,6 +75,9 @@ class ManagerStreamIT extends IntegrationTest {
         /** Tudo o que chegou, também o que o {@link #await} já consumiu. */
         final java.util.Queue<Event> history = new java.util.concurrent.ConcurrentLinkedQueue<>();
 
+        /** Zera quando o servidor fecha o stream. */
+        final java.util.concurrent.CountDownLatch ended = new java.util.concurrent.CountDownLatch(1);
+
         Stream(HttpResponse<InputStream> response) {
             this.response = response;
             Thread.ofVirtual().start(this::read);
@@ -101,6 +104,8 @@ class ManagerStreamIT extends IntegrationTest {
                 }
             } catch (Exception closed) {
                 // fim do teste
+            } finally {
+                ended.countDown();
             }
         }
 
@@ -317,14 +322,20 @@ class ManagerStreamIT extends IntegrationTest {
     }
 
     @Test
-    void eachSessionHasALimitOfOpenStreams() throws Exception {
+    void eachSessionHasALimitOfOpenStreamsAndTheOldestGivesWay() throws Exception {
         var client = loggedIn();
+        var streams = new ArrayList<Stream>();
         for (int i = 0; i < 4; i++) {
-            open(client, "/manager/stream/instances").await("table", html -> true);
+            var stream = open(client, "/manager/stream/instances");
+            stream.await("table", html -> true);
+            streams.add(stream);
         }
-        var refused = request(client, "/manager/stream/instances");
-        assertThat(refused.statusCode()).isEqualTo(429);
-        refused.body().close();
+        // Navegar depressa abre a quinta: ela entra, e a mais antiga da sessão é fechada (antes, 429)
+        var fifth = request(client, "/manager/stream/instances");
+        assertThat(fifth.statusCode()).isEqualTo(200);
+        fifth.body().close();
+        assertThat(streams.getFirst().ended.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(streams.get(1).ended.getCount()).isEqualTo(1);
 
         // Outra sessão não é afetada
         open(loggedIn(), "/manager/stream/instances").await("table", html -> true);
