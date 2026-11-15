@@ -160,6 +160,20 @@ public class MessageHistory {
                 (rs, n) -> new Chat(rs.getString("remote_jid"), rs.getString("chat_name"), row(rs)));
     }
 
+    /**
+     * O último nome de exibição (pushName) que {@code jid} mandou, numa conversa com ele ou num grupo;
+     * vazio se ele nunca escreveu. É o nome que o WhatsApp mostra para quem não está nos contatos.
+     */
+    public java.util.Optional<String> lastPushName(UUID instanceId, String jid) {
+        return jdbc.query("""
+                SELECT push_name FROM message
+                WHERE instance_id = :instance AND from_me = FALSE AND push_name IS NOT NULL AND push_name <> ''
+                  AND (remote_jid = :jid OR participant = :jid)
+                ORDER BY message_timestamp DESC LIMIT 1
+                """, new MapSqlParameterSource().addValue("instance", instanceId).addValue("jid", jid),
+                (rs, n) -> rs.getString(1)).stream().findFirst();
+    }
+
     /** Quem enviou cada mensagem (pelo id), entre as {@code keyIds} da conversa; só as que têm autor. */
     public Map<String, SentBy> sentBy(UUID instanceId, String remoteJid, java.util.Collection<String> keyIds) {
         if (keyIds.isEmpty()) {
