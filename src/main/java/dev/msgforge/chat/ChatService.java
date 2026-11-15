@@ -122,7 +122,16 @@ public class ChatService {
         } else {
             jid = Jids.toJid(number);
         }
-        return gateway.fetchProfile(instance, jid);
+        var profile = gateway.fetchProfile(instance, jid);
+        if (profile.exists() && (profile.name() == null || profile.name().isBlank())) {
+            // Fora dos contatos, o motor não guarda o nome: o WhatsApp mostra o pushName da última
+            // mensagem, e o histórico tem esse nome
+            var pushName = history.lastPushName(instance.getId(), profile.jid());
+            if (pushName.isPresent()) {
+                return new Profile(profile.jid(), true, pushName.get(), profile.pictureUrl(), profile.status());
+            }
+        }
+        return profile;
     }
 
     public ChatDtos.ProfilePictureResponse profilePictureUrl(String instanceName, String number) {
