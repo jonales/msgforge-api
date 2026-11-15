@@ -215,4 +215,13 @@ class CobaltEventsTest {
                 node("notification", Map.of("from", GROUP, "type", "picture")), lids)).isEmpty();
         assertThat(CobaltEvents.groupNotification("i", node("message", Map.of("from", GROUP)), lids)).isEmpty();
     }
+
+    @Test
+    void theSameAppStateTwiceHasTheSameFingerprint() {
+        var archived = new ArchiveChatActionBuilder().archived(true).build();
+        var again = new ArchiveChatActionBuilder().archived(true).build();
+        var unarchived = new ArchiveChatActionBuilder().archived(false).build();
+        assertThat(CobaltEvents.fingerprint(archived)).isEqualTo(CobaltEvents.fingerprint(again));
+        assertThat(CobaltEvents.fingerprint(archived)).isNotEqualTo(CobaltEvents.fingerprint(unarchived));
+    }
 }

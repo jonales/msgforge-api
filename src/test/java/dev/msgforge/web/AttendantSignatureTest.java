@@ -30,9 +30,25 @@ class AttendantSignatureTest {
 
         assertThat(ManagerAuthor.reply(instance, ana, "oi")).isEqualTo("oi");
         instance.setSignMessages(true);
-        assertThat(ManagerAuthor.reply(instance, ana, "oi\ntudo bem?")).isEqualTo("*Ana*\noi\ntudo bem?");
+        assertThat(ManagerAuthor.reply(instance, ana, "oi\ntudo bem?")).isEqualTo("*Atendente Ana:*\noi\ntudo bem?");
         assertThat(ManagerAuthor.reply(instance, noName, "oi")).isEqualTo("oi");
         assertThat(ManagerAuthor.reply(instance, new ManagerAuthor.Sender(SentBy.MANAGER_KEY, null), "oi"))
                 .isEqualTo("oi");
+    }
+
+    @Test
+    void theSignatureFollowsTheInstanceTemplate() {
+        var instance = new Instance("loja", "token", "WHATSAPP-BAILEYS", null);
+        instance.setSignMessages(true);
+        instance.setSignatureTemplate("{nome} (Suporte)");
+        var ana = new ManagerAuthor.Sender(SentBy.user(UUID.randomUUID(), "Ana"), "Ana");
+        assertThat(ManagerAuthor.reply(instance, ana, "oi")).isEqualTo("*Ana (Suporte):*\noi");
+
+        assertThat(dev.msgforge.instance.InstanceService.signatureTemplate("  Consultor   *{nome}*  "))
+                .isEqualTo("Consultor {nome}");
+        assertThat(dev.msgforge.instance.InstanceService.signatureTemplate("")).isEqualTo("Atendente {nome}");
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> dev.msgforge.instance.InstanceService.signatureTemplate("Atendente"))
+                .isInstanceOf(dev.msgforge.common.ApiExceptionHandler.InvalidFieldException.class);
     }
 }

@@ -187,7 +187,21 @@ public final class ManagerViews {
      * que foi digitado quer dizer "não mudou".
      */
     public record SettingsView(boolean rejectCall, String msgCall, boolean groupsIgnore, boolean alwaysOnline,
-                               boolean readMessages, boolean readStatus, String historySync, boolean signMessages) {
+                               boolean readMessages, boolean readStatus, String historySync, boolean signMessages,
+                               String signatureTemplate) {
+
+        /** Com o que foi digitado no grupo Atendimento (volta para a tela num erro). */
+        SettingsView withSignature(boolean sign, String template) {
+            return new SettingsView(rejectCall, msgCall, groupsIgnore, alwaysOnline, readMessages, readStatus,
+                    historySync, sign, template);
+        }
+
+        /** Como a assinatura sai, com um nome de exemplo. */
+        public String signaturePreview(String exampleName) {
+            var template = signatureTemplate == null || signatureTemplate.isBlank()
+                    ? dev.msgforge.instance.Instance.DEFAULT_SIGNATURE : signatureTemplate;
+            return template.replace("{nome}", exampleName) + ":";
+        }
 
         /** Os interruptores de cada grupo de configurações, na ordem da tela. */
         static final java.util.Map<String, List<String>> BEHAVIORS = java.util.Map.of(
@@ -210,7 +224,7 @@ public final class ManagerViews {
             var s = instance.getSettings();
             return new SettingsView(s.rejectCall(), s.msgCall() == null ? "" : s.msgCall(), s.groupsIgnore(),
                     s.alwaysOnline(), s.readMessages(), s.readStatus(), instance.getHistorySync().name(),
-                    instance.isSignMessages());
+                    instance.isSignMessages(), instance.getSignatureTemplate());
         }
 
         /** Ligado? Pelo nome do campo do contrato (o template percorre {@link #behaviors}). */

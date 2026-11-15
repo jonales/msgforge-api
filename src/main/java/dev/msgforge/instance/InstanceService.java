@@ -282,13 +282,34 @@ public class InstanceService {
         });
     }
 
-    /** Liga ou desliga a assinatura do atendente nas respostas do Manager. Vale no próximo envio. */
-    public void setSignMessages(String instanceName, boolean signMessages) {
+    /**
+     * Liga ou desliga a assinatura do atendente nas respostas do Manager e guarda o modelo dela. Vale no
+     * próximo envio. Modelo inválido: {@code InvalidFieldException} (campo {@code signatureTemplate}).
+     */
+    public void setSignature(String instanceName, boolean signMessages, String template) {
+        var clean = signatureTemplate(template);
         tx.executeWithoutResult(status -> {
             var instance = get(instanceName);
             instance.setSignMessages(signMessages);
+            instance.setSignatureTemplate(clean);
             instances.save(instance);
         });
+    }
+
+    /**
+     * O modelo limpo: uma linha, sem os sinais de formatação do WhatsApp ({@code * _ ~ `}), com
+     * {@code {nome}} e até 60 caracteres. Em branco, o padrão.
+     */
+    public static String signatureTemplate(String template) {
+        if (template == null || template.isBlank()) {
+            return Instance.DEFAULT_SIGNATURE;
+        }
+        var clean = template.replaceAll("[*_~`\\p{Cntrl}]", " ").replaceAll("\\s+", " ").strip();
+        if (!clean.contains("{nome}") || clean.length() > 60) {
+            throw new dev.msgforge.common.ApiExceptionHandler.InvalidFieldException("signatureTemplate", "invalid",
+                    "The signature template needs {nome} and up to 60 characters");
+        }
+        return clean;
     }
 
     /** O estado (connecting/open) vem dos eventos do gateway, não daqui: um login rápido já pode ter chegado. */

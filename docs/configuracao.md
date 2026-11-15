@@ -36,6 +36,7 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `SECRETS_ENCRYPTION_KEY` | vazio | Chave (32+ caracteres, ex.: `openssl rand -hex 32`) que cifra no banco a senha do proxy da instância (ADR 0014). Sem ela, create com `proxyPassword` dá 400; trocá-la invalida as senhas já guardadas |
 | `DATABASE_SAVE_DATA_NEW_MESSAGE` | `true` | Grava as mensagens no banco (histórico de `/chat/findMessages`) |
 | `HISTORY_RETENTION_DAYS` | `0` | Apaga do histórico as mensagens mais velhas que isso, de hora em hora (0 guarda para sempre) |
+| `TZ` | `America/Sao_Paulo` | Fuso das horas mostradas no Manager (mensagens, pausa do bot, último acesso) e do log. As datas gravadas e as da API não mudam (instantes em UTC) |
 | `BOT_ENABLED` | `true` | Liga o bot com IA das instâncias (ADR 0015); `false` desliga todos os bots do servidor |
 | `BOT_ALLOW_PRIVATE_NETWORKS` | `false` | Aceita o modelo do bot num endereço privado, como um Ollama na mesma máquina ou rede (`http://host.docker.internal:11434/v1`). Desligado, só endereços públicos |
 | `BOT_TIMEOUT_MS` | `60000` | Tempo máximo de uma resposta do modelo; passou, o bot não responde e o erro vai para o log |

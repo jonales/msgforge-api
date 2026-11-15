@@ -299,13 +299,23 @@ public class ManagerController {
                                @RequestParam(defaultValue = "false") boolean readStatus,
                                @RequestParam(required = false) String historySync,
                                @RequestParam(defaultValue = "false") boolean signMessages,
+                               @RequestParam(required = false) String signatureTemplate,
                                RedirectAttributes flash) {
         if (!List.of("calls", "reading", "presence", "attendance", "history").contains(group)) {
             throw new dev.msgforge.common.ApiExceptionHandler.NotFoundException("Unknown settings group: " + group);
         }
         var instance = guard.require(name, Permission.ACCOUNT_CONFIGURE);
         if ("attendance".equals(group)) {   // fora do InstanceSettings: não muda nada na conexão
-            instances.setSignMessages(name, signMessages);
+            try {
+                instances.setSignature(name, signMessages, signatureTemplate);
+            } catch (InvalidFieldException e) {
+                var stored = SettingsView.of(instance);
+                flash.addFlashAttribute("settings", stored.withSignature(signMessages,
+                        signatureTemplate == null ? "" : signatureTemplate));
+                flash.addFlashAttribute("fieldErrors", java.util.Map.of("settings." + e.field(),
+                        "manager.settings.error." + e.field() + "." + e.reason()));
+                return "redirect:" + settingsPage(name, group);
+            }
             flash.addFlashAttribute("saved", group);
             return "redirect:" + settingsPage(name, group);
         }
@@ -327,7 +337,7 @@ public class ManagerController {
             // Volta com o que foi digitado neste grupo; os outros, como estão guardados
             var typed = new SettingsView(rejectCall, msgCall == null ? "" : msgCall, stored.groupsIgnore(),
                     stored.alwaysOnline(), stored.readMessages(), stored.readStatus(), stored.historySync(),
-                    stored.signMessages());
+                    stored.signMessages(), stored.signatureTemplate());
             flash.addFlashAttribute("settings", typed);
             flash.addFlashAttribute("fieldErrors", java.util.Map.of("settings." + e.field(),
                     "manager.settings.error." + e.field() + "." + e.reason()));
