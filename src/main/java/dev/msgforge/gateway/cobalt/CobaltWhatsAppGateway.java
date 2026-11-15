@@ -972,6 +972,47 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     }
 
     @Override
+    public String engine() {
+        return "cobalt";
+    }
+
+    /**
+     * A mensagem sai do Store do Cobalt (pela key e, se não achar, pelo id na conversa); o motor baixa
+     * do CDN e decifra com a chave da própria mensagem. Nada vai para o disco. Quem não está no Store
+     * (anterior à sessão, ou endereçada por LID quando o histórico guardou o telefone) fica sem mídia.
+     */
+    @Override
+    public Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, long maxBytes) {
+        var connection = requireConnected(instance);
+        var chat = Jid.of(key.remoteJid());
+        var chats = connection.api.store().chatStore();
+        var cobaltKey = new MessageKeyBuilder().parentJid(chat).fromMe(key.fromMe()).id(key.id()).build();
+        Optional<? extends com.github.auties00.cobalt.wire.linked.message.LinkedMessageInfo> found =
+                chats.findMessageByKey(cobaltKey);
+        if (found.isEmpty()) {
+            found = chats.findMessageById(chat, key.id());
+        }
+        if (found.isEmpty()
+                || !(found.get().message().content() instanceof com.github.auties00.cobalt.wire.linked.message.media.MediaMessage media)) {
+            return Optional.empty();
+        }
+        if (media.fileLength().orElse(0) > maxBytes) {
+            throw new MediaTooLargeException(maxBytes);
+        }
+        var bytes = call(() -> {
+            try (var stream = connection.api.downloadMedia(media)) {
+                return stream.readNBytes((int) Math.min(maxBytes + 1, Integer.MAX_VALUE - 8));
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }, "download da mídia");
+        if (bytes.length > maxBytes) {
+            throw new MediaTooLargeException(maxBytes);
+        }
+        return Optional.of(new MediaContent(bytes, media.mimetype().orElse(null)));
+    }
+
+    @Override
     public void sendPresence(Instance instance, String jid, Presence presence, Integer delayMs) {
         var connection = requireConnected(instance);
         var target = resolve(connection, jid);

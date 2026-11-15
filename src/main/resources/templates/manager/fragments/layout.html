@@ -75,6 +75,31 @@
     </ol>
 </nav>
 
+<!-- Menu do painel da instância. Só os itens que a pessoa pode usar (PanelAccess); a rota confere de
+     novo. "Visão geral", "Conectar", "Envio de teste" e "Desconectar ou excluir" são seções
+     do painel (âncoras); "Mensagens" e "Configurações" são páginas próprias. O item atual leva aria-current="page". No celular, o menu
+     vira uma faixa de abas que quebra linha (sem rolagem lateral). -->
+<nav th:fragment="panelNav(name, can, current)" class="panel-nav" th:attr="aria-label=#{manager.panelNav.label}"
+     th:with="base=@{/manager/instances/{n}(n=${name})}">
+    <ul>
+        <li><a th:href="${base}" th:attr="aria-current=${current == 'overview'} ? 'page' : null"
+               th:text="#{manager.panelNav.overview}">Visão geral</a></li>
+        <li th:if="${can.connect}"><a th:href="${base} + '#connect'" th:text="#{manager.panelNav.connect}">Conectar</a></li>
+        <li th:if="${can.chats}"><a th:href="@{/manager/instances/{n}/messages(n=${name})}" th:attr="aria-current=${current == 'messages'} ? 'page' : null"
+               th:text="#{manager.panelNav.messages}">Mensagens</a></li>
+        <li th:if="${can.send}"><a th:href="${base} + '#send'" th:text="#{manager.panelNav.send}">Envio de teste</a></li>
+        <!-- Uma tela por grupo (chamadas, leitura, presença, histórico, proxy, webhook) -->
+        <li th:if="${can.settings()}"><a th:href="@{/manager/instances/{n}/settings(n=${name})}" th:attr="aria-current=${current == 'settings'} ? 'page' : null"
+               th:text="#{manager.panelNav.settings}">Configurações</a></li>
+        <li th:if="${can.danger()}"><a th:href="${base} + '#danger'" th:text="#{manager.panelNav.danger}">Desconectar ou excluir</a></li>
+        <!-- Sem backend ainda: aparece, sem link (PRODUCT.md) -->
+        <li class="panel-nav-soon">
+            <span th:text="#{manager.panelNav.integrations}">Integrações</span>
+            <span class="soon-tag tag" th:text="#{manager.soon.tag}">Em breve</span>
+        </li>
+    </ul>
+</nav>
+
 <div th:fragment="flash">
     <div class="flash success" role="status" th:if="${success}" th:text="#{${success}}">ok</div>
     <div class="flash error" role="alert" th:if="${error}" th:text="#{${error}}">erro</div>

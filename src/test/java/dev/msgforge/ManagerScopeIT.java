@@ -133,9 +133,15 @@ class ManagerScopeIT extends IntegrationTest {
                 .andExpect(status().isOk()).andExpect(view().name("manager/connect"));
 
         // O que o papel não inclui: 403 com a tela "Sem acesso", mesmo num POST montado à mão
-        mvc.perform(MockMvcRequestBuilders.post(panel(mine) + "/settings").session(client).with(csrf())
+        mvc.perform(MockMvcRequestBuilders.post(panel(mine) + "/settings/calls").session(client).with(csrf())
                         .param("rejectCall", "true"))
                 .andExpect(status().isForbidden()).andExpect(view().name("manager/forbidden"));
+        mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/settings").session(client))
+                .andExpect(status().isForbidden());
+        mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/settings/proxy").session(client))
+                .andExpect(status().isForbidden());
+        mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/settings/webhook").session(client))
+                .andExpect(status().isForbidden());
         mvc.perform(MockMvcRequestBuilders.post(panel(mine) + "/webhook").session(client).with(csrf())
                         .param("url", "https://exemplo.com/hook"))
                 .andExpect(status().isForbidden());
@@ -198,7 +204,6 @@ class ManagerScopeIT extends IntegrationTest {
                 .andExpect(content().string(not(containsString(foreign))))
                 .andExpect(content().string(containsString("href=\"/manager/instances/new\"")));
         mvc.perform(MockMvcRequestBuilders.get(panel(sibling)).session(boss)).andExpect(status().isOk())
-                .andExpect(content().string(containsString(panel(sibling) + "/webhook")))
                 .andExpect(content().string(containsString(panel(sibling) + "/settings")))
                 .andExpect(content().string(containsString(panel(sibling) + "/delete")));
         mvc.perform(MockMvcRequestBuilders.get(panel(foreign)).session(boss)).andExpect(status().isNotFound());

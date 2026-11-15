@@ -135,7 +135,7 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(asManager(GET("/manager/instances/" + name)))
                 .andExpect(status().isOk())
                 .andExpect(view().name("manager/instance"))
-                .andExpect(model().attributeExists("instance", "live", "webhook", "eventNames"))
+                .andExpect(model().attributeExists("instance", "live", "can", "engine"))
                 .andExpect(content().string(Matchers.not(Matchers.containsString(token))))
                 .andExpect(content().string(Matchers.containsString("sse-connect=\"/manager/stream/instances/" + name + "\"")))
                 .andExpect(content().string(Matchers.containsString("sse-swap=\"live\"")));
@@ -191,7 +191,8 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(asManager(POST("/manager/instances/" + name + "/webhook")).with(csrf())
                         .param("url", "https://example.com/hook").param("enabled", "true")
                         .param("events", "MESSAGES_UPSERT", "SEND_MESSAGE"))
-                .andExpect(flash().attribute("success", "manager.flash.webhookSaved"));
+                .andExpect(redirectedUrl("/manager/instances/" + name + "/settings/webhook"))
+                .andExpect(flash().attribute("saved", "webhook"));
 
         var saved = webhookService.find(name).orElseThrow();
         assertThat(saved.url()).isEqualTo("https://example.com/hook");
@@ -203,7 +204,7 @@ class ManagerIT extends IntegrationTest {
     void serviceErrorsBecomeFlashMessagesNotJson() throws Exception {
         var name = createInstance();
         mvc.perform(asManager(POST("/manager/instances/" + name + "/webhook")).with(csrf()).param("url", "ftp://x"))
-                .andExpect(redirectedUrl("/manager/instances/" + name))
+                .andExpect(redirectedUrl("/manager/instances/" + name + "/settings/webhook"))
                 .andExpect(flash().attribute("errorText", Matchers.containsString("Invalid webhook url")));
         mvc.perform(asManager(POST("/manager/instances")).with(csrf()).param("instanceName", name))
                 .andExpect(redirectedUrl("/manager"))
@@ -264,8 +265,13 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(asManager(GET("/manager/instances/" + name + "/messages")))
                 .andExpect(status().isOk())
                 .andExpect(view().name("manager/messages"))
-                .andExpect(model().attribute("chats", Matchers.hasSize(1)))
+                .andExpect(model().attributeExists("chats", "can"))
                 .andExpect(content().string(Matchers.containsString("oi, tudo bem?")))
+                // Menu do painel, com "Mensagens" como página atual, e o caminho volta ao painel
+                .andExpect(content().string(Matchers.containsString("class=\"panel-nav\"")))
+                .andExpect(content().string(Matchers.containsString(
+                        "href=\"/manager/instances/" + name + "/messages\" aria-current=\"page\"")))
+                .andExpect(content().string(Matchers.containsString("href=\"/manager/instances/" + name + "\">" + name)))
                 .andExpect(content().string(Matchers.containsString("Ana &lt;b&gt;")))   // escapado
                 // Tempo real (ADR 0013): o stream das conversas, com o polling de reserva
                 .andExpect(content().string(Matchers.containsString(
@@ -286,56 +292,245 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(Matchers.containsString("id=\"chats\"")));
     }
 
+    private void receive(String name, String jid, String participant, String pushName, String id, String type,
+                         Object content, long timestamp) {
+        var key = new java.util.HashMap<String, Object>(java.util.Map.of("remoteJid", jid, "fromMe", false, "id", id));
+        if (participant != null) {
+            key.put("participant", participant);
+        }
+        var data = new java.util.HashMap<String, Object>(java.util.Map.of("key", key,
+                "message", java.util.Map.of(type, content), "messageType", type, "messageTimestamp", timestamp));
+        if (pushName != null) {
+            data.put("pushName", pushName);
+        }
+        events.publishEvent(new dev.msgforge.event.GatewayEvent.MessageReceived(name, data));
+    }
+
+    @Autowired
+    tools.jackson.databind.json.JsonMapper json;
+
     @Test
-    void settingsSectionRendersWithTheProxyCollapsed() throws Exception {
+    void conversationShowsEachMessageTypeAndGroupsApart() throws Exception {
         var name = createInstance();
-        mvc.perform(asManager(GET("/manager/instances/" + name)))
+        var group = "120363000000000999@g.us";
+        var ana = "5561911111111@s.whatsapp.net";
+        var lid = "222222222222222@lid";
+        var now = java.time.Instant.now().getEpochSecond();
+        receive(name, ana, null, "Ana", "D-1", "conversation", "oi direto", now - 100);
+        receive(name, group, ana, "Ana", "G-1", "imageMessage",
+                java.util.Map.of("caption", "foto da obra", "mimetype", "image/jpeg"), now - 90);
+        receive(name, group, ana, "Ana", "G-2", "audioMessage", java.util.Map.of("ptt", true, "seconds", 75), now - 80);
+        receive(name, group, lid, null, "G-3", "documentMessage",
+                java.util.Map.of("fileName", "contrato.pdf", "fileLength", 1_468_006), now - 70);
+        receive(name, group, lid, null, "G-4", "locationMessage",
+                java.util.Map.of("degreesLatitude", -15.78, "degreesLongitude", -47.92, "name", "Obra"), now - 60);
+        receive(name, group, lid, null, "G-5", "pollCreationMessage", java.util.Map.of("name", "Qual dia?",
+                "options", List.of(java.util.Map.of("optionName", "Seg"))), now - 50);
+        receive(name, group, lid, null, "G-6", "reactionMessage", java.util.Map.of("text", "👍"), now - 40);
+        receive(name, group, lid, null, "G-7", "contactMessage", java.util.Map.of("displayName", "Bia"), now - 35);
+        receive(name, group, lid, null, "G-8", "stickerMessage", java.util.Map.of(), now - 30);
+        receive(name, group, lid, null, "G-9", "buttonsResponseMessage", java.util.Map.of(), now - 20);
+        receive(name, group, lid, null, "G-10", "conversation", "vai ser apagada", now - 10);
+        events.publishEvent(new dev.msgforge.event.GatewayEvent.MessageDeleted(name, group, false, "G-10", lid));
+
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chats")))
                 .andExpect(status().isOk())
-                .andExpect(model().attributeExists("settings", "proxy", "behaviors"))
-                .andExpect(content().string(containsString("id=\"settings\"")))
-                .andExpect(content().string(containsString("name=\"rejectCall\"")))
-                .andExpect(content().string(containsString("Ainda sem efeito")))
-                .andExpect(content().string(containsString("<details class=\"disclosure\" id=\"proxy\">")))
-                .andExpect(content().string(containsString("type=\"password\"")));
+                .andExpect(content().string(containsString("Pessoas")))
+                .andExpect(content().string(containsString("Grupos")))
+                // Sem nome conhecido, o grupo aparece pelo JID, e não pelo pushName de quem mandou
+                .andExpect(content().string(containsString(group)))
+                .andExpect(content().string(containsString("Mensagem apagada")));
+
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", group))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("foto da obra")))
+                .andExpect(content().string(containsString("<img data-media")))
+                .andExpect(content().string(containsString("/messages/media?jid=")))
+                .andExpect(content().string(containsString("Mensagem de voz")))
+                .andExpect(content().string(containsString("1:15")))
+                .andExpect(content().string(containsString("<audio data-media controls preload=\"none\"")))
+                .andExpect(content().string(containsString("contrato.pdf")))
+                .andExpect(content().string(containsString("1,4 MB")))
+                .andExpect(content().string(containsString("openstreetmap.org")))
+                .andExpect(content().string(containsString("Qual dia?")))
+                .andExpect(content().string(containsString("Reagiu com 👍")))
+                .andExpect(content().string(containsString("Bia")))
+                .andExpect(content().string(containsString("Figurinha")))
+                .andExpect(content().string(containsString("(buttonsResponse)")))
+                .andExpect(content().string(containsString("Mensagem apagada")))
+                .andExpect(content().string(Matchers.not(containsString("vai ser apagada"))))
+                // Remetente: nome e número; LID sem tradução fica como veio
+                .andExpect(content().string(containsString("+5561911111111")))
+                .andExpect(content().string(containsString(lid)))
+                .andExpect(content().string(containsString("class=\"day-sep\"")))
+                .andExpect(content().string(containsString("continued")));
     }
 
     @Test
-    void settingsFormSavesAndNeedsCsrf() throws Exception {
+    void groupNameComesFromTheEngine() throws Exception {
         var name = createInstance();
-        mvc.perform(asManager(POST("/manager/instances/" + name + "/settings"))
-                        .param("rejectCall", "true").param("historySync", "FULL"))
+        var created = mvc.perform(POST("/group/create/" + name).header("apikey", API_KEY).contentType("application/json")
+                        .content("{\"subject\":\"Equipe de obra\",\"participants\":[\"5561922222222\"]}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        var groupJid = json.readTree(created).get("id").asString();
+        receive(name, groupJid, "5561922222222@s.whatsapp.net", "Bia", "N-1", "conversation", "bom dia",
+                java.time.Instant.now().getEpochSecond());
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chats")))
+                .andExpect(content().string(containsString("Equipe de obra")))
+                .andExpect(content().string(containsString("Bia:")));
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", groupJid))
+                .andExpect(content().string(containsString("Equipe de obra")));
+    }
+
+    @Test
+    void mediaComesFromTheGatewayWithASafeContentType() throws Exception {
+        var name = createInstance();
+        var png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        var sent = mvc.perform(POST("/message/sendMedia/" + name).header("apikey", API_KEY).contentType("application/json")
+                        .content("{\"number\":\"5561933333333\",\"mediatype\":\"image\",\"mimetype\":\"image/png\","
+                                + "\"caption\":\"pixel\",\"media\":\"" + png + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        var id = json.readTree(sent).get("key").get("id").asString();
+        var jid = "5561933333333@s.whatsapp.net";
+        var url = "/manager/instances/" + name + "/messages/media";
+
+        mvc.perform(GET(url).param("jid", jid).param("id", id).param("fromMe", "true"))
+                .andExpect(status().is3xxRedirection());   // sem sessão
+        mvc.perform(asManager(GET(url)).param("jid", jid).param("id", id).param("fromMe", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/png"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Content-Security-Policy", "sandbox; default-src 'none'"))
+                .andExpect(header().string("Content-Disposition", Matchers.startsWith("inline")))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray())
+                        .isEqualTo(java.util.Base64.getDecoder().decode(png)));
+        // A conversa mostra a imagem enviada pela própria instância
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", jid))
+                .andExpect(content().string(containsString("id=" + id)))
+                .andExpect(content().string(containsString("pixel")));
+        // Fora do histórico ou instância que não existe: 404
+        mvc.perform(asManager(GET(url)).param("jid", jid).param("id", "NAO-EXISTE").param("fromMe", "true"))
+                .andExpect(status().isNotFound());
+        mvc.perform(asManager(GET("/manager/instances/nao-existe-" + name + "/messages/media"))
+                        .param("jid", jid).param("id", id).param("fromMe", "true"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void panelHasTheSideMenuAndTheRealEngine() throws Exception {
+        var name = createInstance();
+        var panel = "/manager/instances/" + name;
+        mvc.perform(asManager(GET(panel)))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("engine", "stub"))
+                .andExpect(content().string(containsString("Simulado (sem WhatsApp)")))
+                .andExpect(content().string(Matchers.not(containsString("WHATSAPP-BAILEYS"))))
+                .andExpect(content().string(containsString("href=\"" + panel + "\" aria-current=\"page\"")))
+                .andExpect(content().string(containsString("href=\"" + panel + "/settings\"")))
+                .andExpect(content().string(containsString("href=\"" + panel + "#connect\"")))
+                .andExpect(content().string(containsString("id=\"send\"")))
+                .andExpect(content().string(containsString("id=\"danger\"")))
+                .andExpect(content().string(containsString("panel-nav-soon")));
+    }
+
+    @Test
+    void settingsHaveOnePagePerGroupWithTheSavedState() throws Exception {
+        var name = createInstance();
+        var settings = "/manager/instances/" + name + "/settings";
+        mvc.perform(asManager(GET(settings))).andExpect(redirectedUrl(settings + "/calls"));
+        mvc.perform(GET(settings + "/calls")).andExpect(status().is3xxRedirection());   // sem sessão
+        mvc.perform(asManager(GET(settings + "/nada"))).andExpect(status().isNotFound());
+
+        mvc.perform(asManager(GET(settings + "/calls")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("manager/settings"))
+                .andExpect(content().string(containsString("name=\"rejectCall\"")))
+                .andExpect(content().string(containsString("name=\"msgCall\"")))
+                .andExpect(content().string(Matchers.not(containsString("name=\"readMessages\""))))
+                // Abas com o estado guardado, a atual marcada
+                .andExpect(content().string(containsString("href=\"" + settings + "/calls\" aria-current=\"page\"")))
+                .andExpect(content().string(containsString("Aceita ligações")))
+                .andExpect(content().string(containsString("0 de 3 ligadas")))
+                .andExpect(content().string(containsString("href=\"/manager/instances/" + name + "/settings\" aria-current=\"page\"")));
+        mvc.perform(asManager(GET(settings + "/reading")))
+                .andExpect(content().string(containsString("name=\"readMessages\"")))
+                .andExpect(content().string(containsString("name=\"readStatus\"")))
+                .andExpect(content().string(containsString("name=\"groupsIgnore\"")));
+        // Presença: sem efeito, e a tela diz isso
+        mvc.perform(asManager(GET(settings + "/presence")))
+                .andExpect(content().string(containsString("name=\"alwaysOnline\"")))
+                .andExpect(content().string(containsString("Ainda sem efeito")))
+                .andExpect(content().string(containsString("Problema conhecido")));
+        mvc.perform(asManager(GET(settings + "/history")))
+                .andExpect(content().string(containsString("name=\"historySync\"")));
+        mvc.perform(asManager(GET(settings + "/proxy")))
+                .andExpect(content().string(containsString("type=\"password\"")));
+        mvc.perform(asManager(GET(settings + "/webhook")))
+                .andExpect(content().string(containsString("name=\"url\"")));
+    }
+
+    @Test
+    void eachGroupSavesOnlyItsOwnOptionsAndNeedsCsrf() throws Exception {
+        var name = createInstance();
+        var settings = "/manager/instances/" + name + "/settings";
+        mvc.perform(asManager(POST(settings + "/calls")).param("rejectCall", "true"))
                 .andExpect(status().isForbidden());
         assertThat(instances.findByName(name)).get().extracting(i -> i.getSettings().rejectCall()).isEqualTo(false);
 
-        mvc.perform(asManager(POST("/manager/instances/" + name + "/settings")).with(csrf())
-                        .param("rejectCall", "true").param("msgCall", "Retorno depois")
-                        .param("readStatus", "true").param("historySync", "RECENT"))
-                .andExpect(redirectedUrl("/manager/instances/" + name + "#settings"))
-                .andExpect(flash().attribute("settingsSaved", true));
+        mvc.perform(asManager(POST(settings + "/reading")).with(csrf())
+                        .param("readStatus", "true").param("groupsIgnore", "true"))
+                .andExpect(redirectedUrl(settings + "/reading"))
+                .andExpect(flash().attribute("saved", "reading"));
+        mvc.perform(asManager(POST(settings + "/calls")).with(csrf())
+                        .param("rejectCall", "true").param("msgCall", "Retorno depois"))
+                .andExpect(redirectedUrl(settings + "/calls"));
+        mvc.perform(asManager(POST(settings + "/history")).with(csrf()).param("historySync", "RECENT"))
+                .andExpect(redirectedUrl(settings + "/history"));
+
+        // O POST de um grupo não desliga o que é de outro
         var saved = instances.findByName(name).orElseThrow();
         assertThat(saved.getSettings().rejectCall()).isTrue();
-        assertThat(saved.getSettings().readStatus()).isTrue();
-        assertThat(saved.getSettings().groupsIgnore()).isFalse();
         assertThat(saved.getSettings().msgCall()).isEqualTo("Retorno depois");
+        assertThat(saved.getSettings().readStatus()).isTrue();
+        assertThat(saved.getSettings().groupsIgnore()).isTrue();
+        assertThat(saved.getSettings().readMessages()).isFalse();
         assertThat(saved.getHistorySync()).isEqualTo(dev.msgforge.instance.HistorySync.RECENT);
 
-        mvc.perform(asManager(GET("/manager/instances/" + name)).flashAttr("settingsSaved", true))
+        mvc.perform(asManager(GET(settings + "/calls")).flashAttr("saved", "calls"))
                 .andExpect(content().string(containsString("Configurações salvas")))
-                .andExpect(content().string(containsString("Retorno depois")));
+                .andExpect(content().string(containsString("Retorno depois")))
+                .andExpect(content().string(containsString("Recusa ligações")))
+                .andExpect(content().string(containsString("2 de 3 ligadas")))
+                .andExpect(content().string(containsString("Recente")));
+
+        // Erro preso ao campo, com o que foi digitado
+        var failed = mvc.perform(asManager(POST(settings + "/calls")).with(csrf())
+                        .param("rejectCall", "false").param("msgCall", "x".repeat(4097)))
+                .andExpect(redirectedUrl(settings + "/calls"))
+                .andExpect(flash().attribute("fieldErrors",
+                        java.util.Map.of("settings.msgCall", "manager.settings.error.msgCall.tooLong")))
+                .andReturn();
+        assertThat(instances.findByName(name).orElseThrow().getSettings().rejectCall()).isTrue();
+        mvc.perform(asManager(GET(settings + "/calls"))
+                        .flashAttr("fieldErrors", failed.getFlashMap().get("fieldErrors"))
+                        .flashAttr("settings", failed.getFlashMap().get("settings")))
+                .andExpect(content().string(containsString("id=\"msgCall-error\"")))
+                .andExpect(content().string(containsString("4096 caracteres")));
     }
 
     @Test
     void proxyFormKeepsThePasswordHiddenAndShowsErrorsByTheField() throws Exception {
         var name = createInstance();
+        var page = "/manager/instances/" + name + "/settings/proxy";
         mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf())
                         .param("enabled", "true").param("protocol", "socks5").param("host", "10.0.0.5")
                         .param("port", "1080").param("username", "cliente").param("password", "senha-secreta"))
-                .andExpect(redirectedUrl("/manager/instances/" + name + "#proxy"))
-                .andExpect(flash().attribute("proxySaved", true));
+                .andExpect(redirectedUrl(page))
+                .andExpect(flash().attribute("saved", "proxy"));
         var encrypted = instances.findByName(name).orElseThrow().getProxy().orElseThrow().passwordEncrypted();
         assertThat(encrypted).isNotNull();
 
-        mvc.perform(asManager(GET("/manager/instances/" + name)))
+        mvc.perform(asManager(GET(page)))
                 .andExpect(content().string(containsString("socks5://10.0.0.5:1080")))
                 .andExpect(content().string(containsString("Há uma senha guardada")))
                 .andExpect(content().string(Matchers.not(containsString("senha-secreta"))))
@@ -345,30 +540,31 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf())
                         .param("enabled", "true").param("protocol", "socks5").param("host", "10.0.0.6")
                         .param("port", "1080").param("username", "cliente").param("password", ""))
-                .andExpect(flash().attribute("proxySaved", true));
+                .andExpect(flash().attribute("saved", "proxy"));
         assertThat(instances.findByName(name).orElseThrow().getProxy().orElseThrow().passwordEncrypted())
                 .isEqualTo(encrypted);
 
         var failed = mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf())
                         .param("enabled", "true").param("protocol", "http").param("host", "10.0.0.7")
                         .param("port", "99999").param("username", "cliente"))
-                .andExpect(redirectedUrl("/manager/instances/" + name + "#proxy"))
+                .andExpect(redirectedUrl(page))
                 .andExpect(flash().attribute("fieldErrors",
                         java.util.Map.of("proxy.port", "manager.proxy.error.port.invalid")))
                 .andReturn();
         assertThat(instances.findByName(name).orElseThrow().getProxy().orElseThrow().host()).isEqualTo("10.0.0.6");
 
         var flashed = failed.getFlashMap();
-        mvc.perform(asManager(GET("/manager/instances/" + name))
+        mvc.perform(asManager(GET(page))
                         .flashAttr("fieldErrors", flashed.get("fieldErrors")).flashAttr("proxy", flashed.get("proxy")))
-                .andExpect(content().string(containsString("<details class=\"disclosure\" id=\"proxy\" open")))
                 .andExpect(content().string(containsString("id=\"proxy-port-error\"")))
                 .andExpect(content().string(containsString("A porta precisa ser um número de 1 a 65535.")))
                 .andExpect(content().string(containsString("value=\"99999\"")))
-                .andExpect(content().string(containsString("value=\"10.0.0.7\"")));
+                .andExpect(content().string(containsString("value=\"10.0.0.7\"")))
+                // A aba mostra o que está guardado, não o digitado
+                .andExpect(content().string(containsString("socks5://10.0.0.6:1080")));
 
         mvc.perform(asManager(POST("/manager/instances/" + name + "/proxy")).with(csrf()))
-                .andExpect(flash().attribute("proxySaved", true));
+                .andExpect(flash().attribute("saved", "proxy"));
         assertThat(instances.findByName(name).orElseThrow().getProxy()).isEmpty();
     }
 

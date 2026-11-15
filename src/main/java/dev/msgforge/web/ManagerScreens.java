@@ -12,7 +12,6 @@ import dev.msgforge.web.ManagerViews.ChatRow;
 import dev.msgforge.web.ManagerViews.Conversation;
 import dev.msgforge.web.ManagerViews.InstanceRow;
 import dev.msgforge.web.ManagerViews.Live;
-import dev.msgforge.web.ManagerViews.MessageRow;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,9 +31,11 @@ public class ManagerScreens {
     private final QrCodeCache qrCodes;
     private final ChatService chats;
     private final DeliveryHealth deliveries;
+    private final GroupNames groupNames;
 
     public ManagerScreens(InstanceService instances, QrCodeCache qrCodes, ChatService chats,
-                          DeliveryHealth deliveries) {
+                          DeliveryHealth deliveries, GroupNames groupNames) {
+        this.groupNames = groupNames;
         this.instances = instances;
         this.qrCodes = qrCodes;
         this.chats = chats;
@@ -87,23 +88,42 @@ public class ManagerScreens {
         return instances.get(name);
     }
 
-    public List<ChatRow> chatRows(String name) {
-        return chats.findChats(name).stream()
-                .map(c -> new ChatRow(c.remoteJid(), c.pushName(),
-                        ManagerViews.preview(c.lastMessage().messageType(), c.lastMessage().message()),
-                        ManagerViews.time(c.lastMessage().messageTimestamp()), c.lastMessage().key().fromMe()))
-                .toList();
+    /** As conversas divididas entre pessoas e grupos; o nome do grupo vem do motor ({@link GroupNames}). */
+    public ManagerViews.ChatList chatRows(String name) {
+        var summaries = chats.findChats(name);
+        var names = summaries.stream().anyMatch(c -> ManagerViews.isGroup(c.remoteJid()))
+                ? groupNames.of(name) : java.util.Map.<String, String>of();
+        return ManagerViews.ChatList.of(summaries.stream()
+                .map(c -> {
+                    var last = c.lastMessage();
+                    var group = ManagerViews.isGroup(c.remoteJid());
+                    // Em grupo, o pushName gravado é de quem mandou, não o nome do grupo
+                    var chatName = group ? names.get(c.remoteJid()) : c.pushName();
+                    var author = group && !last.key().fromMe()
+                            ? firstNonBlank(last.pushName(), ManagerViews.phoneOrJid(last.key().participant())) : null;
+                    return new ChatRow(c.remoteJid(), chatName, MessageContent.of(last.messageType(), last.message()),
+                            ManagerViews.time(last.messageTimestamp()), last.key().fromMe(), author);
+                })
+                .toList());
     }
 
     public Conversation conversation(String name, String jid, int page) {
         var current = Math.max(page, 1);
         var found = chats.findMessages(name, new KeyFilter(jid, null, null), current, CONVERSATION_PAGE_SIZE);
-        var rows = new ArrayList<>(found.records().stream()
-                .map(m -> new MessageRow(m.key().id(), m.key().fromMe(), m.pushName(),
-                        ManagerViews.preview(m.messageType(), m.message()), ManagerViews.time(m.messageTimestamp()),
-                        m.status()))
+        var ordered = new ArrayList<>(found.records().stream()
+                .map(m -> new ManagerViews.StoredRow(m.key().id(), m.key().fromMe(), m.pushName(), m.key().participant(),
+                        MessageContent.of(m.messageType(), m.message()), m.messageTimestamp(), m.status()))
                 .toList());
-        Collections.reverse(rows);   // a página vem da mais nova para a mais antiga
-        return new Conversation(jid, rows, current, found.pages());
+        Collections.reverse(ordered);   // a página vem da mais nova para a mais antiga
+        var group = ManagerViews.isGroup(jid);
+        var chatName = group ? groupNames.of(name).get(jid)
+                : found.records().stream().filter(m -> !m.key().fromMe()).map(m -> m.pushName())
+                        .filter(n -> n != null && !n.isBlank()).findFirst().orElse(null);
+        return new Conversation(jid, chatName, ManagerViews.rows(ordered, group, java.time.LocalDate.now()),
+                current, found.pages());
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return first != null && !first.isBlank() ? first : second;
     }
 }

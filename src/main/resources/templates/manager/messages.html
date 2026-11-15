@@ -1,39 +1,51 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
-<head th:replace="~{manager/fragments/layout :: head(#{manager.messages.title})}"></head>
+<head th:replace="~{manager/fragments/layout :: head(#{manager.messages.title} + ' · ' + ${instanceName})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
-<main class="container">
-    <p class="breadcrumb">
-        <a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a> ·
+<main class="container wide">
+    <!-- Voltar leva ao painel desta instância; "Instâncias", à lista -->
+    <nav class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
+        <a th:href="@{/manager}" th:text="#{manager.breadcrumb.instances}">Instâncias</a>
+        <span aria-hidden="true">/</span>
         <a th:href="@{/manager/instances/{n}(n=${instanceName})}" th:text="${instanceName}">vendas</a>
-    </p>
-    <h1 th:text="#{manager.messages.title}">Mensagens</h1>
-    <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page" th:text="#{manager.messages.title}">Mensagens</span>
+    </nav>
+    <header class="panel-head">
+        <h1 th:text="#{manager.messages.title}">Mensagens</h1>
+        <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>
+    </header>
 
+    <div class="panel-shell">
+    <nav th:replace="~{manager/fragments/layout :: panelNav(${instanceName}, ${can}, 'messages')}"></nav>
+    <div class="panel-main">
     <!-- Ao vivo pelo SSE (eventos "chats" e "conversation:{jid}"); o polling é a reserva (manager.js) -->
     <div class="messages-layout" hx-ext="sse"
          th:attr="sse-connect=@{/manager/stream/instances/{n}/messages(n=${instanceName})}">
-        <!-- Conversas: sem o stream, atualizam sozinhas a cada 15 s -->
+        <!-- Conversas, separadas entre pessoas e grupos: sem o stream, atualizam sozinhas a cada 15 s -->
         <section class="card chats" th:fragment="chats" id="chats" sse-swap="chats" data-poll
+                 aria-labelledby="chats-title"
                  th:attr="hx-get=@{/manager/instances/{n}/messages/chats(n=${instanceName})}"
                  hx-trigger="every 15s" hx-swap="outerHTML">
-            <h2 th:text="#{manager.messages.chats}">Conversas</h2>
-            <p class="muted" th:if="${#lists.isEmpty(chats)}" th:text="#{manager.messages.empty}">Nada ainda.</p>
-            <ul class="chat-list" th:unless="${#lists.isEmpty(chats)}">
-                <li th:each="chat : ${chats}">
-                    <button type="button" class="chat"
-                            th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${chat.jid})}"
-                            hx-target="#conversation" hx-swap="outerHTML">
-                        <strong th:text="${chat.label()}">Ana</strong>
-                        <span class="muted small" th:text="${chat.time}">12/11 10:00</span>
-                        <span class="preview">
-                            <span th:if="${chat.fromMe}" th:text="#{manager.messages.you}">Você:</span>
-                            <span th:text="${chat.preview}">oi</span>
-                        </span>
-                    </button>
-                </li>
-            </ul>
+            <h2 id="chats-title" th:text="#{manager.messages.chats}">Conversas</h2>
+            <p class="muted" th:if="${chats.empty()}" th:text="#{manager.messages.empty}">Nada ainda.</p>
+            <th:block th:unless="${chats.empty()}">
+                <h3 class="chat-group-title" th:unless="${#lists.isEmpty(chats.people)}">
+                    <span th:text="#{manager.messages.people}">Pessoas</span>
+                    <span class="count" th:text="${#lists.size(chats.people)}">3</span>
+                </h3>
+                <ul class="chat-list" th:unless="${#lists.isEmpty(chats.people)}">
+                    <li th:each="chat : ${chats.people}" th:insert="~{manager/messages :: chatItem(${chat})}"></li>
+                </ul>
+                <h3 class="chat-group-title" th:unless="${#lists.isEmpty(chats.groups)}">
+                    <span th:text="#{manager.messages.groups}">Grupos</span>
+                    <span class="count" th:text="${#lists.size(chats.groups)}">2</span>
+                </h3>
+                <ul class="chat-list" th:unless="${#lists.isEmpty(chats.groups)}">
+                    <li th:each="chat : ${chats.groups}" th:insert="~{manager/messages :: chatItem(${chat})}"></li>
+                </ul>
+            </th:block>
         </section>
 
         <!-- Conversa aberta: a página mais recente chega pelo SSE; sem o stream, a cada 10 s -->
@@ -46,7 +58,13 @@
                 <div th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid})},
                               hx-trigger=(${conversation.page == 1} ? 'every 10s' : 'none')"
                      hx-target="#conversation" hx-swap="outerHTML" data-poll></div>
-                <h2><code th:text="${conversation.jid}">5561...@s.whatsapp.net</code></h2>
+                <header class="conversation-head">
+                    <h2>
+                        <span th:text="${conversation.label()}">Ana</span>
+                        <span class="tag tag-neutral" th:if="${conversation.group()}" th:text="#{manager.messages.groupTag}">Grupo</span>
+                    </h2>
+                    <code class="muted small" th:text="${conversation.jid}">5561...@s.whatsapp.net</code>
+                </header>
                 <p th:if="${conversation.hasOlder()}">
                     <button type="button"
                             th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid},page=${conversation.olderPage()})}"
@@ -54,14 +72,114 @@
                 </p>
                 <p class="muted" th:if="${#lists.isEmpty(conversation.rows)}" th:text="#{manager.messages.noMessages}">Sem mensagens.</p>
                 <ol class="bubbles">
-                    <li th:each="m : ${conversation.rows}" th:class="${m.fromMe} ? 'bubble mine' : 'bubble'">
-                        <span class="author small" th:unless="${m.fromMe}" th:text="${m.author} ?: ''">Ana</span>
-                        <span class="text" th:text="${m.preview}">oi</span>
-                        <span class="meta small muted">
-                            <span th:text="${m.time}">12/11 10:00</span>
-                            <span th:if="${m.fromMe}" th:text="#{'manager.messages.status.' + ${m.status}}">enviada</span>
-                        </span>
-                    </li>
+                    <th:block th:each="m : ${conversation.rows}">
+                        <li class="day-sep" th:if="${m.day}">
+                            <span th:text="${m.day.kind == 'date'} ? ${m.day.date} : #{'manager.messages.day.' + ${m.day.kind}}">Hoje</span>
+                        </li>
+                        <li th:class="'bubble' + (${m.fromMe} ? ' mine' : '') + (${m.startsRun} ? '' : ' continued') + ' kind-' + ${m.content.kind()}"
+                            th:with="c=${m.content},kindLabel=#{${'manager.messages.kind.' + m.content.labelKey()}},media=@{/manager/instances/{n}/messages/media(n=${instanceName},jid=${conversation.jid},id=${m.id},fromMe=${m.fromMe})}">
+                            <span class="author small" th:if="${conversation.group() and m.startsRun and m.authorLabel() != null}">
+                                <strong th:text="${m.authorLabel()}">Ana</strong>
+                                <span class="muted" th:if="${m.showNumber()}" th:text="${m.authorNumber()}">+5561...</span>
+                            </span>
+                            <th:block th:switch="${c.kind()}">
+                                <span th:case="'text'" class="text" th:text="${c.text}">oi</span>
+
+                                <figure th:case="'image'" class="media">
+                                    <img data-media loading="lazy" th:src="${media}"
+                                         th:alt="${c.caption} ?: #{manager.messages.kind.image}">
+                                    <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Foto indisponível</p>
+                                    <figcaption class="text" th:if="${c.caption}" th:text="${c.caption}">legenda</figcaption>
+                                </figure>
+
+                                <figure th:case="'sticker'" class="media sticker">
+                                    <img data-media loading="lazy" width="128" height="128" th:src="${media}"
+                                         th:alt="#{manager.messages.kind.sticker}">
+                                    <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Figurinha</p>
+                                </figure>
+
+                                <figure th:case="'video'" class="media">
+                                    <video data-media controls preload="none" playsinline th:src="${media}"
+                                           th:attr="aria-label=${c.caption} ?: ${kindLabel}"></video>
+                                    <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Vídeo indisponível</p>
+                                    <figcaption>
+                                        <span class="media-meta small muted">
+                                            <span th:text="${kindLabel}">Vídeo</span>
+                                            <span th:if="${c.duration()}" th:text="'· ' + ${c.duration()}">· 0:12</span>
+                                        </span>
+                                        <span class="text" th:if="${c.caption}" th:text="${c.caption}">legenda</span>
+                                    </figcaption>
+                                </figure>
+
+                                <div th:case="'audio'" class="media audio">
+                                    <span class="media-meta small">
+                                        <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
+                                            <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+                                            <path d="M3 7.5a5 5 0 0 0 10 0M8 12.5v2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                                        </svg>
+                                        <span th:text="${kindLabel}">Nota de voz</span>
+                                        <span class="muted" th:if="${c.duration()}" th:text="'· ' + ${c.duration()}">· 0:12</span>
+                                    </span>
+                                    <audio data-media controls preload="none" th:src="${media}"
+                                           th:attr="aria-label=${kindLabel}"></audio>
+                                    <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Áudio indisponível</p>
+                                </div>
+
+                                <div th:case="'document'" class="media document">
+                                    <svg class="doc-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" width="28" height="28">
+                                        <path d="M6 2.75h8l4.25 4.25V20a1.25 1.25 0 0 1-1.25 1.25H6A1.25 1.25 0 0 1 4.75 20V4A1.25 1.25 0 0 1 6 2.75z M13.75 2.75V7.25h4.5"
+                                              fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                                    </svg>
+                                    <span class="doc-text">
+                                        <strong class="doc-name" th:text="${c.fileName} ?: #{manager.messages.kind.document}">contrato.pdf</strong>
+                                        <span class="muted small">
+                                            <span th:text="#{manager.messages.kind.document}">Documento</span>
+                                            <span th:if="${c.sizeLabel()}" th:text="'· ' + ${c.sizeLabel()}">· 1,2 MB</span>
+                                        </span>
+                                        <span class="text" th:if="${c.caption}" th:text="${c.caption}">legenda</span>
+                                    </span>
+                                    <a class="doc-download" th:href="${media}" download
+                                       th:attr="aria-label=#{manager.messages.download(${c.fileName} ?: ${kindLabel})}"
+                                       th:text="#{manager.messages.downloadShort}">Baixar</a>
+                                </div>
+
+                                <div th:case="'location'" class="location">
+                                    <span class="media-meta small" th:text="#{manager.messages.kind.location}">Localização</span>
+                                    <strong th:if="${c.name}" th:text="${c.name}">Escritório</strong>
+                                    <span th:if="${c.address}" th:text="${c.address}">Rua A, 10</span>
+                                    <code class="small" th:if="${c.coordinates()}" th:text="${c.coordinates()}">-15.78, -47.92</code>
+                                    <a th:if="${c.mapUrl()}" th:href="${c.mapUrl()}" target="_blank" rel="noopener noreferrer"
+                                       th:text="#{manager.messages.openMap}">Ver no mapa</a>
+                                </div>
+
+                                <div th:case="'contact'" class="contact">
+                                    <span class="media-meta small" th:text="#{manager.messages.kind.contact}">Contato</span>
+                                    <span th:if="${#lists.isEmpty(c.names)}" class="muted" th:text="#{manager.messages.contactNoName}">Sem nome</span>
+                                    <strong th:each="contactName : ${c.names}" th:text="${contactName}">Ana</strong>
+                                </div>
+
+                                <span th:case="'reaction'" class="reaction"
+                                      th:text="${c.removed()} ? #{manager.messages.reactionRemoved} : #{manager.messages.reacted(${c.emoji})}">Reagiu com 👍</span>
+
+                                <div th:case="'poll'" class="poll">
+                                    <span class="media-meta small"
+                                          th:text="#{manager.messages.kind.poll} + ' · ' + (${c.multiple} ? #{manager.messages.pollMultiple} : #{manager.messages.pollSingle})">Enquete</span>
+                                    <strong th:text="${c.name} ?: #{manager.messages.kind.poll}">Qual dia?</strong>
+                                    <ul class="poll-options" th:unless="${#lists.isEmpty(c.options)}">
+                                        <li th:each="option : ${c.options}" th:text="${option}">Segunda</li>
+                                    </ul>
+                                </div>
+
+                                <span th:case="'revoked'" class="revoked" th:text="#{manager.messages.revoked}">Mensagem apagada</span>
+
+                                <span th:case="*" class="unknown muted" th:text="#{manager.messages.unknown(${c.type})}">Mensagem sem pré-visualização</span>
+                            </th:block>
+                            <span class="meta small muted">
+                                <span th:text="${m.time}">10:00</span>
+                                <span th:if="${m.fromMe}" th:text="#{'manager.messages.status.' + ${m.status}}">enviada</span>
+                            </span>
+                        </li>
+                    </th:block>
                 </ol>
                 <p th:if="${conversation.page > 1}">
                     <button type="button"
@@ -71,6 +189,28 @@
             </th:block>
         </section>
     </div>
+    </div>
+    </div>
 </main>
+
+<!-- Uma conversa na lista (pessoas e grupos usam o mesmo item). O th:if de fora só tira o modelo
+     da página inteira; quem insere o fragmento pega o de dentro. -->
+<th:block th:if="false">
+<th:block th:fragment="chatItem(chat)">
+    <button type="button" class="chat"
+            th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${chat.jid})}"
+            hx-target="#conversation" hx-swap="outerHTML">
+        <strong class="chat-name" th:text="${chat.label()}">Ana</strong>
+        <span class="muted small" th:text="${chat.time}">12/11 10:00</span>
+        <span class="preview">
+            <span th:if="${chat.fromMe}" th:text="#{manager.messages.you}">Você:</span>
+            <span th:if="${chat.lastAuthor}" th:text="${chat.lastAuthor} + ':'">Ana:</span>
+            <span class="preview-kind" th:unless="${chat.last.kind() == 'text'}"
+                  th:text="#{${'manager.messages.kind.' + chat.last.labelKey()}}">Foto</span>
+            <span th:if="${chat.last.summary()}" th:text="${chat.last.summary()}">oi</span>
+        </span>
+    </button>
+</th:block>
+</th:block>
 </body>
 </html>

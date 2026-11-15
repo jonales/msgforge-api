@@ -83,6 +83,26 @@ public class MessageHistory {
     }
 
     /**
+     * Mensagem apagada para todos: o conteúdo some e fica o aviso, como no WhatsApp (um
+     * {@code protocolMessage} REVOKE, no formato do Baileys). Devolve false se ela não está gravada.
+     */
+    public boolean markRevoked(UUID instanceId, String remoteJid, String keyId) {
+        var params = new MapSqlParameterSource()
+                .addValue("instance", instanceId)
+                .addValue("remoteJid", remoteJid)
+                .addValue("keyId", keyId)
+                .addValue("message", json.writeValueAsString(Map.of(REVOKED_TYPE, Map.of("type", "REVOKE"))))
+                .addValue("type", REVOKED_TYPE);
+        return jdbc.update("""
+                UPDATE message SET message_type = :type, message = CAST(:message AS jsonb)
+                WHERE instance_id = :instance AND remote_jid = :remoteJid AND key_id = :keyId
+                """, params) > 0;
+    }
+
+    /** Tipo gravado no lugar da mensagem apagada. */
+    public static final String REVOKED_TYPE = "protocolMessage";
+
+    /**
      * Apaga até {@code batch} mensagens anteriores a {@code cutoff} (epoch em segundos); devolve
      * quantas apagou. Em lotes, para não segurar um lock grande numa tabela movimentada.
      */

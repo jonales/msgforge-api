@@ -3,15 +3,28 @@
 <head th:replace="~{manager/fragments/layout :: head(${instance.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
-<main class="container instance-panel">
-    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+<main class="container wide instance-panel">
+    <nav class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
+        <a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a>
+    </nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <div class="flash warning" role="status" th:if="${createdToken}">
         <span th:text="#{manager.flash.token}">Token</span> <code th:text="${createdToken}">TOKEN</code>
     </div>
     <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
 
-    <h1 th:text="${instance.name}">vendas</h1>
+    <header class="panel-head">
+        <h1 th:text="${instance.name}">vendas</h1>
+        <p class="muted">
+            <span th:text="#{manager.col.number}">Número</span>: <span th:text="${instance.number} ?: '—'"></span>
+            · <span th:text="#{manager.col.profile}">Perfil</span>: <span th:text="${instance.profileName} ?: '—'"></span>
+            · <span th:text="#{manager.engine.label}">Motor</span>: <span th:text="#{'manager.engine.' + ${engine}}">Cobalt</span>
+        </p>
+    </header>
+
+    <div class="panel-shell">
+    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'overview')}"></nav>
+    <div class="panel-main">
     <!-- Criada pela conexão guiada e abandonada antes de ler o QR: retoma do passo onde parou -->
     <section class="card resume" th:if="${instance.pending() and can.connect}" aria-labelledby="pending-title">
         <h2 id="pending-title" th:text="#{manager.pending.title}">Ainda não conectada</h2>
@@ -19,12 +32,6 @@
         <a class="button primary" th:href="@{/manager/instances/{n}/connect(n=${instance.name})}"
            th:text="#{manager.pending.resume}">Continuar a conexão</a>
     </section>
-    <p th:if="${can.chats}"><a class="button" th:href="@{/manager/instances/{n}/messages(n=${instance.name})}" th:text="#{manager.messages.open}">Mensagens</a></p>
-    <p class="muted">
-        <span th:text="#{manager.col.number}">Número</span>: <span th:text="${instance.number} ?: '—'"></span>
-        · <span th:text="#{manager.col.profile}">Perfil</span>: <span th:text="${instance.profileName} ?: '—'"></span>
-        · <span th:text="${instance.integration}">WHATSAPP-BAILEYS</span>
-    </p>
 
     <!-- Trecho vivo: estado + QR. Chega pelo SSE (evento "live"); o polling (3 s enquanto não
          conecta, 15 s depois) é a reserva quando o stream não está aberto (manager.js). A conexão
@@ -102,8 +109,8 @@
             </form>
         </section>
 
-        <section class="card" th:if="${can.send}">
-            <h2 th:text="#{manager.send.title}">Mensagem de teste</h2>
+        <section class="card" id="send" aria-labelledby="send-title" th:if="${can.send}">
+            <h2 id="send-title" th:text="#{manager.send.title}">Mensagem de teste</h2>
             <form th:action="@{/manager/instances/{n}/send(n=${instance.name})}" method="post">
                 <label>
                     <span th:text="#{manager.send.number}">Número</span>
@@ -119,155 +126,15 @@
         </section>
     </div>
 
-    <section class="card" th:if="${can.events}">
-        <h2 th:text="#{manager.webhook.title}">Webhook</h2>
-        <form th:action="@{/manager/instances/{n}/webhook(n=${instance.name})}" method="post">
-            <label>
-                <span th:text="#{manager.webhook.url}">URL</span>
-                <input name="url" type="url" required th:value="${webhook.url}" placeholder="https://">
-            </label>
-            <div class="checks">
-                <label class="check"><input type="checkbox" name="enabled" value="true" th:checked="${webhook.enabled}">
-                    <span th:text="#{manager.webhook.enabled}">Ativo</span></label>
-                <label class="check"><input type="checkbox" name="byEvents" value="true" th:checked="${webhook.byEvents}">
-                    <span th:text="#{manager.webhook.byEvents}">Por evento</span></label>
-            </div>
-            <fieldset>
-                <legend th:text="#{manager.webhook.events}">Eventos</legend>
-                <p class="muted small" th:text="#{manager.webhook.eventsHint}">Nenhum = todos</p>
-                <div class="events">
-                    <label class="check" th:each="event : ${eventNames}">
-                        <input type="checkbox" name="events" th:value="${event}"
-                               th:checked="${#lists.contains(webhook.events, event)}">
-                        <code th:text="${event}">MESSAGES_UPSERT</code>
-                    </label>
-                </div>
-            </fieldset>
-            <button type="submit" class="primary" th:text="#{manager.webhook.submit}">Salvar</button>
-        </form>
+    <!-- Webhook, comportamentos, histórico e proxy ficam em Configurações, uma tela por grupo -->
+    <section class="card settings-teaser" th:if="${can.settings()}" aria-labelledby="settings-teaser-title">
+        <h2 id="settings-teaser-title" th:text="#{manager.settings.title}">Configurações</h2>
+        <p class="muted" th:text="#{manager.settings.teaser}">Chamadas, leitura, presença, histórico, proxy e webhook.</p>
+        <a class="button" th:href="@{/manager/instances/{n}/settings(n=${instance.name})}" th:text="#{manager.settings.open}">Abrir configurações</a>
     </section>
 
-    <section class="card" id="settings" aria-labelledby="settings-title" th:if="${can.account}"
-             th:with="errors=${fieldErrors != null ? fieldErrors : {:}}">
-        <h2 id="settings-title" th:text="#{manager.settings.title}">Configurações</h2>
-        <p class="muted small" th:text="#{manager.settings.intro}">Valem na hora.</p>
-
-        <form th:action="@{/manager/instances/{n}/settings(n=${instance.name})}" method="post" class="settings-form">
-            <fieldset class="toggles">
-                <legend th:text="#{manager.settings.behaviors}">Comportamento</legend>
-                <label class="toggle" th:each="b : ${behaviors}" th:for="'setting-' + ${b}">
-                    <span class="toggle-text">
-                        <strong th:text="#{'manager.settings.' + ${b}}">Recusar ligações</strong>
-                        <span class="tag" th:if="${b == 'alwaysOnline'}" th:text="#{manager.settings.noEffect}">Ainda sem efeito</span>
-                        <span class="muted small" th:id="'setting-' + ${b} + '-desc'"
-                              th:text="#{'manager.settings.' + ${b} + '.desc'}">Descrição</span>
-                    </span>
-                    <input type="checkbox" role="switch" class="switch" value="true"
-                           th:id="'setting-' + ${b}" th:name="${b}" th:checked="${settings.on(b)}"
-                           th:attr="aria-describedby='setting-' + ${b} + '-desc'">
-                </label>
-            </fieldset>
-
-            <label th:with="err=${errors['settings.msgCall']}">
-                <span th:text="#{manager.settings.msgCall}">Resposta para quem liga</span>
-                <textarea name="msgCall" rows="2" maxlength="4096" th:text="${settings.msgCall}"
-                          th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='msgCall-hint' + (${err != null} ? ' msgCall-error' : '')"></textarea>
-                <span class="field-error" id="msgCall-error" th:if="${err}" th:text="#{${err}}">Erro</span>
-                <span class="hint" id="msgCall-hint" th:text="#{manager.settings.msgCall.hint}">Dica</span>
-            </label>
-
-            <label>
-                <span th:text="#{manager.settings.history}">Histórico no próximo pareamento</span>
-                <select name="historySync" aria-describedby="settings-history-hint">
-                    <option th:each="option : ${historyOptions}" th:value="${option}"
-                            th:selected="${option == (settings.historySync ?: instance.historySync)}"
-                            th:text="#{'manager.history.' + ${option}} + ': ' + #{'manager.history.' + ${option} + '.desc'}">Sem histórico</option>
-                </select>
-                <span class="hint" id="settings-history-hint" th:text="#{manager.history.hint}">Vale no próximo pareamento.</span>
-            </label>
-
-            <div class="form-actions">
-                <button type="submit" class="primary" th:text="#{manager.settings.submit}">Salvar configurações</button>
-                <p class="saved" role="status" th:if="${settingsSaved}" th:text="#{manager.settings.saved}">Salvas.</p>
-            </div>
-        </form>
-
-        <details class="disclosure" id="proxy"
-                 th:open="${proxyOpen}">
-            <summary>
-                <span class="summary-title" th:text="#{manager.proxy.title}">Proxy</span>
-                <span class="muted small" th:text="${proxy.summary()} ?: #{manager.proxy.off}">Desligado</span>
-            </summary>
-            <p class="muted small" th:text="#{manager.proxy.intro}">Proxy desta instância.</p>
-            <form th:action="@{/manager/instances/{n}/proxy(n=${instance.name})}" method="post" autocomplete="off">
-                <label class="toggle" for="proxy-enabled">
-                    <span class="toggle-text">
-                        <strong th:text="#{manager.proxy.enabled}">Usar proxy</strong>
-                        <span class="muted small" id="proxy-enabled-desc" th:text="#{manager.proxy.enabled.desc}">Descrição</span>
-                    </span>
-                    <input type="checkbox" role="switch" class="switch" id="proxy-enabled" name="enabled" value="true"
-                           th:checked="${proxy.enabled}" aria-describedby="proxy-enabled-desc">
-                </label>
-
-                <div class="field-row">
-                    <label class="field-protocol" th:with="err=${errors['proxy.protocol']}">
-                        <span th:text="#{manager.proxy.protocol}">Protocolo</span>
-                        <select name="protocol" th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'proxy-protocol-error' : null">
-                            <option th:each="p : ${proxyProtocols}" th:value="${p}" th:text="${p}"
-                                    th:selected="${p == proxy.protocol}">http</option>
-                        </select>
-                        <span class="field-error" id="proxy-protocol-error" th:if="${err}" th:text="#{${err}}">Erro</span>
-                    </label>
-                    <label class="field-host" th:with="err=${errors['proxy.host']}">
-                        <span th:text="#{manager.proxy.host}">Host</span>
-                        <input name="host" type="text" spellcheck="false" autocapitalize="off" th:value="${proxy.host}"
-                               th:placeholder="#{manager.proxy.hostPlaceholder}"
-                               th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'proxy-host-error' : null">
-                        <span class="field-error" id="proxy-host-error" th:if="${err}" th:text="#{${err}}">Erro</span>
-                    </label>
-                    <label class="field-port" th:with="err=${errors['proxy.port']}">
-                        <span th:text="#{manager.proxy.port}">Porta</span>
-                        <input name="port" type="text" inputmode="numeric" th:value="${proxy.port}" placeholder="3128"
-                               th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'proxy-port-error' : null">
-                        <span class="field-error" id="proxy-port-error" th:if="${err}" th:text="#{${err}}">Erro</span>
-                    </label>
-                </div>
-
-                <div class="field-row">
-                    <label th:with="err=${errors['proxy.username']}">
-                        <span th:text="#{manager.proxy.username}">Usuário</span>
-                        <input name="username" type="text" autocomplete="off" spellcheck="false" autocapitalize="off"
-                               th:value="${proxy.username}"
-                               th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'proxy-username-error' : null">
-                        <span class="field-error" id="proxy-username-error" th:if="${err}" th:text="#{${err}}">Erro</span>
-                    </label>
-                    <label th:with="err=${errors['proxy.password']}">
-                        <span th:text="#{manager.proxy.password}">Senha</span>
-                        <!-- Nunca volta preenchida: a tela não recebe a senha -->
-                        <input name="password" type="password" autocomplete="new-password" value=""
-                               th:disabled="${!secretsEnabled}"
-                               th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='proxy-password-hint' + (${err != null} ? ' proxy-password-error' : '')">
-                        <span class="field-error" id="proxy-password-error" th:if="${err}" th:text="#{${err}}">Erro</span>
-                        <span class="hint" id="proxy-password-hint"
-                              th:text="${!secretsEnabled} ? #{manager.proxy.passwordNoKey} : (${proxy.hasPassword} ? #{manager.proxy.passwordKept} : #{manager.proxy.passwordHint})">Dica</span>
-                    </label>
-                </div>
-                <label class="check" th:if="${proxy.hasPassword}">
-                    <input type="checkbox" name="removePassword" value="true">
-                    <span th:text="#{manager.proxy.removePassword}">Apagar a senha guardada</span>
-                </label>
-
-                <p class="note small" th:text="#{manager.proxy.reconnectHint}">Vale para uma conexão nova.</p>
-                <div class="form-actions">
-                    <button type="submit" class="primary" th:text="#{manager.proxy.submit}">Salvar proxy</button>
-                    <p class="saved" role="status" th:if="${proxySaved}" th:text="#{manager.proxy.saved}">Salvo.</p>
-                </div>
-            </form>
-        </details>
-    </section>
-
-    <section class="card danger-zone" th:if="${can.danger()}">
-        <h2 th:text="#{manager.danger.title}">Zona de perigo</h2>
+    <section class="card danger-zone" id="danger" aria-labelledby="danger-title" th:if="${can.danger()}">
+        <h2 id="danger-title" th:text="#{manager.danger.title}">Zona de perigo</h2>
         <div class="row">
             <form th:if="${can.connect}" th:action="@{/manager/instances/{n}/logout(n=${instance.name})}" method="post">
                 <button type="submit" th:text="#{manager.danger.logout}">Desconectar</button>
@@ -279,6 +146,8 @@
             </form>
         </div>
     </section>
+    </div>
+    </div>
 </main>
 </body>
 </html>

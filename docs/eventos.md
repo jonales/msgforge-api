@@ -39,6 +39,7 @@ endereça por LID e o número não é conhecido, o JID sai como `<lid>@lid`, nun
 | Evento | `data` |
 |---|---|
 | `APPLICATION_STARTUP` | `{status: "started"}`; envelope com `instance`, `sender` e `apikey` null |
+| `MESSAGES_UPSERT` | `{key: {remoteJid, fromMe, id, participant?}, pushName?, status, message: {<tipo>: {...}}, messageType, messageTimestamp, instanceId, source}`. Campos por tipo (só os que o WhatsApp mandou): `imageMessage` `caption`, `mimetype`, `url`, `fileLength`, `width`, `height`; `videoMessage` `caption`, `mimetype`, `seconds`, `fileLength`, `gifPlayback`; `audioMessage` `mimetype`, `seconds`, `fileLength`, `ptt`; `documentMessage` `fileName`, `title`, `caption`, `mimetype`, `fileLength`; `stickerMessage` `mimetype`, `isAnimated`, `fileLength`; `locationMessage`; `contactMessage` `displayName`; `contactsArrayMessage` `displayName`, `contacts: [{displayName}]`; `reactionMessage` `text`, `key`; `pollCreationMessage` `name`, `options: [{optionName}]`, `selectableOptionsCount`; texto sai como `conversation` |
 | `MESSAGES_SET` | lista de mensagens, cada uma no formato do `messages.upsert` |
 | `MESSAGES_DELETE` | `{remoteJid, fromMe, id, participant?, status: "DELETED"}`: a conversa, quem apagou (`fromMe`, `participant` em grupo) e o `id` da mensagem apagada |
 | `CONTACTS_UPSERT`, `CONTACTS_UPDATE` | lista de `{remoteJid, pushName, profilePicUrl, instanceId}`; sem nome, `pushName` é o número; `profilePicUrl` sempre null (use `/chat/fetchProfilePictureUrl`) |
