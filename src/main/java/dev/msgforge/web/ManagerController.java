@@ -84,8 +84,6 @@ public class ManagerController {
         model.addAttribute("instances", rows);
         model.addAttribute("canCreate", check.canSomewhere(Permission.INSTANCE_CREATE));
         model.addAttribute("showSearch", rows.size() > SEARCH_THRESHOLD);
-        model.addAttribute("soonChannels", SOON_CHANNELS);
-        model.addAttribute("soonIntegrations", SOON_INTEGRATIONS);
         return "manager/instances";
     }
 
@@ -174,6 +172,16 @@ public class ManagerController {
         var check = guard.current();
         panel(model, check, guard.require(check, name, Permission.CHAT_SEND));
         return "manager/instance-send";
+    }
+
+    /** Integrações e canais da instância: por enquanto só a lista "Em breve" (quem vê a instância). */
+    @GetMapping("/instances/{name}/integrations")
+    public String integrationsPage(@PathVariable String name, Model model) {
+        var check = guard.current();
+        panel(model, check, guard.require(check, name, Permission.INSTANCE_VIEW));
+        model.addAttribute("soonChannels", SOON_CHANNELS);
+        model.addAttribute("soonIntegrations", SOON_INTEGRATIONS);
+        return "manager/instance-integrations";
     }
 
     /** Estado + QR, atualizado pelo htmx enquanto a instância não está conectada. */

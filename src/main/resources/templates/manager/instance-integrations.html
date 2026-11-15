@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
+<!-- Painel da instância, Integrações: cada instância terá as próprias. Sem backend ainda: só aparecem,
+     sem link nem botão (PRODUCT.md, "Em breve"). -->
+<head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.integrations} + ' · ' + ${instance.name})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container wide instance-panel">
+    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.integrations')}"></nav>
+    <header class="panel-head">
+        <h1 th:text="#{manager.panelNav.integrations}">Integrações</h1>
+        <p class="muted" th:text="#{manager.integrationsPage.intro}">Cada instância terá as suas.</p>
+    </header>
+
+    <div class="panel-shell">
+    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'integrations')}"></nav>
+    <div class="panel-main">
+    <section class="card soon" aria-labelledby="soon-title">
+        <div class="soon-head">
+            <h2 id="soon-title" th:text="#{manager.soon.title}">Canais e integrações</h2>
+            <p class="muted small" th:text="#{manager.soon.text}">Hoje o Msgforge conecta pelo WhatsApp.</p>
+        </div>
+        <div class="soon-groups">
+            <div class="soon-group">
+                <h3 th:text="#{manager.soon.channels}">Canais</h3>
+                <ul class="soon-list">
+                    <li th:each="item : ${soonChannels}">
+                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Cloud API oficial</span>
+                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Canal</span>
+                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
+                    </li>
+                </ul>
+            </div>
+            <div class="soon-group">
+                <h3 th:text="#{manager.soon.integrations}">Integrações</h3>
+                <ul class="soon-list">
+                    <li th:each="item : ${soonIntegrations}">
+                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Typebot</span>
+                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Bots</span>
+                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+        <p class="muted small" th:if="${can.events}">
+            <span th:text="#{manager.integrationsPage.today}">Hoje, os eventos saem pelo webhook.</span>
+            <a th:href="@{/manager/instances/{n}/settings/webhook(n=${instance.name})}" th:text="#{manager.integrationsPage.toWebhook}">Configurar o webhook</a>
+        </p>
+    </div>
+    </div>
+</main>
+</body>
+</html>

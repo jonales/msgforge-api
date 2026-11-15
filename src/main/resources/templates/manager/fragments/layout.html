@@ -106,11 +106,12 @@
         <!-- Uma tela por grupo (chamadas, leitura, presença, histórico, proxy, webhook) -->
         <li th:if="${can.settings()}"><a th:href="@{/manager/instances/{n}/settings(n=${name})}" th:attr="aria-current=${current == 'settings'} ? 'page' : null"
                th:text="#{manager.panelNav.settings}">Configurações</a></li>
-        <!-- Sem backend ainda: aparece apagado, sem link (PRODUCT.md) -->
-        <li class="panel-nav-soon">
+        <!-- Tela própria por instância; as integrações ainda não funcionam (marca "Em breve") -->
+        <li class="panel-nav-soon"><a th:href="@{/manager/instances/{n}/integrations(n=${name})}"
+               th:attr="aria-current=${current == 'integrations'} ? 'page' : null">
             <span th:text="#{manager.panelNav.integrations}">Integrações</span>
             <span class="soon-tag tag" th:text="#{manager.soon.tag}">Em breve</span>
-        </li>
+        </a></li>
     </ul>
 </nav>
 
