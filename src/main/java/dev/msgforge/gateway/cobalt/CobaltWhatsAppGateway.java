@@ -1102,7 +1102,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     }
 
     private GroupInfo groupInfo(Connection connection, Jid groupJid) {
-        var metadata = call(() -> connection.api.queryGroupInfo(groupJid), "consulta do grupo")
+        // w:g2 (queryGroupMetadata) traz o papel de cada participante (type=superadmin/admin) e os modos
+        // announcement/locked; a consulta MEX (queryGroupInfo) devolvia os dois modos sempre ligados e
+        // ninguém como admin (teste ao vivo de 2026-11-14)
+        var metadata = call(() -> connection.api.queryGroupMetadata(groupJid), "consulta do grupo").stream()
+                .findFirst()
                 .orElseThrow(() -> new BadRequestException("Group not found: " + groupJid));
         return groupInfo(metadata, connection.lids);
     }
