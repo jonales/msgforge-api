@@ -75,6 +75,9 @@
                     </h2>
                     <span class="muted small conversation-number" th:if="${conversation.subtitle()}"
                           th:text="${conversation.subtitle()}">+55 61 99999-9999</span>
+                    <!-- Bot com IA (ADR 0015): o estado nesta conversa; pausar e reativar ficam na resposta -->
+                    <span class="bot-chip small" th:if="${conversation.bot}" th:attr="data-bot=${conversation.bot.state}"
+                          th:text="${conversation.bot.until} ? #{manager.messages.bot.pausedUntil(${conversation.bot.until})} : #{'manager.messages.bot.' + ${conversation.bot.state}}">Bot ativo</span>
                 </header>
                 <!-- Só esta parte rola; o cabeçalho da conversa fica sempre à vista. O manager.js leva
                      a rolagem para a mensagem mais recente. -->
@@ -228,6 +231,17 @@
                       th:placeholder="#{manager.messages.reply.placeholder}"></textarea>
             <button type="submit" class="primary" th:text="#{manager.messages.reply.submit}">Enviar</button>
             <p id="reply-status" class="reply-status small" role="status"></p>
+            <!-- Bot com IA: os dois botões usam o jid desta resposta (sem validar o texto) -->
+            <div class="bot-controls" th:if="${botEnabled}">
+                <button type="submit" name="action" value="pause" formnovalidate class="small-button"
+                        th:formaction="@{/manager/instances/{n}/messages/bot(n=${instanceName})}"
+                        th:attr="hx-post=@{/manager/instances/{n}/messages/bot(n=${instanceName})}"
+                        th:text="#{manager.messages.bot.pause}">Pausar o bot</button>
+                <button type="submit" name="action" value="resume" formnovalidate class="small-button"
+                        th:formaction="@{/manager/instances/{n}/messages/bot(n=${instanceName})}"
+                        th:attr="hx-post=@{/manager/instances/{n}/messages/bot(n=${instanceName})}"
+                        th:text="#{manager.messages.bot.resume}">Reativar o bot</button>
+            </div>
         </form>
         </div>
     </div>

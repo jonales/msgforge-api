@@ -298,10 +298,6 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
     border-radius: 8px; color: var(--text); text-decoration: none; }
 .panel-nav a:hover { background: var(--hover); }
 .panel-nav a[aria-current=page] { background: var(--accent-fill); color: var(--accent-text); font-weight: 600; }
-/* Em breve: a tela existe (a lista do que vem), o item fica apagado com o selo */
-.panel-nav-soon { margin-top: 6px; }
-.panel-nav-soon a:not([aria-current=page]) { color: var(--muted); }
-.panel-nav-soon .tag { background: none; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
 @media (max-width: 860px) {
     .panel-shell { grid-template-columns: minmax(0, 1fr); gap: 16px; }
     .panel-nav { position: static; margin: 0 -16px; }
@@ -315,7 +311,6 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
         border-bottom: 2px solid transparent; margin-bottom: -1px; }
     .panel-nav a:hover { background: none; color: var(--text); border-bottom-color: var(--control-border); }
     .panel-nav a[aria-current=page] { background: none; color: var(--text); border-bottom-color: var(--accent); }
-    .panel-nav-soon { margin-top: 0; }
 }
 .panel-nav a:focus-visible { outline-offset: -2px; }
 
@@ -674,3 +669,27 @@ input[type=email]:focus-visible { outline: 2px solid var(--focus); outline-offse
 #webhook, #proxy, #danger { scroll-margin-top: 16px; }
 /* Na tela Conexão, o título do cartão repetiria o da página: fica só para o leitor de tela */
 .connection-page #live-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* Integrações disponíveis (bot com IA): um cartão que abre a configuração */
+.integration-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px; margin: 0; padding: 0; }
+.integration { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; min-height: 44px;
+    padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+    text-decoration: none; }
+a.integration:hover { background: var(--hover); border-color: var(--control-border); }
+.integration .badge { grid-column: 2; grid-row: 1 / span 2; }
+.integration .soon-what { color: var(--muted); }
+
+/* Bot com IA: tela de configuração, estado na conversa e os botões de pausar e reativar */
+.bot-form { display: grid; gap: 16px; }
+.bot-form .card { display: grid; gap: 14px; margin: 0; }
+.bot-form .card h2 { margin: 0; }
+label.checkbox { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+label.checkbox input { accent-color: var(--accent); }
+.bubble-preview { white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0 0; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.bot-chip { justify-self: start; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border);
+    color: var(--muted); font-weight: 600; }
+.bot-chip[data-bot=active] { border-color: var(--accent); color: var(--accent-text); background: var(--accent-fill); }
+.bot-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.bot-controls button { min-height: 36px; font-size: var(--fs-small); }

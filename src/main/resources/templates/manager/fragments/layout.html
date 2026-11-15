@@ -106,12 +106,9 @@
         <!-- Uma tela por grupo (chamadas, leitura, presença, histórico, proxy, webhook) -->
         <li th:if="${can.settings()}"><a th:href="@{/manager/instances/{n}/settings(n=${name})}" th:attr="aria-current=${current == 'settings'} ? 'page' : null"
                th:text="#{manager.panelNav.settings}">Configurações</a></li>
-        <!-- Tela própria por instância; as integrações ainda não funcionam (marca "Em breve") -->
-        <li class="panel-nav-soon"><a th:href="@{/manager/instances/{n}/integrations(n=${name})}"
-               th:attr="aria-current=${current == 'integrations'} ? 'page' : null">
-            <span th:text="#{manager.panelNav.integrations}">Integrações</span>
-            <span class="soon-tag tag" th:text="#{manager.soon.tag}">Em breve</span>
-        </a></li>
+        <!-- Integrações da instância (bot com IA e as que vêm "Em breve") -->
+        <li><a th:href="@{/manager/instances/{n}/integrations(n=${name})}" th:attr="aria-current=${current == 'integrations'} ? 'page' : null"
+               th:text="#{manager.panelNav.integrations}">Integrações</a></li>
     </ul>
 </nav>
 

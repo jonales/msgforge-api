@@ -514,7 +514,7 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/delete\""))))
                 .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/send\""))))
                 .andExpect(content().string(containsString("class=\"breadcrumb\"")))
-                .andExpect(content().string(containsString("panel-nav-soon")));
+                .andExpect(content().string(containsString("href=\"" + panel + "/integrations\"")));
         // O resumo sozinho (o que o SSE pede de novo)
         mvc.perform(asManager(GET(panel + "/summary")))
                 .andExpect(status().isOk())
@@ -1046,7 +1046,7 @@ class ManagerIT extends IntegrationTest {
         var soon = page.substring(start, page.indexOf("</section>", start));
         assertThat(soon)
                 .contains("Em breve").contains("Cloud API oficial").contains("Typebot").contains("Chatwoot")
-                .contains("OpenAI").contains("Dify").contains("Flowise").contains("n8n")
+                .doesNotContain("OpenAI").contains("Dify").contains("Flowise").contains("n8n")
                 .doesNotContain("<a ").doesNotContain("<button").doesNotContain("href=");
     }
 

@@ -36,6 +36,9 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
   zona de perigo) e integrações e canais futuros como "Em breve"
   - [x] nova instância guiada: nome, QR ou código de pareamento, histórico (padrão "Sem histórico")
     e leitura do QR ao vivo; quem para no QR fica "Aguardando conexão" e o painel retoma
+- [x] **Integrações por instância:** tela Integrações no painel de cada instância; a primeira real é o
+  bot com IA compatível com a API da OpenAI (ADR 0015), com gatilho, sessão e pausa quando o atendente
+  assume. Dify, Flowise e Typebot usam a mesma base
 - [ ] **Fase 4, link de conexão:** página isolada do QR para o cliente, enviada por e-mail
 - [ ] **Fase 5, alertas:** desconexão, sessão encerrada, webhook falhando, resumo do gestor
 - [ ] Depois: 2FA, chaves de API com escopo por organização, proxy e comportamento por instância,

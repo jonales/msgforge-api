@@ -92,6 +92,11 @@ msgforge:
   secrets:
     encryption-key: ${SECRETS_ENCRYPTION_KEY:}
   gateway: ${MSGFORGE_GATEWAY:stub}
+  bot:
+    enabled: ${BOT_ENABLED:true}
+    allow-private-networks: ${BOT_ALLOW_PRIVATE_NETWORKS:false}
+    timeout-ms: ${BOT_TIMEOUT_MS:60000}
+    echo-window-ms: 15000
   history:
     enabled: ${DATABASE_SAVE_DATA_NEW_MESSAGE:true}
     retention-days: ${HISTORY_RETENTION_DAYS:0}
