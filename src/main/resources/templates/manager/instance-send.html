@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
+<!-- Painel da instância, Envio de teste: um número e um texto. O envio também vai para o histórico. -->
+<head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.send} + ' · ' + ${instance.name})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container wide instance-panel">
+    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.send')}"></nav>
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
+    <header class="panel-head">
+        <h1 th:text="#{manager.panelNav.send}">Envio de teste</h1>
+        <p class="muted" th:text="#{manager.sendPage.intro}">Mande uma mensagem.</p>
+    </header>
+
+    <div class="panel-shell">
+    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'send')}"></nav>
+    <div class="panel-main">
+        <section class="card send-card" id="send" aria-labelledby="send-title">
+            <h2 id="send-title" th:text="#{manager.send.title}">Mensagem de teste</h2>
+            <form th:action="@{/manager/instances/{n}/send(n=${instance.name})}" method="post">
+                <label>
+                    <span th:text="#{manager.send.number}">Número</span>
+                    <input name="number" required inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
+                </label>
+                <label>
+                    <span th:text="#{manager.send.text}">Texto</span>
+                    <textarea name="text" required rows="4"></textarea>
+                </label>
+                <div class="form-actions">
+                    <button type="submit" class="primary" th:disabled="${!instance.open()}" th:text="#{manager.send.submit}">Enviar</button>
+                    <th:block th:unless="${instance.open()}">
+                        <span class="muted small" th:text="#{manager.send.needsConnection}">Conecte a instância para enviar.</span>
+                        <a class="small" th:href="@{/manager/instances/{n}/connection(n=${instance.name})}"
+                           th:text="#{manager.send.goConnect}">Abrir a conexão</a>
+                    </th:block>
+                </div>
+            </form>
+        </section>
+    </div>
+    </div>
+</main>
+</body>
+</html>

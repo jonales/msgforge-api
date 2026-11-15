@@ -296,7 +296,7 @@ public class ManagerStreams implements SmartLifecycle {
             var rendered = new HashMap<Boolean, Fragment>();
             for (var subscriber : allowed) {
                 send(subscriber, rendered.computeIfAbsent(withCode.get(subscriber), code -> new Fragment("live",
-                        renderer.render("manager/instance", "live", Map.of("live", screens.live(name, code))))));
+                        renderer.render(ManagerController.LIVE_TEMPLATE, "live", Map.of("live", screens.live(name, code))))));
             }
             return rendered.size();
         }

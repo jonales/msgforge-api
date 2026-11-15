@@ -3,8 +3,9 @@
 <head th:fragment="head(title)">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <!-- Sem o <style> que o htmx injeta: o CSP só aceita CSS de arquivo ('self') -->
-    <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+    <!-- Sem o <style> que o htmx injeta: o CSP só aceita CSS de arquivo ('self'). Sem cópia da página
+         no histórico do htmx: voltar para uma URL empurrada (a conversa aberta) recarrega do servidor. -->
+    <meta name="htmx-config" content='{"includeIndicatorStyles": false, "historyCacheSize": 0, "refreshOnHistoryMiss": true}'>
     <title th:text="${title} + ' · ' + #{manager.brand}">Msgforge</title>
     <link rel="icon" type="image/svg+xml" th:href="@{/manager/favicon.svg}">
     <link rel="stylesheet" th:href="@{/manager/manager.css}">
@@ -75,24 +76,37 @@
     </ol>
 </nav>
 
-<!-- Menu do painel da instância. Só os itens que a pessoa pode usar (PanelAccess); a rota confere de
-     novo. "Visão geral", "Conectar", "Envio de teste" e "Desconectar ou excluir" são seções
-     do painel (âncoras); "Mensagens" e "Configurações" são páginas próprias. O item atual leva aria-current="page". No celular, o menu
-     vira uma faixa de abas que quebra linha (sem rolagem lateral). -->
-<nav th:fragment="panelNav(name, can, current)" class="panel-nav" th:attr="aria-label=#{manager.panelNav.label}"
-     th:with="base=@{/manager/instances/{n}(n=${name})}">
+<!-- Trilha das telas do painel: "Instâncias / nome / Tela". Na visão geral (current nulo), o nome é a
+     página atual. -->
+<nav th:fragment="panelCrumbs(name, current)" class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
+    <a th:href="@{/manager}" th:text="#{manager.breadcrumb.instances}">Instâncias</a>
+    <span aria-hidden="true">/</span>
+    <span th:if="${current == null}" aria-current="page" th:text="${name}">vendas</span>
+    <th:block th:if="${current != null}">
+        <a th:href="@{/manager/instances/{n}(n=${name})}" th:text="${name}">vendas</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page" th:text="#{${current}}">Conexão</span>
+    </th:block>
+</nav>
+
+<!-- Menu do painel da instância: cada item é uma tela própria (URL própria; voltar e recarregar
+     funcionam) e o atual leva aria-current="page". Só os itens que a pessoa pode abrir (PanelAccess);
+     a rota confere de novo. No celular, vira uma faixa de abas numa linha só, que rola dentro dela
+     mesma (a página não rola para o lado). -->
+<nav th:fragment="panelNav(name, can, current)" class="panel-nav" th:attr="aria-label=#{manager.panelNav.label}">
     <ul>
-        <li><a th:href="${base}" th:attr="aria-current=${current == 'overview'} ? 'page' : null"
+        <li><a th:href="@{/manager/instances/{n}(n=${name})}" th:attr="aria-current=${current == 'overview'} ? 'page' : null"
                th:text="#{manager.panelNav.overview}">Visão geral</a></li>
-        <li th:if="${can.connect}"><a th:href="${base} + '#connect'" th:text="#{manager.panelNav.connect}">Conectar</a></li>
+        <li><a th:href="@{/manager/instances/{n}/connection(n=${name})}" th:attr="aria-current=${current == 'connection'} ? 'page' : null"
+               th:text="#{manager.panelNav.connection}">Conexão</a></li>
         <li th:if="${can.chats}"><a th:href="@{/manager/instances/{n}/messages(n=${name})}" th:attr="aria-current=${current == 'messages'} ? 'page' : null"
                th:text="#{manager.panelNav.messages}">Mensagens</a></li>
-        <li th:if="${can.send}"><a th:href="${base} + '#send'" th:text="#{manager.panelNav.send}">Envio de teste</a></li>
+        <li th:if="${can.send}"><a th:href="@{/manager/instances/{n}/send(n=${name})}" th:attr="aria-current=${current == 'send'} ? 'page' : null"
+               th:text="#{manager.panelNav.send}">Envio de teste</a></li>
         <!-- Uma tela por grupo (chamadas, leitura, presença, histórico, proxy, webhook) -->
         <li th:if="${can.settings()}"><a th:href="@{/manager/instances/{n}/settings(n=${name})}" th:attr="aria-current=${current == 'settings'} ? 'page' : null"
                th:text="#{manager.panelNav.settings}">Configurações</a></li>
-        <li th:if="${can.danger()}"><a th:href="${base} + '#danger'" th:text="#{manager.panelNav.danger}">Desconectar ou excluir</a></li>
-        <!-- Sem backend ainda: aparece, sem link (PRODUCT.md) -->
+        <!-- Sem backend ainda: aparece apagado, sem link (PRODUCT.md) -->
         <li class="panel-nav-soon">
             <span th:text="#{manager.panelNav.integrations}">Integrações</span>
             <span class="soon-tag tag" th:text="#{manager.soon.tag}">Em breve</span>

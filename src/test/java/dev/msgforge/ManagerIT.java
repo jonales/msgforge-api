@@ -135,9 +135,15 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(asManager(GET("/manager/instances/" + name)))
                 .andExpect(status().isOk())
                 .andExpect(view().name("manager/instance"))
-                .andExpect(model().attributeExists("instance", "live", "can", "engine"))
+                .andExpect(model().attributeExists("instance", "can", "engine", "deliveryFailing"))
                 .andExpect(content().string(Matchers.not(Matchers.containsString(token))))
+                // O resumo da visão geral é buscado de novo a cada evento "live" do stream
                 .andExpect(content().string(Matchers.containsString("sse-connect=\"/manager/stream/instances/" + name + "\"")))
+                .andExpect(content().string(Matchers.containsString("hx-trigger=\"sse:live, every 30s\"")));
+        // A tela Conexão recebe o trecho vivo (estado + QR)
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/connection")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("manager/instance-connection"))
                 .andExpect(content().string(Matchers.containsString("sse-swap=\"live\"")));
         mvc.perform(asManager(GET("/manager")))
                 .andExpect(view().name("manager/instances"))
@@ -150,7 +156,7 @@ class ManagerIT extends IntegrationTest {
     void connectShowsTheQrInTheLiveFragment() throws Exception {
         var name = createInstance();
         mvc.perform(asManager(POST("/manager/instances/" + name + "/connect")).with(csrf()))
-                .andExpect(redirectedUrl("/manager/instances/" + name));
+                .andExpect(redirectedUrl("/manager/instances/" + name + "/connection"));
 
         mvc.perform(asManager(GET("/manager/instances/" + name + "/live")))
                 .andExpect(status().isOk())
@@ -164,14 +170,14 @@ class ManagerIT extends IntegrationTest {
         var name = createInstance();
         assertThat(instances.findByName(name)).get().extracting(i -> i.getHistorySync())
                 .isEqualTo(dev.msgforge.instance.HistorySync.NONE);
-        mvc.perform(asManager(GET("/manager/instances/" + name)))
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/connection")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(Matchers.containsString("name=\"historySync\"")))
                 .andExpect(content().string(Matchers.containsString("aria-describedby=\"history-hint\"")));
 
         mvc.perform(asManager(POST("/manager/instances/" + name + "/connect")).with(csrf())
                         .param("historySync", "FULL"))
-                .andExpect(redirectedUrl("/manager/instances/" + name));
+                .andExpect(redirectedUrl("/manager/instances/" + name + "/connection"));
         assertThat(instances.findByName(name)).get().extracting(i -> i.getHistorySync())
                 .isEqualTo(dev.msgforge.instance.HistorySync.FULL);
 
@@ -417,20 +423,85 @@ class ManagerIT extends IntegrationTest {
     }
 
     @Test
-    void panelHasTheSideMenuAndTheRealEngine() throws Exception {
+    void panelHasOneScreenPerMenuItem() throws Exception {
         var name = createInstance();
         var panel = "/manager/instances/" + name;
+        // Visão geral: resumo e atalhos; nada de formulário de conectar, envio ou exclusão aqui
         mvc.perform(asManager(GET(panel)))
                 .andExpect(status().isOk())
                 .andExpect(model().attribute("engine", "stub"))
                 .andExpect(content().string(containsString("Simulado (sem WhatsApp)")))
                 .andExpect(content().string(Matchers.not(containsString("WHATSAPP-BAILEYS"))))
                 .andExpect(content().string(containsString("href=\"" + panel + "\" aria-current=\"page\"")))
+                .andExpect(content().string(containsString("href=\"" + panel + "/connection\"")))
+                .andExpect(content().string(containsString("href=\"" + panel + "/send\"")))
                 .andExpect(content().string(containsString("href=\"" + panel + "/settings\"")))
-                .andExpect(content().string(containsString("href=\"" + panel + "#connect\"")))
-                .andExpect(content().string(containsString("id=\"send\"")))
-                .andExpect(content().string(containsString("id=\"danger\"")))
+                .andExpect(content().string(Matchers.not(containsString("#connect"))))
+                .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/connect\""))))
+                .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/delete\""))))
+                .andExpect(content().string(Matchers.not(containsString("action=\"" + panel + "/send\""))))
+                .andExpect(content().string(containsString("class=\"breadcrumb\"")))
                 .andExpect(content().string(containsString("panel-nav-soon")));
+        // O resumo sozinho (o que o SSE pede de novo)
+        mvc.perform(asManager(GET(panel + "/summary")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"summary\"")))
+                .andExpect(content().string(Matchers.not(containsString("<html"))));
+
+        // Conexão: estado ao vivo, conectar (desconectada) e a zona de perigo
+        mvc.perform(asManager(GET(panel + "/connection")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"" + panel + "/connection\" aria-current=\"page\"")))
+                .andExpect(content().string(containsString("id=\"live\"")))
+                .andExpect(content().string(containsString("action=\"" + panel + "/connect\"")))
+                .andExpect(content().string(containsString("action=\"" + panel + "/logout\"")))
+                .andExpect(content().string(containsString("action=\"" + panel + "/delete\"")))
+                .andExpect(content().string(containsString("href=\"" + panel + "\">" + name + "</a>")));
+
+        // Envio de teste: tela própria, e o envio volta para ela
+        mvc.perform(asManager(GET(panel + "/send")))
+                .andExpect(status().isOk())
+                .andExpect(view().name("manager/instance-send"))
+                .andExpect(content().string(containsString("href=\"" + panel + "/send\" aria-current=\"page\"")))
+                .andExpect(content().string(containsString("action=\"" + panel + "/send\"")));
+        mvc.perform(asManager(POST(panel + "/send")).with(csrf()).param("number", "5561999999999").param("text", " "))
+                .andExpect(redirectedUrl(panel + "/send"));
+        mvc.perform(asManager(POST(panel + "/send")).with(csrf()).param("number", "abc").param("text", "oi"))
+                .andExpect(redirectedUrl(panel + "/send"));
+        mvc.perform(asManager(POST(panel + "/logout")).with(csrf()))
+                .andExpect(redirectedUrl(panel + "/connection"));
+
+        // Configurações: abas com rótulos curtos (cabem numa linha)
+        mvc.perform(asManager(GET(panel + "/settings/calls")))
+                .andExpect(content().string(containsString(">Leitura<")))
+                .andExpect(content().string(containsString(">Webhook<")));
+    }
+
+    @Test
+    void replyFromTheOpenConversation() throws Exception {
+        var name = createInstance();
+        var jid = "5561933334444@s.whatsapp.net";
+        var messages = "/manager/instances/" + name + "/messages";
+        // A conversa pela URL (recarregar e voltar funcionam): a resposta já vem com o jid
+        mvc.perform(asManager(GET(messages)).param("jid", jid))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("data-jid=\"" + jid + "\"")))
+                .andExpect(content().string(containsString("id=\"reply\"")))
+                .andExpect(content().string(containsString("value=\"" + jid + "\"")));
+        // Pelo htmx: devolve a conversa com a mensagem enviada
+        mvc.perform(asManager(POST(messages + "/reply")).with(csrf()).header("HX-Request", "true")
+                        .param("jid", jid).param("text", "resposta do atendente"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("resposta do atendente")))
+                .andExpect(content().string(Matchers.not(containsString("<html"))));
+        // Sem texto: 422, sem trocar a conversa
+        mvc.perform(asManager(POST(messages + "/reply")).with(csrf()).header("HX-Request", "true")
+                        .param("jid", jid).param("text", "  "))
+                .andExpect(status().is(422))
+                .andExpect(content().string(containsString("Escreva a mensagem")));
+        // Sem JS: volta para a conversa
+        mvc.perform(asManager(POST(messages + "/reply")).with(csrf()).param("jid", jid).param("text", "oi"))
+                .andExpect(redirectedUrl(messages + "?jid=" + jid));
     }
 
     @Test
@@ -848,15 +919,16 @@ class ManagerIT extends IntegrationTest {
                 // conectada: abre o painel, com número e nome do perfil
                 .contains("<span>Abrir</span><span class=\"visually-hidden\"> " + connected + "</span>")
                 .contains("5561911112222").contains("Loja Azul")
-                // caiu depois de conectar: reconectar leva ao cartão "Conectar" do painel
-                .contains("href=\"/manager/instances/" + dropped + "#connect\"").contains("Reconectar")
+                // caiu depois de conectar: reconectar leva à tela Conexão
+                .contains("href=\"/manager/instances/" + dropped + "/connection\"").contains("Reconectar")
                 .contains("class=\"badge close\" data-state=\"close\"")
                 // voltando sozinha: acompanhar no painel
                 .contains("Ver conexão").contains("class=\"badge connecting\" data-state=\"connecting\"")
                 .contains("4 instâncias").contains("1 conectada").contains("2 precisam de ação")
                 // poucas instâncias: sem busca
                 .doesNotContain("data-list-filter");
-        assertThat(html("/manager/instances/" + dropped)).contains("id=\"connect\"");
+        assertThat(html("/manager/instances/" + dropped + "/connection")).contains("id=\"connect\"");
+        assertThat(html("/manager/instances/" + dropped)).contains("Reconectar").doesNotContain("id=\"connect\"");
     }
 
     @Test

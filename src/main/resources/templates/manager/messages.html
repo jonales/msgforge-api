@@ -1,17 +1,13 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <head th:replace="~{manager/fragments/layout :: head(#{manager.messages.title} + ' · ' + ${instanceName})}"></head>
-<body>
+<!-- page-fill: no computador, a lista e a conversa rolam cada uma no seu painel, na altura da janela
+     (a página não rola). No celular, a lista e a conversa são telas separadas. -->
+<body class="page-fill">
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide">
-    <!-- Voltar leva ao painel desta instância; "Instâncias", à lista -->
-    <nav class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
-        <a th:href="@{/manager}" th:text="#{manager.breadcrumb.instances}">Instâncias</a>
-        <span aria-hidden="true">/</span>
-        <a th:href="@{/manager/instances/{n}(n=${instanceName})}" th:text="${instanceName}">vendas</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page" th:text="#{manager.messages.title}">Mensagens</span>
-    </nav>
+    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instanceName}, 'manager.messages.title')}"></nav>
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <header class="panel-head">
         <h1 th:text="#{manager.messages.title}">Mensagens</h1>
         <p class="muted" th:text="#{manager.messages.hint}">Histórico gravado.</p>
@@ -48,9 +44,16 @@
             </th:block>
         </section>
 
+        <!-- Conversa aberta e, embaixo, a resposta. A resposta fica fora do trecho que o SSE troca: uma
+             mensagem nova não apaga o que está sendo digitado. O manager.js leva o jid da conversa
+             aberta para o formulário. -->
+        <div class="card conversation-pane">
         <!-- Conversa aberta: a página mais recente chega pelo SSE; sem o stream, a cada 10 s -->
-        <section class="card conversation" id="conversation" th:fragment="conversation" hx-swap="outerHTML"
-                 th:attr="sse-swap=${conversation != null and conversation.page == 1} ? ${'conversation:' + conversation.jid} : null">
+        <section class="conversation" id="conversation" th:fragment="conversation" hx-swap="outerHTML"
+                 th:attr="sse-swap=${conversation != null and conversation.page == 1} ? ${'conversation:' + conversation.jid} : null,
+                          data-open=${conversation != null} ? 'true' : null,
+                          data-jid=${conversation != null} ? ${conversation.jid} : null,
+                          data-page=${conversation != null} ? ${conversation.page} : null">
             <th:block th:if="${conversation == null}">
                 <p class="muted" th:text="#{manager.messages.pick}">Escolha uma conversa.</p>
             </th:block>
@@ -59,12 +62,22 @@
                               hx-trigger=(${conversation.page == 1} ? 'every 10s' : 'none')"
                      hx-target="#conversation" hx-swap="outerHTML" data-poll></div>
                 <header class="conversation-head">
+                    <!-- Celular: a conversa é uma tela; volta para a lista -->
+                    <a class="conversation-back" th:href="@{/manager/instances/{n}/messages(n=${instanceName})}">
+                        <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
+                            <path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span th:text="#{manager.messages.backToList}">Conversas</span>
+                    </a>
                     <h2>
                         <span th:text="${conversation.label()}">Ana</span>
                         <span class="tag tag-neutral" th:if="${conversation.group()}" th:text="#{manager.messages.groupTag}">Grupo</span>
                     </h2>
                     <code class="muted small" th:text="${conversation.jid}">5561...@s.whatsapp.net</code>
                 </header>
+                <!-- Só esta parte rola; o cabeçalho da conversa fica sempre à vista. O manager.js leva
+                     a rolagem para a mensagem mais recente. -->
+                <div class="conversation-scroll" tabindex="0" th:attr="aria-label=${conversation.label()}">
                 <p th:if="${conversation.hasOlder()}">
                     <button type="button"
                             th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid},page=${conversation.olderPage()})}"
@@ -186,8 +199,23 @@
                             th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${conversation.jid})}"
                             hx-target="#conversation" hx-swap="outerHTML" th:text="#{manager.messages.newest}">Mais recentes</button>
                 </p>
+                </div>
             </th:block>
         </section>
+        <!-- Responder: só com a permissão de enviar. Sem JS, o POST volta para esta conversa. -->
+        <form class="reply" th:if="${can.send}" id="reply" method="post"
+              th:action="@{/manager/instances/{n}/messages/reply(n=${instanceName})}"
+              th:attr="hx-post=@{/manager/instances/{n}/messages/reply(n=${instanceName})}"
+              hx-target="#conversation" hx-swap="outerHTML"
+              th:hidden="${conversation == null}">
+            <input type="hidden" name="jid" th:value="${conversation != null} ? ${conversation.jid} : ''">
+            <label class="visually-hidden" for="reply-text" th:text="#{manager.messages.reply.label}">Responder</label>
+            <textarea id="reply-text" name="text" rows="2" required maxlength="4096"
+                      th:placeholder="#{manager.messages.reply.placeholder}"></textarea>
+            <button type="submit" class="primary" th:text="#{manager.messages.reply.submit}">Enviar</button>
+            <p id="reply-status" class="reply-status small" role="status"></p>
+        </form>
+        </div>
     </div>
     </div>
     </div>
@@ -196,9 +224,12 @@
 <!-- Uma conversa na lista (pessoas e grupos usam o mesmo item). O th:if de fora só tira o modelo
      da página inteira; quem insere o fragmento pega o de dentro. -->
 <th:block th:if="false">
+<!-- Resposta que não saiu (422): o manager.js põe o texto no aviso do formulário -->
+<span th:fragment="replyError" th:text="#{${replyError}}">A mensagem não foi enviada.</span>
 <th:block th:fragment="chatItem(chat)">
     <button type="button" class="chat"
-            th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${chat.jid})}"
+            th:attr="hx-get=@{/manager/instances/{n}/messages/chat(n=${instanceName},jid=${chat.jid})},
+                     hx-push-url=@{/manager/instances/{n}/messages(n=${instanceName},jid=${chat.jid})}"
             hx-target="#conversation" hx-swap="outerHTML">
         <strong class="chat-name" th:text="${chat.label()}">Ana</strong>
         <span class="muted small" th:text="${chat.time}">12/11 10:00</span>

@@ -119,9 +119,9 @@
                             <span th:text="#{manager.home.action.open}">Abrir</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
                         <a th:case="'resume'" class="button primary action" th:href="@{/manager/instances/{n}/connect(n=${row.name})}">
                             <span th:text="#{manager.home.action.resume}">Continuar a conexão</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
-                        <a th:case="'follow'" class="button action" th:href="@{/manager/instances/{n}(n=${row.name})}">
+                        <a th:case="'follow'" class="button action" th:href="@{/manager/instances/{n}/connection(n=${row.name})}">
                             <span th:text="#{manager.home.action.follow}">Ver conexão</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
-                        <a th:case="*" class="button primary action" th:href="@{/manager/instances/{n}(n=${row.name})} + '#connect'">
+                        <a th:case="*" class="button primary action" th:href="@{/manager/instances/{n}/connection(n=${row.name})}">
                             <span th:text="#{manager.home.action.reconnect}">Reconectar</span><span class="visually-hidden" th:text="' ' + ${row.name}"></span></a>
                     </td>
                 </tr>

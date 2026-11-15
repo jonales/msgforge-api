@@ -7,13 +7,7 @@
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide"
       th:with="errors=${fieldErrors != null ? fieldErrors : {:}},base=@{/manager/instances/{n}(n=${instance.name})}">
-    <nav class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
-        <a th:href="@{/manager}" th:text="#{manager.breadcrumb.instances}">Instâncias</a>
-        <span aria-hidden="true">/</span>
-        <a th:href="${base}" th:text="${instance.name}">vendas</a>
-        <span aria-hidden="true">/</span>
-        <span aria-current="page" th:text="#{manager.settings.title}">Configurações</span>
-    </nav>
+    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.settings.title')}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <header class="panel-head">
         <h1 th:text="#{manager.settings.title}">Configurações</h1>
@@ -30,7 +24,7 @@
                     th:if="${g == 'webhook'} ? ${can.events} : ${can.account}">
                     <a th:href="@{/manager/instances/{n}/settings/{g}(n=${instance.name},g=${g})}"
                        th:attr="aria-current=${g == group} ? 'page' : null">
-                        <span class="tab-title" th:text="#{'manager.settings.group.' + ${g}}">Chamadas</span>
+                        <span class="tab-title" th:text="#{'manager.settings.tab.' + ${g}}">Chamadas</span>
                         <span class="tab-state small" th:switch="${g}">
                             <th:block th:case="'calls'" th:text="${savedSettings.rejectCall} ? #{manager.settings.state.rejecting} : #{manager.settings.state.accepting}">Aceita ligações</th:block>
                             <th:block th:case="'reading'" th:text="#{manager.settings.state.count(${savedSettings.enabledIn('reading')}, 3)}">0 de 3 ligadas</th:block>

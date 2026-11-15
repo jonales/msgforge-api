@@ -118,19 +118,60 @@ public class ManagerController {
 
     // ------------------------------------------------------------ detalhe
 
-    /** O painel: pede "ver status"; cada seção aparece só com a permissão dela ({@link PanelAccess}). */
-    @GetMapping("/instances/{name}")
-    public String detail(@PathVariable String name, Model model) {
-        var check = guard.current();
-        var instance = guard.require(check, name, Permission.INSTANCE_VIEW);
+    /**
+     * O painel da instância é um conjunto de telas, uma por item do menu (URL própria, voltar e recarregar
+     * funcionam): visão geral, conexão, mensagens, envio de teste e configurações. Cada tela pede a
+     * permissão dela; o menu mostra só o que a pessoa pode abrir ({@link PanelAccess}).
+     */
+    private PanelAccess panel(Model model, dev.msgforge.access.AccessCheck check,
+                              dev.msgforge.instance.Instance instance) {
         var can = PanelAccess.of(ManagerAccess.on(check, instance));
         model.addAttribute("can", can);
         model.addAttribute("instance", InstanceDetail.of(instance, instances.stateOf(instance)));
-        model.addAttribute("live", screens.live(name, can.connect()));
-        model.addAttribute("historyOptions", HISTORY_OPTIONS);
+        return can;
+    }
+
+    /** Visão geral: estado, número, perfil, motor, aviso do webhook e atalhos. Pede "ver status". */
+    @GetMapping("/instances/{name}")
+    public String detail(@PathVariable String name, Model model) {
+        summaryModel(name, model);
+        return "manager/instance";
+    }
+
+    /** O resumo da visão geral, buscado de novo a cada evento "live" do SSE (e a cada 30 s). */
+    @GetMapping("/instances/{name}/summary")
+    public String summary(@PathVariable String name, Model model) {
+        summaryModel(name, model);
+        return "manager/instance :: summary";
+    }
+
+    private void summaryModel(String name, Model model) {
+        var check = guard.current();
+        panel(model, check, guard.require(check, name, Permission.INSTANCE_VIEW));
         // O motor real (Cobalt ou o simulado); o "integration" do contrato fica só na API
         model.addAttribute("engine", instances.engine());
-        return "manager/instance";
+        model.addAttribute("deliveryFailing", screens.deliveryFailing(name));
+    }
+
+    /**
+     * Conexão: o estado ao vivo (com o QR para quem pode conectar), o formulário de conectar (só fora do
+     * ar) e, numa seção de perigo, desconectar e excluir. Pede "ver status".
+     */
+    @GetMapping("/instances/{name}/connection")
+    public String connection(@PathVariable String name, Model model) {
+        var check = guard.current();
+        var can = panel(model, check, guard.require(check, name, Permission.INSTANCE_VIEW));
+        model.addAttribute("live", screens.live(name, can.connect()));
+        model.addAttribute("historyOptions", HISTORY_OPTIONS);
+        return "manager/instance-connection";
+    }
+
+    /** Envio de teste: um número e um texto. Pede "enviar mensagens". */
+    @GetMapping("/instances/{name}/send")
+    public String sendPage(@PathVariable String name, Model model) {
+        var check = guard.current();
+        panel(model, check, guard.require(check, name, Permission.CHAT_SEND));
+        return "manager/instance-send";
     }
 
     /** Estado + QR, atualizado pelo htmx enquanto a instância não está conectada. */
@@ -139,8 +180,12 @@ public class ManagerController {
         var check = guard.current();
         var instance = guard.require(check, name, Permission.INSTANCE_VIEW);
         model.addAttribute("live", screens.live(name, check.can(Permission.INSTANCE_CONNECT, instance)));
-        return "manager/instance :: live";
+        return LIVE_FRAGMENT;
     }
+
+    /** O trecho ao vivo da conexão; o SSE ({@link ManagerStreams}) e a conexão guiada usam o mesmo. */
+    static final String LIVE_TEMPLATE = "manager/instance-connection";
+    static final String LIVE_FRAGMENT = LIVE_TEMPLATE + " :: live";
 
     @PostMapping("/instances/{name}/connect")
     public String connect(@PathVariable String name, @RequestParam(required = false) String number,
@@ -161,7 +206,7 @@ public class ManagerController {
             return "redirect:" + NewInstanceController.connectPage(name);
         }
         flash.addFlashAttribute("success", "manager.flash.connecting");
-        return redirectTo(name);
+        return redirectTo(name, "connection");
     }
 
     @PostMapping("/instances/{name}/webhook")
@@ -316,24 +361,32 @@ public class ManagerController {
         guard.require(name, Permission.CHAT_SEND);
         if (text.isBlank()) {
             flash.addFlashAttribute("error", "manager.flash.textRequired");
-            return redirectTo(name);
+            return redirectTo(name, "send");
         }
         var sent = messages.sendText(name, number, text, null, null);
         history.recordSent(sent.instance(), sent.message(), "conversation", java.util.Map.of("conversation", text));
         flash.addFlashAttribute("success", "manager.flash.sent");
         flash.addFlashAttribute("sentId", sent.message().id());
-        return redirectTo(name);
+        return redirectTo(name, "send");
     }
 
     // ------------------------------------------------------------ mensagens (histórico)
 
+    /**
+     * Conversas e, com {@code jid}, a conversa aberta. Abrir uma conversa da lista põe o {@code jid} na
+     * URL (hx-push-url): recarregar e voltar funcionam, e no celular a lista e a conversa são telas
+     * separadas.
+     */
     @GetMapping("/instances/{name}/messages")
-    public String messages(@PathVariable String name, Model model) {
+    public String messages(@PathVariable String name, @RequestParam(required = false) String jid, Model model) {
         var check = guard.current();
         var instance = guard.require(check, name, Permission.CHAT_VIEW);
         model.addAttribute("instanceName", instance.getName());
         model.addAttribute("can", PanelAccess.of(ManagerAccess.on(check, instance)));
         model.addAttribute("chats", chatRows(name));
+        if (jid != null && !jid.isBlank()) {
+            model.addAttribute("conversation", screens.conversation(name, jid.trim(), 1));
+        }
         return "manager/messages";
     }
 
@@ -354,6 +407,47 @@ public class ManagerController {
         return "manager/messages :: conversation";
     }
 
+    /**
+     * Responder na conversa aberta: o mesmo envio do "Envio de teste" (pede "enviar mensagens"), para o
+     * contato ou o grupo da conversa. Pelo htmx, devolve a conversa atualizada; um erro volta como 422
+     * com o aviso, sem trocar a conversa (o texto digitado fica). Sem JS, volta para a conversa.
+     */
+    @PostMapping("/instances/{name}/messages/reply")
+    public String reply(@PathVariable String name, @RequestParam String jid, @RequestParam String text,
+                        @org.springframework.web.bind.annotation.RequestHeader(value = "HX-Request", required = false)
+                        String htmx,
+                        Model model, RedirectAttributes flash, jakarta.servlet.http.HttpServletResponse response) {
+        guard.require(name, Permission.CHAT_SEND);
+        var page = "redirect:/manager/instances/" + UriUtils.encodePathSegment(name, java.nio.charset.StandardCharsets.UTF_8)
+                + "/messages?jid=" + UriUtils.encodeQueryParam(jid, java.nio.charset.StandardCharsets.UTF_8);
+        String failure = null;
+        if (text.isBlank()) {
+            failure = "manager.messages.reply.empty";
+        } else {
+            try {
+                var sent = messages.sendText(name, jid, text, null, null);
+                history.recordSent(sent.instance(), sent.message(), "conversation", java.util.Map.of("conversation", text));
+            } catch (dev.msgforge.common.ApiExceptionHandler.BadRequestException
+                     | dev.msgforge.gateway.WhatsAppGateway.GatewayException e) {
+                failure = "manager.messages.reply.failed";
+            }
+        }
+        if (htmx == null) {
+            if (failure != null) {
+                flash.addFlashAttribute("error", failure);
+            }
+            return page;
+        }
+        if (failure != null) {
+            response.setStatus(422);
+            model.addAttribute("replyError", failure);
+            return "manager/messages :: replyError";
+        }
+        model.addAttribute("instanceName", name);
+        model.addAttribute("conversation", screens.conversation(name, jid, 1));
+        return "manager/messages :: conversation";
+    }
+
     /** Desconectar é o avesso de conectar: a mesma permissão. */
     @PostMapping("/instances/{name}/logout")
     public String logout(@PathVariable String name, RedirectAttributes flash) {
@@ -361,7 +455,7 @@ public class ManagerController {
         instances.logout(name);
         qrCodes.forget(name);
         flash.addFlashAttribute("success", "manager.flash.loggedOut");
-        return redirectTo(name);
+        return redirectTo(name, "connection");
     }
 
     @PostMapping("/instances/{name}/delete")
@@ -382,6 +476,11 @@ public class ManagerController {
 
     static String redirectTo(String name) {
         return "redirect:/manager/instances/" + UriUtils.encodePathSegment(name, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /** Uma tela do painel ({@code connection}, {@code send}...). */
+    static String redirectTo(String name, String page) {
+        return redirectTo(name) + "/" + page;
     }
 
     private static String blankToNull(String value) {
