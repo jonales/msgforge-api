@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
+<!-- Painel da instância, Conexão: o estado ao vivo (e o QR para quem pode conectar), o formulário de
+     conectar quando a instância está fora do ar e, por último, desconectar e excluir. -->
+<head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.connection} + ' · ' + ${instance.name})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container wide instance-panel connection-page">
+    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.connection')}"></nav>
+    <div th:replace="~{manager/fragments/layout :: flash}"></div>
+    <header class="panel-head">
+        <h1 th:text="#{manager.panelNav.connection}">Conexão</h1>
+        <p class="muted" th:text="#{manager.connectionPage.intro}">Estado da conexão.</p>
+    </header>
+
+    <div class="panel-shell">
+    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'connection')}"></nav>
+    <div class="panel-main">
+
+    <!-- Trecho vivo: estado + QR. Chega pelo SSE (evento "live"); o polling (3 s enquanto não
+         conecta, 15 s depois) é a reserva quando o stream não está aberto (manager.js). A conexão
+         guiada (connect.html) usa o mesmo trecho. -->
+    <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances/{n}(n=${instance.name})}">
+    <section class="card" th:fragment="live" id="live" sse-swap="live" data-poll aria-labelledby="live-title"
+             th:attr="hx-get=@{/manager/instances/{n}/live(n=${live.name})},hx-trigger=(${live.open()} ? 'every 15s' : 'every 3s')"
+             th:with="announce=${live.open()} ? 'open' : (${live.hasCode()} ? 'code' : (${live.state == 'connecting'} ? 'waiting' : 'close'))"
+             th:data-announce="#{'manager.connection.announce.' + ${announce}}"
+             th:data-announce-key="${live.announceKey()}"
+             hx-swap="outerHTML">
+        <h2 id="live-title" th:text="#{manager.connection.title}">Conexão</h2>
+        <p><span th:class="'badge ' + ${live.state}" th:text="#{'manager.state.' + ${live.state}}">close</span></p>
+
+        <div th:if="${live.hasCode()}" class="qr-layout">
+            <div class="qr">
+                <th:block th:unless="${live.pairing()}">
+                    <img th:if="${live.qrImage}" th:src="${live.qrImage}" th:alt="#{manager.connection.qrAlt}" width="280" height="280">
+                    <p th:if="${live.qrImage == null and live.qrCode != null}" class="muted small">
+                        <span th:text="#{manager.connection.qrTextOnly}">QR sem imagem</span><br><code th:text="${live.qrCode}"></code>
+                    </p>
+                </th:block>
+                <p th:if="${live.pairing()}" class="pairing-box">
+                    <span class="muted small" th:text="#{manager.connection.pairing}">Código</span>
+                    <strong class="pairing" th:text="${live.pairingCode}">ABCD-1234</strong>
+                </p>
+                <p class="renew small">
+                    <span th:text="${live.pairing()} ? #{manager.connection.renewPairing} : #{manager.connection.renewQr}">Renova sozinho.</span>
+                    <span class="muted" th:if="${live.updatedAt}" th:text="#{manager.connection.updatedAt(${live.updatedAt})}">Gerado às 10:00:00.</span>
+                </p>
+            </div>
+            <div class="howto">
+                <h3 th:text="${live.pairing()} ? #{manager.connection.pairingSteps} : #{manager.connection.qrSteps}">Como ler</h3>
+                <ol th:with="prefix=${live.pairing()} ? 'manager.connection.pairingStep.' : 'manager.connection.qrStep.'">
+                    <li th:each="i : ${#numbers.sequence(1, 3)}" th:text="#{${prefix + i}}">Abra o WhatsApp.</li>
+                </ol>
+            </div>
+        </div>
+        <p class="muted" th:if="${live.codeHidden and !live.open()}" th:text="#{manager.connection.codeHidden}">Sem permissão para o QR.</p>
+        <p class="muted" th:if="${!live.codeHidden and !live.open() and !live.hasCode()}"
+           th:text="${live.state == 'connecting'} ? #{manager.connection.waiting} : #{manager.connection.expired}">Sem código.</p>
+        <div class="live-success" th:if="${live.open()}">
+            <p class="saved" th:text="#{manager.connection.connected}">Conectada</p>
+            <a class="button primary live-panel-link" th:href="@{/manager/instances/{n}(n=${live.name})}"
+               th:text="#{manager.connection.openPanel}">Abrir o painel</a>
+        </div>
+    </section>
+    </div>
+    <p id="live-announce" class="visually-hidden" role="status"></p>
+
+    <!-- Só fora do ar: conectada, o formulário sai de cena (também quando o trecho vivo muda para
+         "conectada" sem recarregar, pelo CSS :has) -->
+    <section class="card connect-form" id="connect" aria-labelledby="connect-title"
+             th:if="${can.connect and !instance.open()}"
+             th:with="retry=${instance.state == 'connecting'}">
+        <h2 id="connect-title" th:text="${retry} ? #{manager.connect.retryTitle} : #{manager.connect.title}">Conectar</h2>
+        <form th:action="@{/manager/instances/{n}/connect(n=${instance.name})}" method="post">
+            <label>
+                <span th:text="#{manager.connect.pairingNumber}">Número para pairing (opcional)</span>
+                <input name="number" inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
+            </label>
+            <p class="muted small" th:text="#{manager.connect.hint}">Sem número: QR code.</p>
+            <fieldset class="choices" aria-describedby="history-hint">
+                <legend th:text="#{manager.history.label}">Histórico das conversas</legend>
+                <label class="choice" th:each="option : ${historyOptions}">
+                    <input type="radio" name="historySync" th:value="${option}"
+                           th:checked="${option == instance.historySync}">
+                    <span>
+                        <strong th:text="#{'manager.history.' + ${option}}">Sem histórico</strong>
+                        <span class="muted small" th:text="#{'manager.history.' + ${option} + '.desc'}">Descrição</span>
+                    </span>
+                </label>
+                <p id="history-hint" class="muted small" th:text="#{manager.history.hint}">Vale no próximo pareamento.</p>
+            </fieldset>
+            <button type="submit" class="primary" th:text="${retry} ? #{manager.connect.retrySubmit} : #{manager.connect.submit}">Conectar</button>
+        </form>
+    </section>
+
+    <section class="card danger-zone" id="danger" aria-labelledby="danger-title" th:if="${can.danger()}">
+        <h2 id="danger-title" th:text="#{manager.danger.title}">Zona de perigo</h2>
+        <p class="muted small" th:text="#{manager.danger.intro}">Desconectar e excluir.</p>
+        <div class="row">
+            <form th:if="${can.connect}" th:action="@{/manager/instances/{n}/logout(n=${instance.name})}" method="post">
+                <button type="submit" th:text="#{manager.danger.logout}">Desconectar</button>
+            </form>
+            <form th:if="${can.delete}" th:action="@{/manager/instances/{n}/delete(n=${instance.name})}" method="post">
+                <label class="check"><input type="checkbox" name="confirm" required>
+                    <span th:text="#{manager.danger.confirm}">Confirmo</span></label>
+                <button type="submit" class="danger" th:text="#{manager.danger.delete}">Excluir</button>
+            </form>
+        </div>
+    </section>
+    </div>
+    </div>
+</main>
+</body>
+</html>

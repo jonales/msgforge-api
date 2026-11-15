@@ -113,8 +113,15 @@ class ManagerScopeIT extends IntegrationTest {
                     .andExpect(content().string(not(containsString("href=\"/manager/instances/new\""))));
         }
 
-        // O painel mostra o que o papel usa (conectar) e esconde o resto
+        // O painel mostra o que o papel usa (conectar) e esconde o resto: no menu, só visão geral e conexão
         mvc.perform(MockMvcRequestBuilders.get(panel(mine)).session(client)).andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"" + panel(mine) + "/connection\"")))
+                .andExpect(content().string(not(containsString(panel(mine) + "/messages"))))
+                .andExpect(content().string(not(containsString(panel(mine) + "/webhook"))))
+                .andExpect(content().string(not(containsString(panel(mine) + "/settings"))))
+                .andExpect(content().string(not(containsString(panel(mine) + "/send"))))
+                .andExpect(content().string(not(containsString(panel(mine) + "/delete"))));
+        mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/connection").session(client)).andExpect(status().isOk())
                 .andExpect(content().string(containsString("action=\"" + panel(mine) + "/connect\"")))
                 .andExpect(content().string(containsString("action=\"" + panel(mine) + "/logout\"")))
                 .andExpect(content().string(not(containsString(panel(mine) + "/messages"))))
@@ -126,7 +133,7 @@ class ManagerScopeIT extends IntegrationTest {
 
         // Conectar e ver o QR
         mvc.perform(MockMvcRequestBuilders.post(panel(mine) + "/connect").session(client).with(csrf()))
-                .andExpect(redirectedUrl(panel(mine)));
+                .andExpect(redirectedUrl(panel(mine) + "/connection"));
         mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/live").session(client))
                 .andExpect(status().isOk()).andExpect(content().string(containsString("stub-qr-")));
         mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/connect").session(client))
@@ -150,6 +157,11 @@ class ManagerScopeIT extends IntegrationTest {
         mvc.perform(MockMvcRequestBuilders.post(panel(mine) + "/send").session(client).with(csrf())
                         .param("number", "5561999999999").param("text", "oi"))
                 .andExpect(status().isForbidden());
+        mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/send").session(client))
+                .andExpect(status().isForbidden()).andExpect(view().name("manager/forbidden"));
+        mvc.perform(MockMvcRequestBuilders.post(panel(mine) + "/messages/reply").session(client).with(csrf())
+                        .param("jid", "5561999999999@s.whatsapp.net").param("text", "oi"))
+                .andExpect(status().isForbidden());
         mvc.perform(MockMvcRequestBuilders.post(panel(mine) + "/delete").session(client).with(csrf()))
                 .andExpect(status().isForbidden());
         assertThat(get("/instance/connectionState/" + mine).status()).isEqualTo(200);   // não foi excluída
@@ -167,6 +179,10 @@ class ManagerScopeIT extends IntegrationTest {
                     .andExpect(status().isNotFound());
             mvc.perform(MockMvcRequestBuilders.get(panel(hidden) + "/live").session(client))
                     .andExpect(status().isNotFound());
+            for (var screen : new String[] {"/connection", "/summary", "/send"}) {
+                mvc.perform(MockMvcRequestBuilders.get(panel(hidden) + screen).session(client))
+                        .andExpect(status().isNotFound());
+            }
         }
     }
 
@@ -190,6 +206,13 @@ class ManagerScopeIT extends IntegrationTest {
                 .andExpect(content().string(not(containsString("action=\"" + panel(mine) + "/connect\""))));
         mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/connect").session(viewer))
                 .andExpect(status().isForbidden());
+        // Conexão: vê o estado, sem o QR, sem conectar, desconectar nem excluir
+        mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/connection").session(viewer))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("stub-qr-"))))
+                .andExpect(content().string(not(containsString("action=\"" + panel(mine) + "/connect\""))))
+                .andExpect(content().string(not(containsString("action=\"" + panel(mine) + "/logout\""))))
+                .andExpect(content().string(not(containsString("action=\"" + panel(mine) + "/delete\""))));
         mvc.perform(MockMvcRequestBuilders.get(panel(mine) + "/messages").session(viewer))
                 .andExpect(status().isOk());
     }
@@ -204,7 +227,8 @@ class ManagerScopeIT extends IntegrationTest {
                 .andExpect(content().string(not(containsString(foreign))))
                 .andExpect(content().string(containsString("href=\"/manager/instances/new\"")));
         mvc.perform(MockMvcRequestBuilders.get(panel(sibling)).session(boss)).andExpect(status().isOk())
-                .andExpect(content().string(containsString(panel(sibling) + "/settings")))
+                .andExpect(content().string(containsString(panel(sibling) + "/settings")));
+        mvc.perform(MockMvcRequestBuilders.get(panel(sibling) + "/connection").session(boss)).andExpect(status().isOk())
                 .andExpect(content().string(containsString(panel(sibling) + "/delete")));
         mvc.perform(MockMvcRequestBuilders.get(panel(foreign)).session(boss)).andExpect(status().isNotFound());
         mvc.perform(MockMvcRequestBuilders.post(panel(sibling) + "/delete").session(boss).with(csrf()))
@@ -214,7 +238,7 @@ class ManagerScopeIT extends IntegrationTest {
         mvc.perform(MockMvcRequestBuilders.get("/manager").session(key))
                 .andExpect(content().string(containsString(mine)))
                 .andExpect(content().string(containsString(foreign)));
-        mvc.perform(MockMvcRequestBuilders.get(panel(foreign)).session(key)).andExpect(status().isOk())
+        mvc.perform(MockMvcRequestBuilders.get(panel(foreign) + "/connection").session(key)).andExpect(status().isOk())
                 .andExpect(content().string(containsString(panel(foreign) + "/delete")));
     }
 

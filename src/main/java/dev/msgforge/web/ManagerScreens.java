@@ -84,6 +84,11 @@ public class ManagerScreens {
         return withCode ? live : live.hidingCode();
     }
 
+    /** O webhook desta instância tem entrega à espera de nova tentativa (aviso da visão geral)? */
+    public boolean deliveryFailing(String name) {
+        return deliveries.failingWebhooks().contains(name);
+    }
+
     public Instance instance(String name) {
         return instances.get(name);
     }

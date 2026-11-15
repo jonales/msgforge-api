@@ -80,6 +80,11 @@ public final class ManagerViews {
         public boolean pending() {
             return !paired && !open();
         }
+
+        /** O mesmo selo da lista: quem nunca conectou aparece como "aguardando conexão". */
+        public String badge() {
+            return badgeOf(state, paired);
+        }
     }
 
     /**

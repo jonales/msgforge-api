@@ -67,6 +67,16 @@ class ManagerExceptionHandler {
             if ("settings".equals(parts[4]) && parts.length >= 6 && ManagerController.SETTINGS_GROUPS.contains(parts[5])) {
                 return "/manager/instances/" + parts[3] + "/settings/" + parts[5];
             }
+            // Cada tela do painel tem o seu formulário: o erro volta para ela
+            if ("send".equals(parts[4])) {
+                return "/manager/instances/" + parts[3] + "/send";
+            }
+            if ("connect".equals(parts[4]) && "wizard".equals(request.getParameter("next"))) {
+                return "/manager/instances/" + parts[3] + "/connect";
+            }
+            if ("connect".equals(parts[4]) || "logout".equals(parts[4])) {
+                return "/manager/instances/" + parts[3] + "/connection";
+            }
             return "/manager/instances/" + parts[3];
         }
         return "/manager";

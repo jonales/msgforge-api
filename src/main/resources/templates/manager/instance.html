@@ -1,25 +1,19 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
+<!-- Painel da instância, visão geral: um resumo (estado, número, perfil, motor, aviso do webhook) e
+     atalhos para as outras telas. Conectar, desconectar e excluir ficam na tela Conexão. -->
 <head th:replace="~{manager/fragments/layout :: head(${instance.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wide instance-panel">
-    <nav class="breadcrumb" th:attr="aria-label=#{manager.breadcrumb.label}">
-        <a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a>
-    </nav>
+    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, null)}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <div class="flash warning" role="status" th:if="${createdToken}">
         <span th:text="#{manager.flash.token}">Token</span> <code th:text="${createdToken}">TOKEN</code>
     </div>
-    <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
 
     <header class="panel-head">
         <h1 th:text="${instance.name}">vendas</h1>
-        <p class="muted">
-            <span th:text="#{manager.col.number}">Número</span>: <span th:text="${instance.number} ?: '—'"></span>
-            · <span th:text="#{manager.col.profile}">Perfil</span>: <span th:text="${instance.profileName} ?: '—'"></span>
-            · <span th:text="#{manager.engine.label}">Motor</span>: <span th:text="#{'manager.engine.' + ${engine}}">Cobalt</span>
-        </p>
     </header>
 
     <div class="panel-shell">
@@ -33,118 +27,86 @@
            th:text="#{manager.pending.resume}">Continuar a conexão</a>
     </section>
 
-    <!-- Trecho vivo: estado + QR. Chega pelo SSE (evento "live"); o polling (3 s enquanto não
-         conecta, 15 s depois) é a reserva quando o stream não está aberto (manager.js). A conexão
-         guiada (connect.html) usa o mesmo trecho. -->
+    <!-- O resumo é buscado de novo a cada evento "live" do stream da instância (ADR 0013) e, sem
+         stream, a cada 30 s. O QR mora na tela Conexão. -->
     <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances/{n}(n=${instance.name})}">
-    <section class="card" th:fragment="live" id="live" sse-swap="live" data-poll aria-labelledby="live-title"
-             th:attr="hx-get=@{/manager/instances/{n}/live(n=${live.name})},hx-trigger=(${live.open()} ? 'every 15s' : 'every 3s')"
-             th:with="announce=${live.open()} ? 'open' : (${live.hasCode()} ? 'code' : (${live.state == 'connecting'} ? 'waiting' : 'close'))"
-             th:data-announce="#{'manager.connection.announce.' + ${announce}}"
-             th:data-announce-key="${live.announceKey()}"
-             hx-swap="outerHTML">
-        <h2 id="live-title" th:text="#{manager.connection.title}">Conexão</h2>
-        <p><span th:class="'badge ' + ${live.state}" th:text="#{'manager.state.' + ${live.state}}">close</span></p>
+    <section class="card overview" th:fragment="summary" id="summary" aria-labelledby="summary-title"
+             th:attr="hx-get=@{/manager/instances/{n}/summary(n=${instance.name})}"
+             hx-trigger="sse:live, every 30s" hx-swap="outerHTML">
+        <div class="overview-head">
+            <h2 id="summary-title" th:text="#{manager.connection.title}">Conexão</h2>
+            <span th:class="'badge ' + ${instance.badge()}" th:data-state="${instance.state}"
+                  th:text="#{'manager.state.' + ${instance.badge()}}">Conectada</span>
+        </div>
+        <p class="overview-state" th:text="#{'manager.overview.state.' + ${instance.badge()}}">Conectada.</p>
 
-        <div th:if="${live.hasCode()}" class="qr-layout">
-            <div class="qr">
-                <th:block th:unless="${live.pairing()}">
-                    <img th:if="${live.qrImage}" th:src="${live.qrImage}" th:alt="#{manager.connection.qrAlt}" width="280" height="280">
-                    <p th:if="${live.qrImage == null and live.qrCode != null}" class="muted small">
-                        <span th:text="#{manager.connection.qrTextOnly}">QR sem imagem</span><br><code th:text="${live.qrCode}"></code>
-                    </p>
-                </th:block>
-                <p th:if="${live.pairing()}" class="pairing-box">
-                    <span class="muted small" th:text="#{manager.connection.pairing}">Código</span>
-                    <strong class="pairing" th:text="${live.pairingCode}">ABCD-1234</strong>
-                </p>
-                <p class="renew small">
-                    <span th:text="${live.pairing()} ? #{manager.connection.renewPairing} : #{manager.connection.renewQr}">Renova sozinho.</span>
-                    <span class="muted" th:if="${live.updatedAt}" th:text="#{manager.connection.updatedAt(${live.updatedAt})}">Gerado às 10:00:00.</span>
-                </p>
+        <dl class="facts">
+            <div>
+                <dt th:text="#{manager.col.number}">Número</dt>
+                <dd><span class="number" th:text="${instance.number} ?: '—'">5561999999999</span></dd>
             </div>
-            <div class="howto">
-                <h3 th:text="${live.pairing()} ? #{manager.connection.pairingSteps} : #{manager.connection.qrSteps}">Como ler</h3>
-                <ol th:with="prefix=${live.pairing()} ? 'manager.connection.pairingStep.' : 'manager.connection.qrStep.'">
-                    <li th:each="i : ${#numbers.sequence(1, 3)}" th:text="#{${prefix + i}}">Abra o WhatsApp.</li>
-                </ol>
+            <div>
+                <dt th:text="#{manager.col.profile}">Perfil</dt>
+                <dd th:text="${instance.profileName} ?: '—'">Loja</dd>
             </div>
-        </div>
-        <p class="muted" th:if="${live.codeHidden and !live.open()}" th:text="#{manager.connection.codeHidden}">Sem permissão para o QR.</p>
-        <p class="muted" th:if="${!live.codeHidden and !live.open() and !live.hasCode()}"
-           th:text="${live.state == 'connecting'} ? #{manager.connection.waiting} : #{manager.connection.expired}">Sem código.</p>
-        <div class="live-success" th:if="${live.open()}">
-            <p class="saved" th:text="#{manager.connection.connected}">Conectada</p>
-            <a class="button primary live-panel-link" th:href="@{/manager/instances/{n}(n=${live.name})}"
-               th:text="#{manager.connection.openPanel}">Abrir o painel</a>
-        </div>
+            <div>
+                <dt th:text="#{manager.engine.label}">Motor</dt>
+                <dd th:text="#{'manager.engine.' + ${engine}}">Cobalt</dd>
+            </div>
+            <div>
+                <dt th:text="#{manager.overview.historySync}">Histórico no pareamento</dt>
+                <dd th:text="#{'manager.history.' + ${instance.historySync}}">Sem histórico</dd>
+            </div>
+        </dl>
+
+        <p class="delivery-warn overview-warn" th:if="${deliveryFailing}">
+            <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
+                <path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M8 6.2v3.6M8 11.6v.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+            <span th:text="#{manager.overview.deliveryFailing}">O webhook está falhando.</span>
+            <a th:if="${can.events}" th:href="@{/manager/instances/{n}/settings/webhook(n=${instance.name})}"
+               th:text="#{manager.overview.deliveryFix}">Conferir o webhook</a>
+        </p>
+
+        <!-- Uma ação por estado, como na lista: quem caiu reconecta; quem está voltando, acompanha -->
+        <p class="overview-action" th:if="${!instance.open() and !instance.pending()}">
+            <a th:if="${instance.state == 'connecting'}" class="button"
+               th:href="@{/manager/instances/{n}/connection(n=${instance.name})}" th:text="#{manager.overview.follow}">Ver conexão</a>
+            <a th:if="${instance.state != 'connecting' and can.connect}" class="button primary"
+               th:href="@{/manager/instances/{n}/connection(n=${instance.name})}" th:text="#{manager.overview.reconnect}">Reconectar</a>
+        </p>
     </section>
     </div>
-    <p id="live-announce" class="visually-hidden" role="status"></p>
 
-    <!-- Cada seção só aparece com a permissão dela (PanelAccess); a rota confere de novo -->
-    <div class="grid" th:if="${can.connect or can.send}">
-        <!-- Alvo do "Reconectar" da lista (/manager/instances/{n}#connect) -->
-        <section class="card" id="connect" aria-labelledby="connect-title" th:if="${can.connect}">
-            <h2 id="connect-title" th:text="#{manager.connect.title}">Conectar</h2>
-            <form th:action="@{/manager/instances/{n}/connect(n=${instance.name})}" method="post">
-                <label>
-                    <span th:text="#{manager.connect.pairingNumber}">Número para pairing (opcional)</span>
-                    <input name="number" inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
-                </label>
-                <p class="muted small" th:text="#{manager.connect.hint}">Sem número: QR code.</p>
-                <fieldset class="choices" aria-describedby="history-hint">
-                    <legend th:text="#{manager.history.label}">Histórico das conversas</legend>
-                    <label class="choice" th:each="option : ${historyOptions}">
-                        <input type="radio" name="historySync" th:value="${option}"
-                               th:checked="${option == instance.historySync}">
-                        <span>
-                            <strong th:text="#{'manager.history.' + ${option}}">Sem histórico</strong>
-                            <span class="muted small" th:text="#{'manager.history.' + ${option} + '.desc'}">Descrição</span>
-                        </span>
-                    </label>
-                    <p id="history-hint" class="muted small" th:text="#{manager.history.hint}">Vale no próximo pareamento.</p>
-                </fieldset>
-                <button type="submit" class="primary" th:text="#{manager.connect.submit}">Gerar QR</button>
-            </form>
-        </section>
-
-        <section class="card" id="send" aria-labelledby="send-title" th:if="${can.send}">
-            <h2 id="send-title" th:text="#{manager.send.title}">Mensagem de teste</h2>
-            <form th:action="@{/manager/instances/{n}/send(n=${instance.name})}" method="post">
-                <label>
-                    <span th:text="#{manager.send.number}">Número</span>
-                    <input name="number" required inputmode="tel" th:placeholder="#{manager.create.numberPlaceholder}">
-                </label>
-                <label>
-                    <span th:text="#{manager.send.text}">Texto</span>
-                    <textarea name="text" required rows="3"></textarea>
-                </label>
-                <button type="submit" th:disabled="${!instance.open()}" th:text="#{manager.send.submit}">Enviar</button>
-                <p class="muted small" th:unless="${instance.open()}" th:text="#{manager.send.needsConnection}"></p>
-            </form>
-        </section>
-    </div>
-
-    <!-- Webhook, comportamentos, histórico e proxy ficam em Configurações, uma tela por grupo -->
-    <section class="card settings-teaser" th:if="${can.settings()}" aria-labelledby="settings-teaser-title">
-        <h2 id="settings-teaser-title" th:text="#{manager.settings.title}">Configurações</h2>
-        <p class="muted" th:text="#{manager.settings.teaser}">Chamadas, leitura, presença, histórico, proxy e webhook.</p>
-        <a class="button" th:href="@{/manager/instances/{n}/settings(n=${instance.name})}" th:text="#{manager.settings.open}">Abrir configurações</a>
-    </section>
-
-    <section class="card danger-zone" id="danger" aria-labelledby="danger-title" th:if="${can.danger()}">
-        <h2 id="danger-title" th:text="#{manager.danger.title}">Zona de perigo</h2>
-        <div class="row">
-            <form th:if="${can.connect}" th:action="@{/manager/instances/{n}/logout(n=${instance.name})}" method="post">
-                <button type="submit" th:text="#{manager.danger.logout}">Desconectar</button>
-            </form>
-            <form th:if="${can.delete}" th:action="@{/manager/instances/{n}/delete(n=${instance.name})}" method="post">
-                <label class="check"><input type="checkbox" name="confirm" required>
-                    <span th:text="#{manager.danger.confirm}">Confirmo</span></label>
-                <button type="submit" class="danger" th:text="#{manager.danger.delete}">Excluir</button>
-            </form>
-        </div>
+    <section class="shortcuts" aria-labelledby="shortcuts-title">
+        <h2 id="shortcuts-title" th:text="#{manager.overview.shortcuts}">Atalhos</h2>
+        <ul class="shortcut-list">
+            <li>
+                <a th:href="@{/manager/instances/{n}/connection(n=${instance.name})}">
+                    <strong th:text="#{manager.panelNav.connection}">Conexão</strong>
+                    <span class="muted small" th:text="#{manager.overview.go.connection}">QR code</span>
+                </a>
+            </li>
+            <li th:if="${can.chats}">
+                <a th:href="@{/manager/instances/{n}/messages(n=${instance.name})}">
+                    <strong th:text="#{manager.panelNav.messages}">Mensagens</strong>
+                    <span class="muted small" th:text="#{manager.overview.go.messages}">Conversas</span>
+                </a>
+            </li>
+            <li th:if="${can.send}">
+                <a th:href="@{/manager/instances/{n}/send(n=${instance.name})}">
+                    <strong th:text="#{manager.panelNav.send}">Envio de teste</strong>
+                    <span class="muted small" th:text="#{manager.overview.go.send}">Mande uma mensagem</span>
+                </a>
+            </li>
+            <li th:if="${can.settings()}">
+                <a th:href="@{/manager/instances/{n}/settings(n=${instance.name})}">
+                    <strong th:text="#{manager.panelNav.settings}">Configurações</strong>
+                    <span class="muted small" th:text="#{manager.overview.go.settings}">Chamadas, leitura</span>
+                </a>
+            </li>
+        </ul>
     </section>
     </div>
     </div>

@@ -6,7 +6,7 @@
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
 <main class="container wizard connect-page">
-    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+    <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.connection')}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <nav th:replace="~{manager/fragments/layout :: steps(${step}, ${totalSteps}, false)}"></nav>
 
@@ -21,7 +21,7 @@
     </div>
 
     <div hx-ext="sse" th:attr="sse-connect=@{/manager/stream/instances/{n}(n=${instance.name})}">
-        <section th:replace="~{manager/instance :: live}"></section>
+        <section th:replace="~{manager/instance-connection :: live}"></section>
     </div>
     <p id="live-announce" class="visually-hidden" role="status"></p>
 

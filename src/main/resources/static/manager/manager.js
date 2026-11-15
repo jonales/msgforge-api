@@ -134,7 +134,7 @@
 
 // Mensagens: mídia que não carregou (instância desconectada, fora do motor, grande demais) dá lugar
 // ao aviso do tipo. O evento "error" de <img>, <audio> e <video> não sobe: escuta na captura.
-// Painel: o menu leva a âncoras; a do proxy fica num <details>, que abre ao chegar nele.
+// Âncora que aponta para um <details> (o proxy): abre ao chegar nele.
 (function () {
     'use strict';
 
@@ -161,4 +161,139 @@
 
     document.addEventListener('DOMContentLoaded', openTarget);
     window.addEventListener('hashchange', openTarget);
+})();
+
+// Painel da instância, no celular: o menu é uma faixa de abas que rola para o lado dentro dela mesma.
+// Ao abrir uma tela, a aba atual entra na faixa (sem rolar a página).
+(function () {
+    'use strict';
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var list = document.querySelector('.panel-nav ul');
+        var current = list && list.querySelector('[aria-current=page]');
+        if (!current || list.scrollWidth <= list.clientWidth) {
+            return;
+        }
+        var item = current.parentElement;
+        var left = item.offsetLeft - list.offsetLeft;
+        if (left + item.offsetWidth > list.clientWidth - 24) {
+            list.scrollLeft = left - 16;
+        }
+    });
+})();
+
+// Mensagens: a conversa aberta rola no próprio painel e abre na mensagem mais recente. Quando chega
+// uma mensagem nova (SSE ou polling), a rolagem só desce se a pessoa já estava no fim; se ela subiu
+// para ler, fica onde estava. A resposta fica fora do trecho trocado e recebe o jid da conversa.
+(function () {
+    'use strict';
+
+    var NEAR_END = 80;
+    var last = null;   // {jid, page, top, end} da conversa na tela
+
+    function scroller() {
+        return document.querySelector('#conversation .conversation-scroll');
+    }
+
+    function atEnd(el) {
+        return el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_END;
+    }
+
+    function remember() {
+        var conversation = document.getElementById('conversation');
+        var el = scroller();
+        last = conversation && el ? {
+            jid: conversation.getAttribute('data-jid'),
+            page: conversation.getAttribute('data-page'),
+            top: el.scrollTop,
+            end: atEnd(el)
+        } : null;
+    }
+
+    function settle() {
+        var conversation = document.getElementById('conversation');
+        var el = scroller();
+        syncReply(conversation);
+        if (!el) {
+            last = null;
+            return;
+        }
+        var same = last && last.jid === conversation.getAttribute('data-jid')
+            && last.page === conversation.getAttribute('data-page');
+        el.scrollTop = same && !last.end ? last.top : el.scrollHeight;
+        remember();
+    }
+
+    function syncReply(conversation) {
+        var form = document.getElementById('reply');
+        if (!form) {
+            return;
+        }
+        var jid = conversation && conversation.getAttribute('data-jid');
+        var field = form.querySelector('input[name=jid]');
+        if (field.value !== (jid || '')) {
+            field.value = jid || '';
+            form.querySelector('textarea').value = '';
+            status('');
+        }
+        form.hidden = !jid;
+    }
+
+    function status(text) {
+        var box = document.getElementById('reply-status');
+        if (box) {
+            box.textContent = text;
+        }
+    }
+
+    document.addEventListener('scroll', function (evt) {
+        if (evt.target && evt.target.classList && evt.target.classList.contains('conversation-scroll')) {
+            remember();
+        }
+    }, true);
+
+    // Imagem que carrega depois empurra o fim para baixo: quem estava no fim continua nele
+    document.addEventListener('load', function (evt) {
+        var el = scroller();
+        if (el && el.contains(evt.target) && (!last || last.end)) {
+            el.scrollTop = el.scrollHeight;
+        }
+    }, true);
+
+    document.addEventListener('DOMContentLoaded', settle);
+    document.addEventListener('htmx:load', function (evt) {
+        if (evt.target && evt.target.id === 'conversation') {
+            settle();
+        }
+    });
+
+    // Enviada: limpa a caixa (a conversa nova já veio na resposta). Recusada (422): mostra o aviso
+    document.addEventListener('htmx:afterRequest', function (evt) {
+        var form = evt.detail.elt;
+        if (!form || form.id !== 'reply') {
+            return;
+        }
+        if (evt.detail.successful) {
+            form.querySelector('textarea').value = '';
+            status('');
+            var el = scroller();
+            if (el) {
+                el.scrollTop = el.scrollHeight;
+            }
+        } else {
+            var reply = new DOMParser().parseFromString(evt.detail.xhr.responseText || '', 'text/html');
+            status(reply.body.textContent.trim());
+        }
+    });
+
+    // Enter envia; Shift+Enter quebra a linha
+    document.addEventListener('keydown', function (evt) {
+        if (evt.key !== 'Enter' || evt.shiftKey || evt.isComposing || evt.target.id !== 'reply-text') {
+            return;
+        }
+        evt.preventDefault();
+        if (evt.target.value.trim() !== '') {
+            evt.target.form.requestSubmit();
+        }
+    });
 })();
