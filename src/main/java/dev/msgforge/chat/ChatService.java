@@ -54,6 +54,11 @@ public class ChatService {
         return gateway.downloadMedia(instances.get(instanceName), key, stored, maxBytes);
     }
 
+    /** O motor tem a mídia desta mensagem na memória (sem baixar). */
+    public boolean hasMedia(String instanceName, MessageKey key) {
+        return gateway.hasMedia(instances.get(instanceName), key);
+    }
+
     public List<ChatDtos.ChatSummary> findChats(String instanceName) {
         var instance = instances.get(instanceName);
         return history.chats(instance.getId()).stream()

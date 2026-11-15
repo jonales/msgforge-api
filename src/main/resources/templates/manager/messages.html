@@ -85,21 +85,21 @@
                             <th:block th:switch="${c.kind()}">
                                 <span th:case="'text'" class="text" th:text="${c.text}">oi</span>
 
-                                <figure th:case="'image'" class="media">
-                                    <img data-media loading="lazy" th:src="${media}"
+                                <figure th:case="'image'" th:class="'media' + (${m.mediaReady} ? '' : ' media-failed')">
+                                    <img data-media loading="lazy" th:if="${m.mediaReady}" th:src="${media}"
                                          th:alt="${c.caption} ?: #{manager.messages.kind.image}">
                                     <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Foto indisponível</p>
                                     <figcaption class="text" th:if="${c.caption}" th:text="${c.caption}">legenda</figcaption>
                                 </figure>
 
-                                <figure th:case="'sticker'" class="media sticker">
-                                    <img data-media loading="lazy" width="128" height="128" th:src="${media}"
+                                <figure th:case="'sticker'" th:class="'media sticker' + (${m.mediaReady} ? '' : ' media-failed')">
+                                    <img data-media loading="lazy" width="128" height="128" th:if="${m.mediaReady}" th:src="${media}"
                                          th:alt="#{manager.messages.kind.sticker}">
                                     <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Figurinha</p>
                                 </figure>
 
-                                <figure th:case="'video'" class="media">
-                                    <video data-media controls preload="none" playsinline th:src="${media}"
+                                <figure th:case="'video'" th:class="'media' + (${m.mediaReady} ? '' : ' media-failed')">
+                                    <video data-media controls preload="none" playsinline th:if="${m.mediaReady}" th:src="${media}"
                                            th:attr="aria-label=${c.caption} ?: ${kindLabel}"></video>
                                     <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Vídeo indisponível</p>
                                     <figcaption>
@@ -111,7 +111,7 @@
                                     </figcaption>
                                 </figure>
 
-                                <div th:case="'audio'" class="media audio">
+                                <div th:case="'audio'" th:class="'media audio' + (${m.mediaReady} ? '' : ' media-failed')">
                                     <span class="media-meta small">
                                         <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
                                             <rect x="5.5" y="1.5" width="5" height="8" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
@@ -120,10 +120,10 @@
                                         <span th:text="${kindLabel}">Nota de voz</span>
                                         <span class="muted" th:if="${c.duration()}" th:text="'· ' + ${c.duration()}">· 0:12</span>
                                     </span>
-                                    <audio data-media controls preload="none" th:src="${media}"
+                                    <audio data-media controls preload="none" th:if="${m.mediaReady}" th:src="${media}"
                                            th:attr="aria-label=${kindLabel}"></audio>
                                     <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Áudio indisponível</p>
-                                    <a class="media-download small" th:href="${media}" download
+                                    <a class="media-download small" th:if="${m.mediaReady}" th:href="${media}" download
                                        th:title="#{manager.messages.audioDownloadHint}"
                                        th:text="#{manager.messages.audioDownload}">Baixar o áudio</a>
                                 </div>
@@ -181,7 +181,7 @@
                                 th:attr="aria-label=#{manager.messages.reactions}">
                                 <li class="reaction-chip" th:each="r : ${m.reactions}"
                                     th:title="${r.mine} ? #{manager.messages.reactionYou} : ${r.who}">
-                                    <span th:text="${r.emoji}">🙏</span>
+                                    <span class="reaction-emoji" th:text="${r.emoji}">🙏</span>
                                     <span class="small muted" th:text="${r.mine} ? #{manager.messages.reactionYou} : ${r.who}">Ana</span>
                                 </li>
                             </ul>
@@ -217,7 +217,9 @@
             <span th:if="${chat.fromMe}" th:text="#{manager.messages.you}">Você:</span>
             <span th:if="${chat.lastAuthor}" th:text="${chat.lastAuthor} + ':'">Ana:</span>
             <th:block th:if="${chat.reaction()}">
-                <span th:text="#{manager.messages.reactedTo(${chat.last.emoji})}">Reagiu 🙏 a:</span>
+                <span th:text="#{manager.messages.reactedVerb}">Reagiu</span>
+                <span class="reaction-emoji" th:text="${chat.last.emoji}">🙏</span>
+                <span th:text="#{manager.messages.reactedTarget}">a:</span>
                 <span class="preview-kind" th:unless="${chat.reactedTo.kind() == 'text'}"
                       th:text="#{${'manager.messages.kind.' + chat.reactedTo.labelKey()}}">Foto</span>
                 <span th:if="${chat.reactedSnippet()}" th:text="${chat.reactedSnippet()}">oi</span>

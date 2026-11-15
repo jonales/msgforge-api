@@ -122,8 +122,11 @@ public class ManagerScreens {
         var current = Math.max(page, 1);
         var found = chats.findMessages(name, new KeyFilter(jid, null, null), current, CONVERSATION_PAGE_SIZE);
         var ordered = new ArrayList<>(found.records().stream()
-                .map(m -> new ManagerViews.StoredRow(m.key().id(), m.key().fromMe(), m.pushName(), m.key().participant(),
-                        MessageContent.of(m.messageType(), m.message()), m.messageTimestamp(), m.status()))
+                .map(m -> {
+                    var content = MessageContent.of(m.messageType(), m.message());
+                    return new ManagerViews.StoredRow(m.key().id(), m.key().fromMe(), m.pushName(), m.key().participant(),
+                            content, m.messageTimestamp(), m.status(), mediaReady(name, jid, m, content));
+                })
                 .toList());
         Collections.reverse(ordered);   // a página vem da mais nova para a mais antiga
         var group = ManagerViews.isGroup(jid);
@@ -132,6 +135,20 @@ public class ManagerScreens {
                         .filter(n -> n != null && !n.isBlank()).findFirst().orElse(null);
         return new Conversation(jid, chatName, ManagerViews.rows(ordered, group, java.time.LocalDate.now()),
                 current, found.pages());
+    }
+
+    /**
+     * A mídia tem como ser baixada: o histórico guardou os campos de mídia ou o motor ainda tem a
+     * mensagem na memória. Sem nenhum dos dois (mensagem antiga, depois de reiniciar), a tela mostra o
+     * aviso do tipo direto, sem um player que não toca.
+     */
+    private boolean mediaReady(String name, String jid, dev.msgforge.chat.ChatDtos.MessageRecord m,
+                               MessageContent content) {
+        if (!content.media()) {
+            return false;
+        }
+        return MessageContent.stored(m.messageType(), m.message()).isPresent()
+                || chats.hasMedia(name, new dev.msgforge.gateway.WhatsAppGateway.MessageKey(jid, m.key().id(), m.key().fromMe()));
     }
 
     private static String firstNonBlank(String first, String second) {

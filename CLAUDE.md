@@ -301,8 +301,9 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     `downloadMedia`, em memória, teto de 25 MB; stub: o base64 enviado, em memória). Inline só
     imagem raster, áudio e vídeo (`INLINE`); o resto sai como download `octet-stream`, sempre com
     `nosniff` e CSP `sandbox`. Fora do Store, o Cobalt baixa com os campos de mídia do histórico
-    (`StoredMedia`, ver `history/`); mídia que falha (desconectada, linha antiga sem esses campos) vira
-    o aviso do tipo (`manager.js` marca `.media-failed`). A resposta é um `Resource`: o Spring atende
+    (`StoredMedia`, ver `history/`). Sem `StoredMedia` e fora do motor (`WhatsAppGateway.hasMedia`),
+    a linha sai com `mediaReady` false: nada de `<img>`/`<audio>`/`<video>`, só o aviso do tipo. O que
+    falha ao carregar (desconectada, CDN) também vira o aviso (`manager.js` marca `.media-failed`). A resposta é um `Resource`: o Spring atende
     `Range` (206) e manda `Content-Length` e `Accept-Ranges`, que o `<audio>`/`<video>` usam. Nota de
     voz sai como `audio/ogg; codecs=opus`; o Safari não toca OGG/Opus, então o áudio tem o link
     "Baixar o áudio".

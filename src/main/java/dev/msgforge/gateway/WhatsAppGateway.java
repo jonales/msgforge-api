@@ -88,6 +88,12 @@ public interface WhatsAppGateway {
     java.util.Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, StoredMedia stored,
                                                    long maxBytes);
 
+    /**
+     * O motor tem a mídia desta mensagem na memória dele (Store do Cobalt, ou o base64 guardado pelo
+     * stub), sem baixar nada. Desconectada, false. A tela usa para não mostrar um player que não toca.
+     */
+    boolean hasMedia(Instance instance, MessageKey key);
+
     /** Mídia decifrada; {@code mimeType} é o que a mensagem declara (pode faltar). */
     record MediaContent(byte[] bytes, String mimeType) {}
 

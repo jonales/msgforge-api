@@ -323,11 +323,12 @@ public final class ManagerViews {
      * ela mostra o remetente). {@code day}: não nulo na primeira mensagem de cada dia (o separador).
      */
     public record MessageRow(String id, boolean fromMe, String author, String authorJid, MessageContent content,
-                             String time, String status, Day day, boolean startsRun, List<ReactionChip> reactions) {
+                             String time, String status, Day day, boolean startsRun, List<ReactionChip> reactions,
+                             boolean mediaReady) {
 
         public MessageRow(String id, boolean fromMe, String author, String authorJid, MessageContent content,
                           String time, String status, Day day, boolean startsRun) {
-            this(id, fromMe, author, authorJid, content, time, status, day, startsRun, List.of());
+            this(id, fromMe, author, authorJid, content, time, status, day, startsRun, List.of(), false);
         }
 
         /** O número de quem mandou, para mostrar ao lado do nome: "+55..." ou o LID como veio. */
@@ -395,7 +396,13 @@ public final class ManagerViews {
 
     /** Uma mensagem gravada, já na ordem da tela (antes de agrupar). */
     record StoredRow(String id, boolean fromMe, String pushName, String participant, MessageContent content,
-                     long timestamp, String status) {}
+                     long timestamp, String status, boolean mediaReady) {
+
+        StoredRow(String id, boolean fromMe, String pushName, String participant, MessageContent content,
+                  long timestamp, String status) {
+            this(id, fromMe, pushName, participant, content, timestamp, status, false);
+        }
+    }
 
     /**
      * Monta as linhas da conversa: separador no primeiro de cada dia e o remetente só no começo de
@@ -417,7 +424,7 @@ public final class ManagerViews {
             out.add(new MessageRow(m.id(), m.fromMe(), m.pushName(), group && !m.fromMe() ? m.participant() : null,
                     m.content(), CLOCK_MINUTES.format(Instant.ofEpochSecond(m.timestamp())), m.status(),
                     newDay ? day : null, newDay || !sender.equals(previousSender),
-                    reactions.getOrDefault(m.id(), List.of())));
+                    reactions.getOrDefault(m.id(), List.of()), m.mediaReady()));
             previousDay = day.date();
             previousSender = sender;
         }

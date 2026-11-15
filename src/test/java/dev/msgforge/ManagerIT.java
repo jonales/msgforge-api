@@ -317,8 +317,9 @@ class ManagerIT extends IntegrationTest {
         var lid = "222222222222222@lid";
         var now = java.time.Instant.now().getEpochSecond();
         receive(name, ana, null, "Ana", "D-1", "conversation", "oi direto", now - 100);
-        receive(name, group, ana, "Ana", "G-1", "imageMessage",
-                java.util.Map.of("caption", "foto da obra", "mimetype", "image/jpeg"), now - 90);
+        // Foto com os campos de mídia (baixável); o áudio é de antes deles (sem como baixar)
+        receive(name, group, ana, "Ana", "G-1", "imageMessage", java.util.Map.of("caption", "foto da obra",
+                "mimetype", "image/jpeg", "directPath", "/v/t62/a.enc", "mediaKey", "AAAA"), now - 90);
         receive(name, group, ana, "Ana", "G-2", "audioMessage", java.util.Map.of("ptt", true, "seconds", 75), now - 80);
         receive(name, group, lid, null, "G-3", "documentMessage",
                 java.util.Map.of("fileName", "contrato.pdf", "fileLength", 1_468_006), now - 70);
@@ -349,7 +350,10 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(containsString("/messages/media?jid=")))
                 .andExpect(content().string(containsString("Mensagem de voz")))
                 .andExpect(content().string(containsString("1:15")))
-                .andExpect(content().string(containsString("<audio data-media controls preload=\"none\"")))
+                // Áudio antigo, sem os campos de mídia e fora do motor: o aviso direto, sem player morto
+                .andExpect(content().string(Matchers.not(containsString("<audio data-media"))))
+                .andExpect(content().string(containsString("class=\"media audio media-failed\"")))
+                .andExpect(content().string(containsString("Mensagem de voz indisponível agora")))
                 .andExpect(content().string(containsString("contrato.pdf")))
                 .andExpect(content().string(containsString("1,4 MB")))
                 .andExpect(content().string(containsString("openstreetmap.org")))
@@ -395,7 +399,9 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(Matchers.not(containsString("🙂"))))
                 .andExpect(content().string(Matchers.not(containsString("kind-reaction"))));
         mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chats")))
-                .andExpect(content().string(containsString("Reagiu 🙏 a:")))
+                .andExpect(content().string(containsString("<span>Reagiu</span>")))
+                .andExpect(content().string(containsString("<span class=\"reaction-emoji\">🙏</span>")))
+                .andExpect(content().string(containsString("<span>a:</span>")))
                 .andExpect(content().string(containsString("chego às nove")));
     }
 

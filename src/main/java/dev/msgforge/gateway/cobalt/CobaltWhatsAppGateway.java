@@ -1013,6 +1013,19 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         return Optional.of(new MediaContent(bytes, media.mimetype().orElse(null)));
     }
 
+    @Override
+    public boolean hasMedia(Instance instance, MessageKey key) {
+        var connection = connections.get(instance.getId());
+        if (connection == null || !connection.loggedIn) {
+            return false;
+        }
+        try {
+            return fromStore(connection, key).isPresent();
+        } catch (RuntimeException e) {
+            return false;   // JID que o Cobalt não aceita, Store fechando: sem mídia
+        }
+    }
+
     private static Optional<MediaMessage> fromStore(Connection connection, MessageKey key) {
         var chat = Jid.of(key.remoteJid());
         var chats = connection.api.store().chatStore();
