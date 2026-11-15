@@ -1,7 +1,7 @@
 package dev.msgforge.web;
 
-import dev.msgforge.access.AccessService.LoginResult;
 import dev.msgforge.access.AccessService;
+import dev.msgforge.access.AccessService.LoginResult;
 import dev.msgforge.access.ManagerPrincipal;
 import dev.msgforge.config.MsgforgeProperties;
 import jakarta.servlet.DispatcherType;
