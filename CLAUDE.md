@@ -226,6 +226,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   (2026-11-12). Citar a biblioteca do motor (Cobalt) na documentação técnica e nas ADRs é
   permitido. Ao mudar rotas, eventos ou variáveis, atualize também `docs/api.md`, `docs/eventos.md`
   ou `docs/configuracao.md`. O README é só apresentação e aponta para `docs/`.
+- **Licença:** AGPL-3.0-only com licença comercial (ADR 0016). Todo arquivo Java novo começa com
+  `// SPDX-License-Identifier: AGPL-3.0-only` e `// Copyright (C) 2026 Jônatas Meireles`.
 - **Commits:** em português, no estilo Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`).
 - **Decisões de arquitetura:** registre em `docs/decisoes/` (ADR curto, numerado).
 

@@ -1,0 +1,15 @@
+Msgforge API
+Copyright (C) 2026 Jônatas Meireles
+
+Este programa é software livre: você pode redistribuí-lo e/ou modificá-lo nos termos da GNU Affero
+General Public License, versão 3 (AGPL-3.0-only), publicada pela Free Software Foundation. Ele é
+distribuído na esperança de ser útil, mas SEM NENHUMA GARANTIA. Veja o arquivo LICENSE.
+
+Quem oferece este programa, modificado, a usuários pela rede precisa oferecer a eles o código-fonte
+correspondente (seção 13 da AGPL).
+
+Licença comercial: para usar a Msgforge sem as obrigações da AGPL (por exemplo, num serviço com
+código fechado), é possível contratar uma licença comercial com o titular dos direitos acima.
+
+Bibliotecas de terceiros distribuídas junto mantêm as próprias licenças: veja THIRD-PARTY-NOTICES.md.
+O motor do WhatsApp (cobalt-2) é licenciado sob a MIT.
