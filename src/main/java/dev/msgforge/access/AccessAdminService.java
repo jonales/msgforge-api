@@ -100,7 +100,15 @@ public class AccessAdminService {
     @Transactional
     public ManagerUser createUser(ManagerPrincipal actor, UUID organizationId, String email, String password,
                                   UUID roleId, boolean platformAdmin) {
+        return createUser(actor, organizationId, email, null, password, roleId, platformAdmin);
+    }
+
+    /** Como o outro, com o nome de exibição (opcional: sem ele, a pessoa responde sem assinatura). */
+    @Transactional
+    public ManagerUser createUser(ManagerPrincipal actor, UUID organizationId, String email, String displayName,
+                                  String password, UUID roleId, boolean platformAdmin) {
         var subject = require(actor, Permission.USERS_MANAGE, organizationId);
+        var name = displayName(displayName);
         var normalized = ManagerUser.normalizeEmail(email);
         if (normalized.length() > 254 || !EMAIL.matcher(normalized).matches()) {
             throw new AccessRuleException("manager.access.error.email");
@@ -116,9 +124,49 @@ public class AccessAdminService {
         if (users.existsByEmail(normalized)) {
             throw new AccessRuleException("manager.access.error.emailTaken");
         }
-        var user = users.save(new ManagerUser(normalized, passwords.encode(password), platformAdmin));
+        var created = new ManagerUser(normalized, passwords.encode(password), platformAdmin);
+        created.setDisplayName(name);
+        var user = users.save(created);
         memberships.save(new Membership(user, role));
         return user;
+    }
+
+    /**
+     * Troca o nome de exibição. A própria pessoa sempre pode; outra, com "gerenciar usuários" e sem
+     * escalada (as mesmas travas do bloqueio). Vazio tira o nome (responde sem assinatura).
+     */
+    @Transactional
+    public void setDisplayName(ManagerPrincipal actor, UUID organizationId, UUID userId, String displayName) {
+        var name = displayName(displayName);
+        if (!userId.equals(actor.userId())) {
+            var subject = require(actor, Permission.USERS_MANAGE, organizationId);
+            var membership = membershipOf(organizationId, userId);
+            if ((membership.getUser().isPlatformAdmin() && !subject.platformAdmin())
+                    || !AccessRules.canGrant(subject, organizationId, membership.getRole().getPermissions())) {
+                throw new AccessRuleException("manager.access.error.escalation");
+            }
+        }
+        users.findById(userId).orElseThrow(() -> new AccessRuleException("manager.access.error.userNotFound"))
+                .setDisplayName(name);
+    }
+
+    /** O nome de exibição da pessoa, lido na hora (null sem nome ou para a chave global). */
+    @Transactional(readOnly = true)
+    public String displayNameOf(ManagerPrincipal who) {
+        return who == null || who.globalKey() ? null
+                : users.findById(who.userId()).map(ManagerUser::getDisplayName).orElse(null);
+    }
+
+    /** Limpo; recusa o que passa do tamanho (vazio é aceito e quer dizer "sem nome"). */
+    private static String displayName(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        var clean = ManagerUser.normalizeDisplayName(raw);
+        if (clean == null && raw.strip().length() > ManagerUser.DISPLAY_NAME_MAX) {
+            throw new AccessRuleException("manager.access.error.displayName");
+        }
+        return clean;
     }
 
     @Transactional

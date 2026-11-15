@@ -50,12 +50,14 @@ public class ManagerController {
     private final dev.msgforge.history.HistoryRecorder history;
     private final ManagerAccess guard;
     private final AccessService access;
+    private final ManagerAuthor author;
 
     public ManagerController(InstanceService instances, WebhookService webhooks, MessageService messages,
                              QrCodeCache qrCodes, ManagerScreens screens,
                              dev.msgforge.history.HistoryRecorder history, ManagerAccess guard,
-                             AccessService access) {
+                             AccessService access, ManagerAuthor author) {
         this.guard = guard;
+        this.author = author;
         this.access = access;
         this.instances = instances;
         this.webhooks = webhooks;
@@ -82,8 +84,6 @@ public class ManagerController {
         model.addAttribute("instances", rows);
         model.addAttribute("canCreate", check.canSomewhere(Permission.INSTANCE_CREATE));
         model.addAttribute("showSearch", rows.size() > SEARCH_THRESHOLD);
-        model.addAttribute("soonChannels", SOON_CHANNELS);
-        model.addAttribute("soonIntegrations", SOON_INTEGRATIONS);
         return "manager/instances";
     }
 
@@ -174,6 +174,16 @@ public class ManagerController {
         return "manager/instance-send";
     }
 
+    /** Integrações e canais da instância: por enquanto só a lista "Em breve" (quem vê a instância). */
+    @GetMapping("/instances/{name}/integrations")
+    public String integrationsPage(@PathVariable String name, Model model) {
+        var check = guard.current();
+        panel(model, check, guard.require(check, name, Permission.INSTANCE_VIEW));
+        model.addAttribute("soonChannels", SOON_CHANNELS);
+        model.addAttribute("soonIntegrations", SOON_INTEGRATIONS);
+        return "manager/instance-integrations";
+    }
+
     /** Estado + QR, atualizado pelo htmx enquanto a instância não está conectada. */
     @GetMapping("/instances/{name}/live")
     public String liveFragment(@PathVariable String name, Model model) {
@@ -225,7 +235,8 @@ public class ManagerController {
     // ------------------------------------------------------------ configurações (uma tela por grupo)
 
     /** Os grupos de configuração, na ordem das abas; {@code webhook} pede outra permissão. */
-    static final List<String> SETTINGS_GROUPS = List.of("calls", "reading", "presence", "history", "proxy", "webhook");
+    static final List<String> SETTINGS_GROUPS = List.of("calls", "reading", "presence", "attendance", "history",
+            "proxy", "webhook");
 
     static Permission permissionOf(String group) {
         if (!SETTINGS_GROUPS.contains(group)) {
@@ -283,11 +294,17 @@ public class ManagerController {
                                @RequestParam(defaultValue = "false") boolean readMessages,
                                @RequestParam(defaultValue = "false") boolean readStatus,
                                @RequestParam(required = false) String historySync,
+                               @RequestParam(defaultValue = "false") boolean signMessages,
                                RedirectAttributes flash) {
-        if (!List.of("calls", "reading", "presence", "history").contains(group)) {
+        if (!List.of("calls", "reading", "presence", "attendance", "history").contains(group)) {
             throw new dev.msgforge.common.ApiExceptionHandler.NotFoundException("Unknown settings group: " + group);
         }
         var instance = guard.require(name, Permission.ACCOUNT_CONFIGURE);
+        if ("attendance".equals(group)) {   // fora do InstanceSettings: não muda nada na conexão
+            instances.setSignMessages(name, signMessages);
+            flash.addFlashAttribute("saved", group);
+            return "redirect:" + settingsPage(name, group);
+        }
         var s = instance.getSettings();
         var stored = SettingsView.of(instance);
         try {
@@ -305,7 +322,8 @@ public class ManagerController {
         } catch (InvalidFieldException e) {
             // Volta com o que foi digitado neste grupo; os outros, como estão guardados
             var typed = new SettingsView(rejectCall, msgCall == null ? "" : msgCall, stored.groupsIgnore(),
-                    stored.alwaysOnline(), stored.readMessages(), stored.readStatus(), stored.historySync());
+                    stored.alwaysOnline(), stored.readMessages(), stored.readStatus(), stored.historySync(),
+                    stored.signMessages());
             flash.addFlashAttribute("settings", typed);
             flash.addFlashAttribute("fieldErrors", java.util.Map.of("settings." + e.field(),
                     "manager.settings.error." + e.field() + "." + e.reason()));
@@ -363,8 +381,9 @@ public class ManagerController {
             flash.addFlashAttribute("error", "manager.flash.textRequired");
             return redirectTo(name, "send");
         }
-        var sent = messages.sendText(name, number, text, null, null);
-        history.recordSent(sent.instance(), sent.message(), "conversation", java.util.Map.of("conversation", text));
+        var sent = messages.sendText(name, number, text, null, null);   // o Envio de teste nunca assina
+        history.recordSent(sent.instance(), sent.message(), "conversation", java.util.Map.of("conversation", text),
+                author.current().sentBy());
         flash.addFlashAttribute("success", "manager.flash.sent");
         flash.addFlashAttribute("sentId", sent.message().id());
         return redirectTo(name, "send");
@@ -417,7 +436,7 @@ public class ManagerController {
                         @org.springframework.web.bind.annotation.RequestHeader(value = "HX-Request", required = false)
                         String htmx,
                         Model model, RedirectAttributes flash, jakarta.servlet.http.HttpServletResponse response) {
-        guard.require(name, Permission.CHAT_SEND);
+        var instance = guard.require(name, Permission.CHAT_SEND);
         var page = "redirect:/manager/instances/" + UriUtils.encodePathSegment(name, java.nio.charset.StandardCharsets.UTF_8)
                 + "/messages?jid=" + UriUtils.encodeQueryParam(jid, java.nio.charset.StandardCharsets.UTF_8);
         String failure = null;
@@ -425,8 +444,11 @@ public class ManagerController {
             failure = "manager.messages.reply.empty";
         } else {
             try {
-                var sent = messages.sendText(name, jid, text, null, null);
-                history.recordSent(sent.instance(), sent.message(), "conversation", java.util.Map.of("conversation", text));
+                var sender = author.current();
+                var signed = ManagerAuthor.reply(instance, sender, text);
+                var sent = messages.sendText(name, jid, signed, null, null);
+                history.recordSent(sent.instance(), sent.message(), "conversation",
+                        java.util.Map.of("conversation", signed), sender.sentBy());
             } catch (dev.msgforge.common.ApiExceptionHandler.BadRequestException
                      | dev.msgforge.gateway.WhatsAppGateway.GatewayException e) {
                 failure = "manager.messages.reply.failed";

@@ -133,35 +133,6 @@
         <p id="filter-empty" class="muted filter-empty" hidden th:if="${showSearch}" th:text="#{manager.home.search.none}">Nenhuma instância com esse filtro.</p>
     </section>
 
-    <!-- Sem backend ainda: só aparecem, sem link nem botão (PRODUCT.md, "Em breve") -->
-    <section class="soon" aria-labelledby="soon-title">
-        <div class="soon-head">
-            <h2 id="soon-title" th:text="#{manager.soon.title}">Canais e integrações</h2>
-            <p class="muted small" th:text="#{manager.soon.text}">Hoje o Msgforge conecta pelo WhatsApp.</p>
-        </div>
-        <div class="soon-groups">
-            <div class="soon-group">
-                <h3 th:text="#{manager.soon.channels}">Canais</h3>
-                <ul class="soon-list">
-                    <li th:each="item : ${soonChannels}">
-                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Cloud API oficial</span>
-                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Canal</span>
-                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
-                    </li>
-                </ul>
-            </div>
-            <div class="soon-group">
-                <h3 th:text="#{manager.soon.integrations}">Integrações</h3>
-                <ul class="soon-list">
-                    <li th:each="item : ${soonIntegrations}">
-                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Typebot</span>
-                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Bots</span>
-                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </section>
 </main>
 </body>
 </html>

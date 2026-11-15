@@ -62,18 +62,20 @@ public class AccessController {
     }
 
     @PostMapping("/users")
-    public String createUser(@RequestParam UUID org, @RequestParam String email, @RequestParam String password,
+    public String createUser(@RequestParam UUID org, @RequestParam String email,
+                             @RequestParam(required = false) String displayName, @RequestParam String password,
                              @RequestParam(required = false) UUID roleId,
                              @RequestParam(defaultValue = "false") boolean platformAdmin,
                              Model model, RedirectAttributes flash, HttpServletResponse response) {
         var who = ManagerTopbar.current();
         try {
-            var user = admin.createUser(who, org, email, password, roleId, platformAdmin);
+            var user = admin.createUser(who, org, email, displayName, password, roleId, platformAdmin);
             flash.addFlashAttribute("createdEmail", user.getEmail());
             return "redirect:/manager/users?org=" + org;
         } catch (AccessRuleException e) {
             // Volta à tela com o que foi digitado (menos a senha) e o erro junto do formulário
-            model.addAttribute("form", new UserForm(email, roleId, platformAdmin));
+            model.addAttribute("form", new UserForm(email, displayName == null ? "" : displayName, roleId,
+                    platformAdmin));
             model.addAttribute("formError", e.getMessage());
             return users(org, model, response);
         }
@@ -84,6 +86,14 @@ public class AccessController {
                              RedirectAttributes flash) {
         return attempt(flash, "manager.users.roleChanged", "/manager/users?org=" + org,
                 () -> admin.changeRole(ManagerTopbar.current(), org, userId, roleId));
+    }
+
+    /** Nome de exibição (assina as respostas na conversa); vazio tira o nome. */
+    @PostMapping("/users/{userId}/name")
+    public String setDisplayName(@PathVariable UUID userId, @RequestParam UUID org,
+                                 @RequestParam(required = false) String displayName, RedirectAttributes flash) {
+        return attempt(flash, "manager.users.nameChanged", "/manager/users?org=" + org,
+                () -> admin.setDisplayName(ManagerTopbar.current(), org, userId, displayName));
     }
 
     @PostMapping("/users/{userId}/status")

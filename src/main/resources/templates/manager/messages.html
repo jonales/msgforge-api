@@ -200,6 +200,8 @@
                             </ul>
                             <span class="meta small muted">
                                 <span th:text="${m.time}">10:00</span>
+                                <span class="sent-by" th:if="${m.sentBy}"
+                                      th:text="#{${m.sentByKey()}(${m.sentBy.name})}">por Ana</span>
                                 <span th:if="${m.fromMe}" th:text="#{'manager.messages.status.' + ${m.status}}">enviada</span>
                             </span>
                         </li>

@@ -2,6 +2,7 @@ package dev.msgforge.message;
 
 import dev.msgforge.gateway.WhatsAppGateway.SentMessage;
 import dev.msgforge.history.HistoryRecorder;
+import dev.msgforge.history.SentBy;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.message.MessageDtos.MessageResponse;
 import dev.msgforge.message.MessageDtos.SendContactRequest;
@@ -11,6 +12,7 @@ import dev.msgforge.message.MessageDtos.SendPollRequest;
 import dev.msgforge.message.MessageDtos.SendReactionRequest;
 import dev.msgforge.message.MessageDtos.SendWhatsAppAudioRequest;
 import dev.msgforge.message.MessageDtos.SendTextRequest;
+import dev.msgforge.security.ApiKeyFilter;
 import jakarta.validation.Valid;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -113,10 +115,18 @@ public class MessageController {
                 Map.of("name", body.name(), "options", options, "selectableOptionsCount", count)));
     }
 
+    /** A API autentica pela chave global ou pelo token da instância ({@link ApiKeyFilter#SCOPED_INSTANCE}). */
+    private static SentBy sentBy() {
+        var attributes = org.springframework.web.context.request.RequestContextHolder.getRequestAttributes();
+        var scoped = attributes != null && attributes.getAttribute(ApiKeyFilter.SCOPED_INSTANCE,
+                org.springframework.web.context.request.RequestAttributes.SCOPE_REQUEST) != null;
+        return scoped ? SentBy.API_TOKEN : SentBy.API_KEY;
+    }
+
     /** Resposta do envio; a mesma mensagem vai para o histórico. */
     private ResponseEntity<MessageResponse> created(Instance instance, SentMessage sent, String type,
                                                     Map<String, Object> message) {
-        history.recordSent(instance, sent, type, message);
+        history.recordSent(instance, sent, type, message, sentBy());
         var response = new MessageResponse(
                 new MessageResponse.Key(sent.remoteJid(), true, sent.id()),
                 null, "PENDING", message, type, sent.timestamp(), instance.getId().toString(), "msgforge");

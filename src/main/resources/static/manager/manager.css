@@ -292,12 +292,13 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .panel-main { min-width: 0; }
 .panel-nav { position: sticky; top: 12px; }
 .panel-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.panel-nav a, .panel-nav-soon { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px;
+.panel-nav a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px;
     border-radius: 8px; color: var(--text); text-decoration: none; }
 .panel-nav a:hover { background: var(--hover); }
 .panel-nav a[aria-current=page] { background: var(--accent-fill); color: var(--accent-text); font-weight: 600; }
-/* Em breve: texto apagado com o selo, sem borda nem fundo (nada aqui é clicável) */
-.panel-nav-soon { margin-top: 6px; color: var(--muted); cursor: default; }
+/* Em breve: a tela existe (a lista do que vem), o item fica apagado com o selo */
+.panel-nav-soon { margin-top: 6px; }
+.panel-nav-soon a:not([aria-current=page]) { color: var(--muted); }
 .panel-nav-soon .tag { background: none; color: var(--muted); border: 1px solid var(--border); font-weight: 500; }
 @media (max-width: 860px) {
     .panel-shell { grid-template-columns: minmax(0, 1fr); gap: 16px; }
@@ -308,7 +309,7 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
         mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%); }
     .panel-nav ul::-webkit-scrollbar { display: none; }
     .panel-nav li { flex: none; }
-    .panel-nav a, .panel-nav-soon { min-height: 44px; padding: 10px 12px; border-radius: 0; white-space: nowrap;
+    .panel-nav a { min-height: 44px; padding: 10px 12px; border-radius: 0; white-space: nowrap;
         border-bottom: 2px solid transparent; margin-bottom: -1px; }
     .panel-nav a:hover { background: none; color: var(--text); border-bottom-color: var(--control-border); }
     .panel-nav a[aria-current=page] { background: none; color: var(--text); border-bottom-color: var(--accent); }

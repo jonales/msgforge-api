@@ -30,14 +30,15 @@ public final class AccessViews {
      * @param manageable quem vê a tela pode trocar o papel e bloquear este usuário (sem escalada)
      * @param self       é a própria pessoa (não se bloqueia)
      */
-    public record MemberRow(UUID userId, String email, UUID roleId, String roleName, String status,
+    public record MemberRow(UUID userId, String email, String displayName, UUID roleId, String roleName, String status,
                             boolean platformAdmin, String lastLogin, boolean manageable, boolean self) {
 
         static MemberRow of(Membership m, Set<Permission> actorPermissions, boolean actorIsAdmin, UUID actorId) {
             var user = m.getUser();
             var manageable = actorPermissions.containsAll(m.getRole().getPermissions())
                     && (actorIsAdmin || !user.isPlatformAdmin());
-            return new MemberRow(user.getId(), user.getEmail(), m.getRole().getId(), m.getRole().getName(),
+            return new MemberRow(user.getId(), user.getEmail(), user.getDisplayName(), m.getRole().getId(),
+                    m.getRole().getName(),
                     user.getStatus().name(), user.isPlatformAdmin(),
                     user.getLastLoginAt() == null ? null : WHEN.format(user.getLastLoginAt()),
                     manageable, user.getId().equals(actorId));
@@ -88,8 +89,8 @@ public final class AccessViews {
     }
 
     /** O que a pessoa digitou no "novo usuário", para voltar à tela com o erro (nunca a senha). */
-    public record UserForm(String email, UUID roleId, boolean platformAdmin) {
-        static final UserForm EMPTY = new UserForm("", null, false);
+    public record UserForm(String email, String displayName, UUID roleId, boolean platformAdmin) {
+        static final UserForm EMPTY = new UserForm("", "", null, false);
     }
 
     /** @param id null para papel novo */

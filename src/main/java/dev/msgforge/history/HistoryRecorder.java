@@ -32,13 +32,15 @@ public class HistoryRecorder {
         this.properties = properties;
     }
 
-    public void recordSent(Instance instance, SentMessage sent, String messageType, Map<String, Object> message) {
+    /** Uma mensagem enviada pela Msgforge; {@code sentBy} diz por onde (Manager ou API) e quem. */
+    public void recordSent(Instance instance, SentMessage sent, String messageType, Map<String, Object> message,
+                           SentBy sentBy) {
         if (!properties.enabled()) {
             return;
         }
         guarded(instance.getName(), () -> history.save(instance.getId(),
                 new MessageHistory.Key(sent.remoteJid(), true, sent.id(), null), instance.getProfileName(),
-                messageType, message, "PENDING", sent.timestamp()));
+                messageType, message, "PENDING", sent.timestamp(), sentBy));
     }
 
     @EventListener

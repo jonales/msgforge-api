@@ -1036,9 +1036,12 @@ class ManagerIT extends IntegrationTest {
     }
 
     @Test
-    void comingSoonIntegrationsHaveNoLinkOrButton() throws Exception {
-        var page = html("/manager");
-        var start = page.indexOf("<section class=\"soon\"");
+    void comingSoonIntegrationsAreAScreenOfEachInstanceWithNoLinkOrButton() throws Exception {
+        assertThat(html("/manager")).doesNotContain("class=\"soon").doesNotContain("Typebot");
+        var name = createInstance();
+        var page = html("/manager/instances/" + name + "/integrations");
+        assertThat(page).contains("href=\"/manager/instances/" + name + "/integrations\" aria-current=\"page\"");
+        var start = page.indexOf("<section class=\"card soon\"");
         assertThat(start).isPositive();
         var soon = page.substring(start, page.indexOf("</section>", start));
         assertThat(soon)

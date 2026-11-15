@@ -282,6 +282,15 @@ public class InstanceService {
         });
     }
 
+    /** Liga ou desliga a assinatura do atendente nas respostas do Manager. Vale no próximo envio. */
+    public void setSignMessages(String instanceName, boolean signMessages) {
+        tx.executeWithoutResult(status -> {
+            var instance = get(instanceName);
+            instance.setSignMessages(signMessages);
+            instances.save(instance);
+        });
+    }
+
     /** O estado (connecting/open) vem dos eventos do gateway, não daqui: um login rápido já pode ter chegado. */
     private QrCode connect(Instance instance, String number) {
         var result = gateway.connect(instance, number);

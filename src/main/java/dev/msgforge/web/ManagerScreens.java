@@ -3,6 +3,7 @@ package dev.msgforge.web;
 import dev.msgforge.access.AccessCheck;
 import dev.msgforge.access.Permission;
 import dev.msgforge.chat.ChatDtos.KeyFilter;
+import dev.msgforge.history.MessageHistory;
 import dev.msgforge.instance.Instance;
 import java.util.UUID;
 import dev.msgforge.chat.ChatService;
@@ -32,10 +33,12 @@ public class ManagerScreens {
     private final ChatService chats;
     private final DeliveryHealth deliveries;
     private final GroupNames groupNames;
+    private final MessageHistory history;
 
     public ManagerScreens(InstanceService instances, QrCodeCache qrCodes, ChatService chats,
-                          DeliveryHealth deliveries, GroupNames groupNames) {
+                          DeliveryHealth deliveries, GroupNames groupNames, MessageHistory history) {
         this.groupNames = groupNames;
+        this.history = history;
         this.instances = instances;
         this.qrCodes = qrCodes;
         this.chats = chats;
@@ -126,11 +129,15 @@ public class ManagerScreens {
     public Conversation conversation(String name, String jid, int page) {
         var current = Math.max(page, 1);
         var found = chats.findMessages(name, new KeyFilter(jid, null, null), current, CONVERSATION_PAGE_SIZE);
+        // Quem enviou: uma consulta para a página toda (fora do contrato do findMessages)
+        var sentBy = history.sentBy(instances.get(name).getId(), jid, found.records().stream()
+                .filter(m -> m.key().fromMe()).map(m -> m.key().id()).toList());
         var ordered = new ArrayList<>(found.records().stream()
                 .map(m -> {
                     var content = MessageContent.of(m.messageType(), m.message());
                     return new ManagerViews.StoredRow(m.key().id(), m.key().fromMe(), m.pushName(), m.key().participant(),
-                            content, m.messageTimestamp(), m.status(), mediaReady(name, jid, m, content));
+                            content, m.messageTimestamp(), m.status(), mediaReady(name, jid, m, content),
+                            m.key().fromMe() ? sentBy.get(m.key().id()) : null);
                 })
                 .toList());
         Collections.reverse(ordered);   // a página vem da mais nova para a mais antiga
