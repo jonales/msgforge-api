@@ -4,6 +4,7 @@ import dev.msgforge.access.AccessService;
 import dev.msgforge.access.AccessService.LoginResult;
 import dev.msgforge.access.ManagerPrincipal;
 import dev.msgforge.config.MsgforgeProperties;
+import jakarta.servlet.DispatcherType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.List;
@@ -20,13 +21,13 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.ExceptionMappingAuthenticationFailureHandler;
-import org.springframework.security.web.authentication.WebAuthenticationDetails;
-import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.WebAuthenticationDetails;
 
 /**
  * Spring Security <b>só</b> para o Manager ({@code /manager/**}, ADR 0005).
@@ -48,6 +49,9 @@ public class ManagerSecurityConfig {
                 .addFilterBefore(new ActiveSessionFilter(access), AuthorizationFilter.class)
                 .authenticationProvider(managerAuthentication)
                 .authorizeHttpRequests(auth -> auth
+                        // Fim de um stream SSE (ASYNC) e página de erro (ERROR) são despachos da requisição que já
+                        // passou pela autorização; negá-los gerava AccessDenied ao fechar os streams numa sessão encerrada
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/manager/login", "/manager/manager.css", "/manager/manager.js", "/manager/favicon.svg",
                                 "/manager/vendor/**").permitAll()
                         .anyRequest().hasRole(ROLE))
