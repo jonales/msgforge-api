@@ -112,7 +112,7 @@ button.theme-option::before { content: ""; grid-row: 1 / span 2; justify-self: c
 
 label { display: block; margin-bottom: 10px; }
 label > span { display: block; font-size: .85rem; color: var(--muted); margin-bottom: 4px; }
-input[type=text], input[type=password], input[type=url], input[type=search], input[type=email], input:not([type]),
+input[type=text], input[type=password], input[type=url], input[type=number], input[type=search], input[type=email], input:not([type]),
 textarea, select {
     width: 100%; padding: 9px 10px; border: 1px solid var(--control-border); border-radius: 8px;
     background: var(--bg); color: var(--text); font: inherit; }
@@ -693,3 +693,4 @@ label.checkbox input { accent-color: var(--accent); }
 .bot-chip[data-bot=active] { border-color: var(--accent); color: var(--accent-text); background: var(--accent-fill); }
 .bot-controls { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .bot-controls button { min-height: 36px; font-size: var(--fs-small); }
+.bot-form input[type=number] { max-width: 12rem; }
