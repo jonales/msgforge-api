@@ -67,12 +67,34 @@ def _ler(dias=3):
     return reqs, sorted(set(estouros))
 
 
-def calibrar(porcentagem):
-    """Grava a leitura real do plano (ex.: 70 = 70%) para ajustar o orçamento estimado."""
-    e = estimar()
-    with open(os.path.join(BASE, "calibragem.json"), "w", encoding="utf-8") as f:
-        json.dump({"usado": e["usado"], "fracao": porcentagem / 100, "quando": time.time()}, f)
+def calibrar(porcentagem, volta=None):
+    """Grava a leitura real do plano (ex.: 70 = 70%) e, se dada, a hora de volta ("15:40")."""
+    dados = {"fracao": porcentagem / 100, "quando": time.time()}
+    if volta:
+        h, m = (int(x) for x in volta.split(":"))
+        agora = dt.datetime.now().astimezone()
+        v = agora.replace(hour=h, minute=m, second=0, microsecond=0)
+        if v <= agora:
+            v += dt.timedelta(days=1)
+        dados["volta"] = v.timestamp()
+    caminho = os.path.join(BASE, "calibragem.json")
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(dados, f)
+    dados["usado"] = estimar()["usado"]
+    with open(caminho, "w", encoding="utf-8") as f:
+        json.dump(dados, f)
     return estimar()
+
+
+def _inicio_da_janela(instantes, agora):
+    """A janela de 5 h começa na primeira requisição depois do fim da anterior (como o plano conta)."""
+    inicio = None
+    for t in sorted(instantes):
+        if t > agora:
+            break
+        if inicio is None or t >= inicio + H5:
+            inicio = t
+    return inicio if inicio is not None and agora < inicio + H5 else agora
 
 
 def estimar(orcamento_padrao=15e6):
@@ -85,23 +107,21 @@ def estimar(orcamento_padrao=15e6):
             amostras.append(gasto)
     orcamento = statistics.median(amostras) if amostras else orcamento_padrao
     # Leitura real informada pelo usuário (tarefa.py calibrar <pct>) vale mais que os estouros
-    calibragem = os.path.join(BASE, "calibragem.json")
+    calibragem, c = os.path.join(BASE, "calibragem.json"), None
     if os.path.exists(calibragem):
         try:
             c = json.load(open(calibragem, encoding="utf-8"))
-            if c.get("fracao", 0) > 0 and time.time() - c.get("quando", 0) < 7 * 86400:
+            if c.get("fracao", 0) > 0 and c.get("usado") and time.time() - c.get("quando", 0) < 7 * 86400:
                 orcamento = c["usado"] / c["fracao"]
         except (ValueError, KeyError, OSError):
             pass
     agora = dt.datetime.now().astimezone()
-    voltas_passadas = [v for _, v in estouros if v <= agora and agora - v < H5]
-    # Liberado antes da hora (o limite estourou e a volta ainda não chegou, mas o uso seguiu):
-    # conta a partir do estouro
-    liberados = [q for q, v in estouros if q <= agora < v]
-    if voltas_passadas or liberados:
-        inicio = max(voltas_passadas + liberados)
-    else:
-        inicio = agora - H5
+    inicio = _inicio_da_janela([t for t, _ in reqs.values()], agora)
+    # Hora de volta informada pelo usuário (tarefa.py calibrar 80 15:40) manda: janela = volta - 5 h
+    if c and c.get("volta"):
+        volta = dt.datetime.fromtimestamp(c["volta"]).astimezone()
+        if agora < volta <= agora + H5:
+            inicio = volta - H5
     usado = sum(c for t, c in reqs.values() if t > inicio)
     return {"usado": usado, "orcamento": orcamento, "fracao": usado / orcamento if orcamento else 0.0,
             "inicio": inicio, "amostras": len(amostras)}

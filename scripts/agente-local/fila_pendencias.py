@@ -25,7 +25,7 @@ REPO = os.path.dirname(subprocess.run(["git", "rev-parse", "--path-format=absolu
                                       cwd=AQUI, capture_output=True, text=True).stdout.strip())
 BASE = os.path.join(REPO, ".agente-local")
 FILA, SAIDA = os.path.join(BASE, "fila"), os.path.join(BASE, "saida")
-PADRAO = {"testes": 60, "revisao": 140, "refinar": 110, "pergunta": 70, "auditoria": 15, "verify": 420}
+PADRAO = {"testes": 60, "revisao": 140, "refinar": 110, "pergunta": 70, "auditoria": 15, "verify": 150}
 
 
 def git(*args):
