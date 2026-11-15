@@ -44,12 +44,14 @@ public class ChatService {
     }
 
     /**
-     * A mídia de uma mensagem gravada, baixada e decifrada pelo motor, em memória. Vazio se o motor
-     * não tem a mensagem; lança {@code MediaTooLargeException} acima de {@code maxBytes}.
+     * A mídia de uma mensagem gravada, baixada e decifrada pelo motor, em memória. {@code stored}: os
+     * campos de mídia do histórico, para quando o motor não tem mais a mensagem (pode ser null). Vazio
+     * se não há como baixar; lança {@code MediaTooLargeException} acima de {@code maxBytes}.
      */
     public java.util.Optional<WhatsAppGateway.MediaContent> downloadMedia(String instanceName, MessageKey key,
+                                                                          dev.msgforge.gateway.StoredMedia stored,
                                                                           long maxBytes) {
-        return gateway.downloadMedia(instances.get(instanceName), key, maxBytes);
+        return gateway.downloadMedia(instances.get(instanceName), key, stored, maxBytes);
     }
 
     public List<ChatDtos.ChatSummary> findChats(String instanceName) {

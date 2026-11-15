@@ -217,6 +217,8 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .media.sticker img { width: 128px; height: 128px; object-fit: contain; background: none; }
 .media video { display: block; width: 100%; max-height: 360px; border-radius: 6px; background: var(--bg); }
 .media audio { display: block; width: min(100%, 300px); }
+/* O Safari não toca OGG/Opus (nota de voz): o link baixa o arquivo */
+.media-download { justify-self: start; color: var(--muted); }
 .media figcaption { display: grid; gap: 2px; }
 .media-meta { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; font-weight: 600; }
 /* Sem a mídia (desconectada, fora do motor, grande demais): o manager.js marca e fica o aviso */

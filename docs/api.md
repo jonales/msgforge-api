@@ -106,6 +106,8 @@ públicos em `http(s)`. Loopback, redes privadas, link-local (inclusive os metad
 `WEBHOOK_BLOCK_PRIVATE_NETWORKS`. Redirects são seguidos até 5 vezes, e cada destino passa pela
 mesma checagem. Para enviar um arquivo de um serviço interno, mande em base64.
 
+No Cobalt, a resposta do `sendMedia` e do `sendWhatsAppAudio` traz em `message.<tipo>` os campos da mídia enviada ao CDN (`url`, `mimetype`, `fileSha256`, `fileLength`, `mediaKey`, `fileEncSha256`, `directPath`, `mediaKeyTimestamp`; bytes em base64), os mesmos do `messages.upsert`. O stub não os gera.
+
 ## Exemplos
 
 ```bash

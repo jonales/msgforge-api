@@ -15,6 +15,7 @@ import com.github.auties00.cobalt.wire.linked.message.location.LocationMessage;
 import com.github.auties00.cobalt.wire.linked.message.media.AudioMessage;
 import com.github.auties00.cobalt.wire.linked.message.media.DocumentMessage;
 import com.github.auties00.cobalt.wire.linked.message.media.ImageMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.MediaMessage;
 import com.github.auties00.cobalt.wire.linked.message.media.StickerMessage;
 import com.github.auties00.cobalt.wire.linked.message.media.VideoMessage;
 import com.github.auties00.cobalt.wire.linked.message.system.DeviceSentMessage;
@@ -138,27 +139,25 @@ final class CobaltMessageMapper {
             case ExtendedTextMessage text -> new Content("conversation", text.text().orElse(""));
             case ImageMessage image -> {
                 image.caption().ifPresent(v -> fields.put("caption", v));
-                image.mimetype().ifPresent(v -> fields.put("mimetype", v));
-                image.mediaUrl().ifPresent(v -> fields.put("url", v));
-                size(image.fileLength(), fields);
+                media(image, fields);
                 image.width().ifPresent(v -> fields.put("width", v));
                 image.height().ifPresent(v -> fields.put("height", v));
                 yield new Content("imageMessage", fields);
             }
             case VideoMessage video -> {
                 video.caption().ifPresent(v -> fields.put("caption", v));
-                video.mimetype().ifPresent(v -> fields.put("mimetype", v));
+                media(video, fields);
                 seconds(video.seconds(), fields);
-                size(video.fileLength(), fields);
+                video.width().ifPresent(v -> fields.put("width", v));
+                video.height().ifPresent(v -> fields.put("height", v));
                 if (video.gifPlayback()) {
                     fields.put("gifPlayback", true);
                 }
                 yield new Content("videoMessage", fields);
             }
             case AudioMessage audio -> {
-                audio.mimetype().ifPresent(v -> fields.put("mimetype", v));
+                media(audio, fields);
                 seconds(audio.seconds(), fields);
-                size(audio.fileLength(), fields);
                 fields.put("ptt", audio.ptt());
                 yield new Content("audioMessage", fields);
             }
@@ -166,14 +165,14 @@ final class CobaltMessageMapper {
                 document.fileName().ifPresent(v -> fields.put("fileName", v));
                 document.title().ifPresent(v -> fields.put("title", v));
                 document.caption().ifPresent(v -> fields.put("caption", v));
-                document.mimetype().ifPresent(v -> fields.put("mimetype", v));
-                size(document.fileLength(), fields);
+                media(document, fields);
                 yield new Content("documentMessage", fields);
             }
             case StickerMessage sticker -> {
-                sticker.mimetype().ifPresent(v -> fields.put("mimetype", v));
+                media(sticker, fields);
                 fields.put("isAnimated", sticker.isAnimated());
-                size(sticker.fileLength(), fields);
+                sticker.width().ifPresent(v -> fields.put("width", v));
+                sticker.height().ifPresent(v -> fields.put("height", v));
                 yield new Content("stickerMessage", fields);
             }
             case LocationMessage location -> {
@@ -211,10 +210,31 @@ final class CobaltMessageMapper {
         };
     }
 
-    /** Tamanho em bytes, como o {@code fileLength} do Baileys. */
-    private static void size(java.util.OptionalLong length, Map<String, Object> fields) {
-        length.ifPresent(v -> fields.put("fileLength", v));
+    /** Os campos de mídia de uma mensagem (recebida, ou enviada depois do upload), em ordem. */
+    static Map<String, Object> media(MediaMessage media) {
+        var fields = new LinkedHashMap<String, Object>();
+        media(media, fields);
+        return fields;
     }
+
+    /**
+     * Os campos de mídia do contrato, com os nomes do messages.upsert padrão: {@code url},
+     * {@code mimetype}, {@code fileSha256}, {@code fileLength} (bytes), {@code mediaKey},
+     * {@code fileEncSha256}, {@code directPath} e {@code mediaKeyTimestamp} (segundos). Bytes em
+     * base64. Com eles a mídia pode ser baixada depois, sem a mensagem na memória do motor.
+     */
+    private static void media(MediaMessage media, Map<String, Object> fields) {
+        media.mediaUrl().ifPresent(v -> fields.put("url", v));
+        media.mimetype().ifPresent(v -> fields.put("mimetype", v));
+        media.mediaSha256().ifPresent(v -> fields.put("fileSha256", BASE64.encodeToString(v)));
+        media.mediaSize().ifPresent(v -> fields.put("fileLength", v));
+        media.mediaKey().ifPresent(v -> fields.put("mediaKey", BASE64.encodeToString(v)));
+        media.mediaEncryptedSha256().ifPresent(v -> fields.put("fileEncSha256", BASE64.encodeToString(v)));
+        media.mediaDirectPath().ifPresent(v -> fields.put("directPath", v));
+        media.mediaKeyTimestamp().ifPresent(v -> fields.put("mediaKeyTimestamp", v.getEpochSecond()));
+    }
+
+    private static final java.util.Base64.Encoder BASE64 = java.util.Base64.getEncoder();
 
     private static void seconds(OptionalInt duration, Map<String, Object> fields) {
         duration.ifPresent(v -> fields.put("seconds", v));

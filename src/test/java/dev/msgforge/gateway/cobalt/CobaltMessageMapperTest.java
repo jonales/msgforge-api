@@ -98,6 +98,70 @@ class CobaltMessageMapperTest {
     }
 
     @Test
+    void receivedMediaCarriesWhatIsNeededToDownloadItLater() {
+        var key = new byte[32];
+        java.util.Arrays.fill(key, (byte) 7);
+        var sha = new byte[]{1, 2, 3};
+        var encSha = new byte[]{4, 5, 6};
+        var audio = new com.github.auties00.cobalt.wire.linked.message.media.AudioMessageBuilder()
+                .mediaUrl("https://mmg.whatsapp.net/v/t62/abc.enc").mediaDirectPath("/v/t62/abc.enc")
+                .mimetype("audio/ogg; codecs=opus").mediaKey(key).mediaSha256(sha).mediaEncryptedSha256(encSha)
+                .mediaSize(4096L).mediaKeyTimestamp(Instant.ofEpochSecond(1_700_000_123L)).seconds(9).ptt(true)
+                .build();
+        var data = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, false,
+                LinkedMessageContainer.of(audio)), INSTANCE).orElseThrow();
+        var fields = map(map(data.get("message")).get("audioMessage"));
+        var base64 = java.util.Base64.getEncoder();
+        assertThat(fields)
+                .containsEntry("url", "https://mmg.whatsapp.net/v/t62/abc.enc")
+                .containsEntry("directPath", "/v/t62/abc.enc")
+                .containsEntry("mimetype", "audio/ogg; codecs=opus")
+                .containsEntry("mediaKey", base64.encodeToString(key))
+                .containsEntry("fileSha256", base64.encodeToString(sha))
+                .containsEntry("fileEncSha256", base64.encodeToString(encSha))
+                .containsEntry("fileLength", 4096L)
+                .containsEntry("mediaKeyTimestamp", 1_700_000_123L)
+                .containsEntry("seconds", 9)
+                .containsEntry("ptt", true);
+
+        // O que foi gravado volta como a mesma mensagem do Cobalt (download fora do Store)
+        var stored = dev.msgforge.gateway.StoredMedia.of("audioMessage", fields).orElseThrow();
+        var rebuilt = CobaltWhatsAppGateway.storedMessage(stored).orElseThrow();
+        assertThat(rebuilt).isInstanceOf(com.github.auties00.cobalt.wire.linked.message.media.AudioMessage.class);
+        assertThat(CobaltMessageMapper.media(rebuilt)).isEqualTo(CobaltMessageMapper.media(audio));
+
+        var image = new ImageMessageBuilder().mediaDirectPath("/v/t62/img.enc").mediaKey(key).mimetype("image/jpeg")
+                .width(640).height(480).build();
+        var img = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, false,
+                LinkedMessageContainer.of(image)), INSTANCE).orElseThrow();
+        assertThat(map(map(img.get("message")).get("imageMessage")))
+                .containsEntry("directPath", "/v/t62/img.enc").containsEntry("width", 640).containsEntry("height", 480)
+                .doesNotContainKey("url");
+    }
+
+    @Test
+    void storedMediaRebuildsEachMediaTypeAndSkipsOldRows() {
+        var key = java.util.Base64.getEncoder().encodeToString(new byte[32]);
+        var fields = Map.<String, Object>of("directPath", "/v/x.enc", "mediaKey", key, "mimetype", "image/webp",
+                "fileLength", "2048");
+        for (var type : java.util.List.of("imageMessage", "videoMessage", "ptvMessage", "audioMessage",
+                "documentMessage", "stickerMessage")) {
+            var stored = dev.msgforge.gateway.StoredMedia.of(type, fields).orElseThrow();
+            var rebuilt = CobaltWhatsAppGateway.storedMessage(stored).orElseThrow();
+            assertThat(rebuilt.mediaDirectPath()).contains("/v/x.enc");
+            assertThat(rebuilt.mediaSize()).hasValue(2048L);
+            assertThat(rebuilt.mimetype()).contains("image/webp");
+        }
+        // Linha antiga (sem chave nem endereço), tipo sem mídia ou base64 inválido: sem mídia
+        assertThat(dev.msgforge.gateway.StoredMedia.of("imageMessage", Map.of("url", "https://x", "mimetype", "image/png")))
+                .isEmpty();
+        assertThat(dev.msgforge.gateway.StoredMedia.of("conversation", fields)).isEmpty();
+        assertThat(dev.msgforge.gateway.StoredMedia.of("imageMessage", Map.of("directPath", "/v", "mediaKey", "%%")))
+                .isEmpty();
+        assertThat(CobaltWhatsAppGateway.storedMessage(null)).isEmpty();
+    }
+
+    @Test
     void pollsKeepTheQuestionAndTheOptionsAndMediaKeepTheSize() {
         var poll = CobaltWhatsAppGateway.poll(new dev.msgforge.gateway.WhatsAppGateway.Poll(
                 "5561999999999@s.whatsapp.net", "Qual dia?", 1, java.util.List.of("Seg", "Ter"), null));

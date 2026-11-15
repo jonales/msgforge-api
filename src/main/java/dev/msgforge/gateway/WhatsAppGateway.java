@@ -80,11 +80,13 @@ public interface WhatsAppGateway {
     String engine();
 
     /**
-     * Baixa e decifra, em memória, a mídia de uma mensagem já recebida ou enviada. Vazio quando o motor
-     * não tem a mensagem (fora do Store) ou ela não tem mídia. Acima de {@code maxBytes}, lança
+     * Baixa e decifra, em memória, a mídia de uma mensagem já recebida ou enviada. O motor procura a
+     * mensagem na memória dele; se não achar, usa {@code stored} (os campos de mídia guardados no
+     * histórico; pode ser null). Vazio quando não há como baixar. Acima de {@code maxBytes}, lança
      * {@link MediaTooLargeException} sem ler o resto.
      */
-    java.util.Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, long maxBytes);
+    java.util.Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, StoredMedia stored,
+                                                   long maxBytes);
 
     /** Mídia decifrada; {@code mimeType} é o que a mensagem declara (pode faltar). */
     record MediaContent(byte[] bytes, String mimeType) {}
@@ -147,7 +149,21 @@ public interface WhatsAppGateway {
     record OutgoingMedia(String jid, String mediaType, String mimeType, String media,
                          String caption, String fileName, Integer delayMs) {}
 
-    record SentMessage(String id, String remoteJid, long timestamp) {}
+    /**
+     * {@code media}: os campos de mídia da mensagem enviada, no formato do {@code messages.upsert}
+     * ({@code url}, {@code mediaKey}, {@code directPath}...; bytes em base64). Vazio se não é mídia ou
+     * o motor não tem esses dados (o stub).
+     */
+    record SentMessage(String id, String remoteJid, long timestamp, java.util.Map<String, Object> media) {
+
+        public SentMessage {
+            media = media == null ? java.util.Map.of() : java.util.Map.copyOf(media);
+        }
+
+        public SentMessage(String id, String remoteJid, long timestamp) {
+            this(id, remoteJid, timestamp, java.util.Map.of());
+        }
+    }
 
     /**
      * Mensagem a enviar, já validada e com o destino em JID. Selado: um tipo novo obriga cada

@@ -49,6 +49,8 @@ public class MessageController {
         if (body.caption() != null) content.put("caption", body.caption());
         if (body.mimetype() != null) content.put("mimetype", body.mimetype());
         if (body.fileName() != null) content.put("fileName", body.fileName());
+        // Do motor, depois do upload: url, mediaKey, directPath... (a mídia enviada pode ser baixada depois)
+        content.putAll(sent.message().media());
         var messageType = body.mediatype() + "Message";
         return created(sent.instance(), sent.message(), messageType, Map.of(messageType, content));
     }
@@ -57,8 +59,9 @@ public class MessageController {
     public ResponseEntity<MessageResponse> sendWhatsAppAudio(@PathVariable String instance,
                                                              @Valid @RequestBody SendWhatsAppAudioRequest body) {
         var sent = messages.sendVoice(instance, body.number(), body.audio(), body.delay(), body.encoding());
-        return created(sent.instance(), sent.message(), "audioMessage",
-                Map.of("audioMessage", Map.of("ptt", true)));
+        var content = new LinkedHashMap<String, Object>(sent.message().media());
+        content.put("ptt", true);
+        return created(sent.instance(), sent.message(), "audioMessage", Map.of("audioMessage", content));
     }
 
     @PostMapping("/sendLocation/{instance}")

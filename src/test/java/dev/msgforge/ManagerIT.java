@@ -404,6 +404,18 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(header().string("Content-Disposition", Matchers.startsWith("inline")))
                 .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray())
                         .isEqualTo(java.util.Base64.getDecoder().decode(png)));
+        // Range (o <audio>/<video> pede pedaços): 206 com Content-Range e o tamanho do pedaço
+        var bytes = java.util.Base64.getDecoder().decode(png);
+        mvc.perform(asManager(GET(url)).param("jid", jid).param("id", id).param("fromMe", "true")
+                        .header("Range", "bytes=0-9"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(header().string("Content-Range", "bytes 0-9/" + bytes.length))
+                .andExpect(header().string("Content-Length", "10"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        mvc.perform(asManager(GET(url)).param("jid", jid).param("id", id).param("fromMe", "true"))
+                .andExpect(header().string("Content-Length", String.valueOf(bytes.length)))
+                .andExpect(header().string("Accept-Ranges", "bytes"));
         // A conversa mostra a imagem enviada pela própria instância
         mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", jid))
                 .andExpect(content().string(containsString("id=" + id)))
@@ -414,6 +426,28 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(asManager(GET("/manager/instances/nao-existe-" + name + "/messages/media"))
                         .param("jid", jid).param("id", id).param("fromMe", "true"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void voiceNotesPlayAsOggOpusAndCanBeDownloaded() throws Exception {
+        var name = createInstance();
+        var ogg = java.util.Base64.getEncoder().encodeToString("OggS-nota-de-voz".getBytes());
+        var sent = mvc.perform(POST("/message/sendWhatsAppAudio/" + name).header("apikey", API_KEY)
+                        .contentType("application/json")
+                        .content("{\"number\":\"5561944444444\",\"audio\":\"" + ogg + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(sent).get("message").get("audioMessage").get("ptt").asBoolean()).isTrue();
+        var id = json.readTree(sent).get("key").get("id").asString();
+        var jid = "5561944444444@s.whatsapp.net";
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/media"))
+                        .param("jid", jid).param("id", id).param("fromMe", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", Matchers.matchesPattern("audio/ogg; ?codecs=opus")))
+                .andExpect(header().string("Content-Disposition", Matchers.startsWith("inline")));
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", jid))
+                .andExpect(content().string(containsString("<audio data-media")))
+                .andExpect(content().string(containsString("Baixar o áudio")));
     }
 
     @Test

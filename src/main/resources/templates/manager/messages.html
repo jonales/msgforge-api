@@ -123,6 +123,9 @@
                                     <audio data-media controls preload="none" th:src="${media}"
                                            th:attr="aria-label=${kindLabel}"></audio>
                                     <p class="media-fallback" th:text="#{manager.messages.mediaUnavailable(${kindLabel})}">Áudio indisponível</p>
+                                    <a class="media-download small" th:href="${media}" download
+                                       th:title="#{manager.messages.audioDownloadHint}"
+                                       th:text="#{manager.messages.audioDownload}">Baixar o áudio</a>
                                 </div>
 
                                 <div th:case="'document'" class="media document">
