@@ -17,6 +17,23 @@ class AudioTranscoderTest {
     private final AudioTranscoder transcoder = new AudioTranscoder(new MediaProperties("ffmpeg", 30_000, 1 << 24));
 
     @Test
+    void inputIsRestrictedToThePipe() {
+        var command = AudioTranscoder.command("ffmpeg");
+        var whitelist = command.indexOf("-protocol_whitelist");
+
+        assertThat(whitelist).isPositive().isLessThan(command.indexOf("-i"));
+        assertThat(command.get(whitelist + 1)).isEqualTo("pipe");
+    }
+
+    @Test
+    void aPlaylistThatPointsToALocalFileIsNotFollowed() {
+        assumeTrue(transcoder.available(), "ffmpeg não instalado");
+        var playlist = "ffconcat version 1.0\nfile 'file:/etc/hosts'\n".getBytes();
+
+        assertThatThrownBy(() -> transcoder.toOggOpus(playlist)).isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
     void convertsWavToOggOpus() {
         assumeTrue(transcoder.available(), "ffmpeg não instalado");
 

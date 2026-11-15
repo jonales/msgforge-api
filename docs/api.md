@@ -100,6 +100,12 @@ caminho anterior até ser refeita, por exemplo quando o servidor reinicia e rest
 
 Os erros seguem um formato único: `{"status": 400, "error": "Bad Request", "response": {"message": [...]}}`.
 
+Mídia por URL (`media`, `audio`, foto de perfil e de grupo): o servidor baixa só de endereços
+públicos em `http(s)`. Loopback, redes privadas, link-local (inclusive os metadados de nuvem em
+`169.254.169.254`) e as demais faixas internas dão 400 `Media url not allowed`, sempre, com ou sem
+`WEBHOOK_BLOCK_PRIVATE_NETWORKS`. Redirects são seguidos até 5 vezes, e cada destino passa pela
+mesma checagem. Para enviar um arquivo de um serviço interno, mande em base64.
+
 ## Exemplos
 
 ```bash

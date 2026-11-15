@@ -47,6 +47,7 @@ import dev.msgforge.event.GatewayEvent;
 import dev.msgforge.gateway.Jids;
 import dev.msgforge.gateway.WhatsAppGateway;
 import dev.msgforge.gateway.media.AudioTranscoder;
+import dev.msgforge.gateway.media.MediaDownloader;
 import dev.msgforge.gateway.media.MediaSignatures;
 import dev.msgforge.gateway.session.SessionStore;
 import dev.msgforge.instance.ConnectionState;
@@ -60,9 +61,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -93,6 +91,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -179,26 +178,30 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private final ConcurrentHashMap<UUID, Object> locks = new ConcurrentHashMap<>();
     private final ApplicationEventPublisher events;
     private final SessionStore sessions;
-    private final PrivateNetworkGuard guard;
     private final AudioTranscoder transcoder;
     private final MsgforgeProperties.Cobalt config;
     private final SecretCipher secrets;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-    private final HttpClient http;
+    /** URL de mídia: sempre checada contra rede privada, com ou sem a proteção dos webhooks. */
+    private final MediaDownloader downloader;
 
+    @Autowired
     public CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
                                  PrivateNetworkGuard guard, AudioTranscoder transcoder,
                                  MsgforgeProperties properties, SecretCipher secrets) {
+        this(events, sessions, MediaDownloader.guarded(guard, Duration.ofMillis(properties.cobalt().sendTimeoutMs())),
+                transcoder, properties, secrets);
+    }
+
+    CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
+                          MediaDownloader downloader, AudioTranscoder transcoder,
+                          MsgforgeProperties properties, SecretCipher secrets) {
         this.secrets = secrets;
         this.events = events;
         this.sessions = sessions;
-        this.guard = guard;
+        this.downloader = downloader;
         this.transcoder = transcoder;
         this.config = properties.cobalt();
-        this.http = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(guard.enabled() ? HttpClient.Redirect.NEVER : HttpClient.Redirect.NORMAL)
-                .build();
     }
 
     // ---------------------------------------------------------------- conexão
@@ -1230,27 +1233,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     /** Mídia da API: URL http(s) ou base64 (com ou sem prefixo data:). */
     byte[] loadMedia(String media) {
         if (media.startsWith("http://") || media.startsWith("https://")) {
-            guard.check(media).ifPresent(reason -> {
-                throw new BadRequestException("Media url not allowed: " + reason);
-            });
-            try {
-                var response = http.send(HttpRequest.newBuilder(URI.create(media))
-                                .timeout(Duration.ofMillis(config.sendTimeoutMs())).GET().build(),
-                        HttpResponse.BodyHandlers.ofInputStream());
-                if (response.statusCode() / 100 != 2) {
-                    response.body().close();
-                    throw new BadRequestException("Could not download media: HTTP " + response.statusCode());
-                }
-                try (var body = response.body()) {
-                    var bytes = body.readNBytes((int) Math.min(Integer.MAX_VALUE - 8, config.mediaMaxBytes() + 1));
-                    return checkSize(bytes);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new GatewayException("Media download interrupted", e);
-            } catch (IOException | IllegalArgumentException e) {
-                throw new BadRequestException("Could not download media: " + e.getMessage());
-            }
+            return checkSize(downloader.download(media, (int) Math.min(Integer.MAX_VALUE - 8, config.mediaMaxBytes() + 1)));
         }
         var base64 = media.startsWith("data:") && media.contains(",") ? media.substring(media.indexOf(',') + 1) : media;
         try {
