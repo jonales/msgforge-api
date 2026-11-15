@@ -6,6 +6,7 @@ import dev.msgforge.event.GatewayEvent.MessageReceived;
 import dev.msgforge.event.GatewayEvent.MessageSent;
 import dev.msgforge.event.GatewayEvent.MessageStatusUpdated;
 import dev.msgforge.event.GatewayEvent.QrCodeUpdated;
+import dev.msgforge.instance.ProfileNameChanged;
 import dev.msgforge.web.ManagerUpdate.Change;
 import java.util.Map;
 import org.springframework.core.Ordered;
@@ -45,6 +46,13 @@ class ManagerEventBridge {
         if (update != null) {
             bus.publish(update);
         }
+    }
+
+    /** O nome do perfil chegou depois do login: redesenha a lista e o painel. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @Order(Ordered.LOWEST_PRECEDENCE)
+    public void on(ProfileNameChanged event) {
+        bus.publish(new ManagerUpdate(event.instanceName(), Change.CONNECTION, null));
     }
 
     private static String text(Object value) {
