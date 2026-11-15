@@ -9,6 +9,10 @@ import org.junit.jupiter.api.Test;
 /** Rotas /chat/* (conversas e perfil) com o motor stub. */
 class ChatIT extends IntegrationTest {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    org.springframework.context.ApplicationEventPublisher events;
+
+
     private String name;
     private String token;
 
@@ -90,6 +94,17 @@ class ChatIT extends IntegrationTest {
         assertThat(profile.body().get("wuid").asString()).isEqualTo("5561999999999@s.whatsapp.net");
         assertThat(profile.body().get("numberExists").asBoolean()).isTrue();
         assertThat(profile.body().has("picture")).isTrue();   // presente, mesmo nulo
+        assertThat(profile.body().get("name").isNull()).isTrue();   // nunca escreveu: sem nome
+
+        // Fora dos contatos, o nome é o pushName da última mensagem que a pessoa mandou
+        events.publishEvent(new dev.msgforge.event.GatewayEvent.MessageReceived(name, java.util.Map.of(
+                "key", java.util.Map.of("remoteJid", "5561999999999@s.whatsapp.net", "fromMe", false, "id", "P-1"),
+                "pushName", "Ana da Loja", "status", "DELIVERY_ACK",
+                "message", java.util.Map.of("conversation", "oi"), "messageType", "conversation",
+                "messageTimestamp", 1_700_000_000L)));
+        var named = chat("fetchProfile", """
+                {"number":"5561999999999"}""");
+        assertThat(named.body().get("name").asString()).isEqualTo("Ana da Loja");
 
         // Sem número, o perfil é o da própria conta: a instância nunca conectou
         assertBadRequest(chat("fetchProfile", "{}"));

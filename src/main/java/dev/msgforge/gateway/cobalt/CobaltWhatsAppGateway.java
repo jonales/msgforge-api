@@ -1129,11 +1129,18 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var self = store.accountStore().jid().map(connection.lids::apply).orElse(null);
         var name = jid.equals(self)
                 ? store.accountStore().name().orElse(null)
-                : store.contactStore().findContactByJid(target)
-                        .flatMap(contact -> contact.chosenName().or(contact::fullName))
+                : contactName(store, target)
+                        .or(() -> store.contactStore().findLidByPhone(target).flatMap(lid -> contactName(store, lid)))
                         .orElse(null);
         var status = optional(connection, () -> connection.api.queryAbout(target)).orElse(null);
         return new Profile(jid, true, name, profilePictureUrl(connection, target), status);
+    }
+
+    /** O nome do contato no Store: o escolhido pela pessoa (pushName) ou o da agenda. */
+    private static Optional<String> contactName(com.github.auties00.cobalt.store.linked.LinkedWhatsAppStore store,
+                                                Jid jid) {
+        return store.contactStore().findContactByJid(jid)
+                .flatMap(contact -> contact.chosenName().or(contact::fullName));
     }
 
     @Override
