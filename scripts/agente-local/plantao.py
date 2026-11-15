@@ -56,6 +56,14 @@ COMANDOS = {
 LIMIAR = float(os.environ.get("PLANTAO_LIMIAR_PLANO", "0.9"))
 HORAS_DA_FILA = float(os.environ.get("PLANTAO_HORAS_DA_FILA", "10"))
 GATILHO = os.path.join(BASE, "gatilho.json")
+AO_VIVO = os.path.join(BASE, "ao-vivo.log")  # acompanhamento: tarefa.py ao-vivo
+OCIOSO = os.path.join(BASE, "ocioso.json")
+HORAS_SE_OCIOSO = float(os.environ.get("PLANTAO_HORAS_SE_OCIOSO", "2"))
+# Quem está "na mesa" em cada tipo de tarefa (o refinamento troca de papel no meio)
+PAPEIS = {"pergunta": "Consultor", "refinar": "Pesquisador", "resumo": "Resumidor", "revisao": "Revisor",
+          "testes": "Investigador de testes", "patch": "Programador", "auditoria": "Auditor",
+          "consolidar": "Relator"}
+papel_atual = "Plantão"
 
 
 def _modulo(nome):
@@ -120,8 +128,16 @@ def destravar_ollama():
     return False
 
 
+def ao_vivo(texto):
+    if os.path.exists(AO_VIVO) and os.path.getsize(AO_VIVO) > 5_000_000:
+        os.replace(AO_VIVO, AO_VIVO + ".1")
+    with open(AO_VIVO, "a", encoding="utf-8") as f:
+        f.write(texto)
+
+
 def perguntar(modelo, sistema, usuario, json_mode=False, ctx=16384):
-    corpo = {"model": modelo, "stream": False, "keep_alive": "30m",
+    """Pergunta ao Ollama em streaming: cada token vai para o ao-vivo.log enquanto chega."""
+    corpo = {"model": modelo, "stream": True, "keep_alive": "30m",
              "options": {"temperature": 0, "num_ctx": ctx, "num_predict": 4096, "repeat_penalty": 1.15},  # sem teto e penalidade, modelo pequeno pode entrar em repetição sem fim
              "messages": [{"role": "system", "content": sistema}, {"role": "user", "content": usuario}]}
     if json_mode:
@@ -129,10 +145,24 @@ def perguntar(modelo, sistema, usuario, json_mode=False, ctx=16384):
     for tentativa in (1, 2):
         req = urllib.request.Request(OLLAMA + "/api/chat", data=json.dumps(corpo).encode(),
                                      headers={"Content-Type": "application/json"})
+        inicio, partes = time.time(), []
+        ao_vivo(f"\n\x1e{papel_atual}\x1f{modelo}\x1f{len(usuario) // 4}\n")
         try:
             with urllib.request.urlopen(req, timeout=900) as r:
-                return json.loads(r.read())["message"]["content"]
+                for linha in r:
+                    if not linha.strip():
+                        continue
+                    d = json.loads(linha)
+                    pedaco = (d.get("message") or {}).get("content", "")
+                    if pedaco:
+                        partes.append(pedaco)
+                        ao_vivo(pedaco)
+                    if d.get("done"):
+                        ao_vivo(f"\n\x1dfim\x1f{time.time() - inicio:.0f}\x1f{d.get('eval_count', 0)}\n")
+                        break
+            return "".join(partes)
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
+            ao_vivo(f"\n\x1derro\x1f{e}\n")
             if tentativa == 2 or not destravar_ollama():
                 raise RuntimeError(f"ollama: {e}") from e
 
@@ -291,9 +321,26 @@ Escreva uma especificação curta com EXATAMENTE estas seções:
 mecânicos que um modelo local resolve; o resto fica para o Claude, sem marca)
 ## Perguntas em aberto
 (o que o usuário precisa decidir; "nenhuma" se não houver)"""
+    global papel_atual
+    # 1) Pesquisador: só junta os fatos do contexto, sem escrever a especificação
+    papel_atual = "Pesquisador"
+    fatos = perguntar(MODELO_CODIGO, sistema("um pesquisador que levanta fatos do código para um colega"),
+                      pedido.split("Escreva uma especificação curta")[0] + """
+Liste SÓ fatos verificáveis no contexto acima, em tópicos curtos, cada um com o caminho do arquivo:
+- classes, métodos e campos que este pedido toca;
+- o que o contrato e as ADRs dizem sobre ele;
+- o que já existe e o que claramente falta.
+Se algo não aparece no contexto, escreva "não aparece no contexto". Nada de especificação ainda.""", ctx=32768)
+    # 2) Redator: escreve a especificação a partir dos fatos (passa a bola)
+    papel_atual = "Redator"
+    ao_vivo("\n\x1cPesquisador\x1fRedator\n")
     resposta = perguntar(MODELO_CODIGO, sistema("um analista técnico que prepara tarefas para outro engenheiro"),
-                         pedido, ctx=32768)
-    return resposta + conferir_caminhos(resposta)
+                         f"FATOS LEVANTADOS PELO PESQUISADOR (use só estes caminhos):\n{fatos}\n\n"
+                         f"Pedido: {t['texto']}\n\nREGRAS DO PROJETO (CLAUDE.md):\n{regras(5000)}\n\n"
+                         + "Escreva uma especificação curta" + pedido.split("Escreva uma especificação curta")[1],
+                         ctx=24576)
+    return ("## Fatos levantados (Pesquisador)\n\n" + fatos + "\n\n" + resposta
+            + conferir_caminhos(fatos + "\n" + resposta))
 
 
 def t_resumo(t):
@@ -554,6 +601,10 @@ def executar(caminho, ativo, motivo):
     t.setdefault("id", os.path.basename(caminho)[:-5])
     gravar_estado(modo="limite" if ativo else "conjunto", motivo=motivo, tarefa=t["id"])
     log(f"tarefa {t['id']} ({t['tipo']}) começou")
+    global papel_atual
+    papel_atual = PAPEIS.get(t["tipo"], "Plantão")
+    restantes = len(glob.glob(os.path.join(FILA, "*.json")))
+    ao_vivo(f"\n\x1atarefa\x1f{t['id']}\x1f{t['tipo']}\x1f{restantes}\x1f{t.get('texto', t.get('ref', ''))[:160]}\n")
     inicio = time.time()
     try:
         resultado, destino = TIPOS[t["tipo"]](t), FEITO
@@ -573,6 +624,7 @@ def executar(caminho, ativo, motivo):
         f.write(cabecalho + resultado + "\n")
     shutil.move(caminho, os.path.join(destino, os.path.basename(caminho)))
     log(f"tarefa {t['id']} terminou em {segundos:.0f} s → {os.path.basename(destino)}")
+    ao_vivo(f"\n\x1aentregue\x1f{t['id']}\x1f{segundos:.0f}\x1f{os.path.basename(destino)}\n")
 
 
 def gatilho_do_plano():
@@ -596,8 +648,23 @@ def gatilho_do_plano():
     return e
 
 
+def sem_ociosidade():
+    """Fila vazia: gera uma fila de pendências de HORAS_SE_OCIOSO, no máximo uma vez nesse intervalo."""
+    if glob.glob(os.path.join(FILA, "*.json")) or HORAS_SE_OCIOSO <= 0:
+        return
+    anterior = json.loads(ler(OCIOSO)) if os.path.exists(OCIOSO) else {}
+    if time.time() - anterior.get("quando", 0) < HORAS_SE_OCIOSO * 3600:
+        return
+    qtd, horas, _ = _modulo("fila_pendencias").gerar(HORAS_SE_OCIOSO)
+    log(f"fila vazia: pendências geradas para não ficar ocioso ({qtd} tarefas, ~{horas:.1f} h)")
+    ao_vivo(f"\n\x1aocioso\x1f{qtd}\x1f{horas:.1f}\n")
+    with open(OCIOSO, "w", encoding="utf-8") as f:
+        json.dump({"quando": time.time(), "tarefas": qtd}, f)
+
+
 def passada():
     plano = gatilho_do_plano()
+    sem_ociosidade()
     ativo, motivo = limite_ativo()
     if ativo:
         colher_handoffs()

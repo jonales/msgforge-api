@@ -28,7 +28,7 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `SMTP_FROM` | vazio | Remetente, como `Msgforge <avisos@seudominio.com>`; vazio usa o `SMTP_USERNAME` |
 | `SMTP_STARTTLS` | `true` | Exige STARTTLS antes do login. `false` só para SMTP local de teste |
 | `SMTP_TIMEOUT_MS` | `10000` | Timeout de conexão, leitura e escrita no SMTP |
-| `WEBHOOK_BLOCK_PRIVATE_NETWORKS` | `false` | Recusa webhooks de instância para IPs internos (SSRF) |
+| `WEBHOOK_BLOCK_PRIVATE_NETWORKS` | `false` | Recusa webhooks de instância para IPs internos (SSRF). Não vale para a mídia por URL, que é sempre checada (`docs/api.md`) |
 | `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
 | `RABBITMQ_EVENTS` | vazio (todos) | Eventos publicados no RabbitMQ, separados por vírgula |
 | `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome do aparelho (Cobalt), aplicado só ao parear uma conexão nova; a sessão salva mantém o nome do perfil sincronizado |
@@ -92,6 +92,10 @@ atualiza na busca de segurança, a cada minuto: é o sinal de que falta desligar
 Os limites de tentativas (chave da API e login do Manager) contam por IP. Atrás de um proxy, a
 conexão chega sempre do IP do proxy: sem configuração, todos os clientes dividem um IP só, e quem
 erra a chave de propósito bloqueia todo mundo (o 429 vale até com a chave certa).
+
+Com `TRUSTED_PROXIES` vazio, a aplicação avisa no log (WARN) na primeira requisição da API que
+chega de um IP privado, e de novo a cada vez que um IP privado é bloqueado por erros de chave. Se
+esse aviso aparecer, a aplicação provavelmente está atrás de um proxy: configure a lista abaixo.
 
 Para contar pelo IP real, liste em `TRUSTED_PROXIES` os endereços de onde o proxy conecta na
 aplicação, em CIDR (um IP só leva `/32`) e separados por vírgula:

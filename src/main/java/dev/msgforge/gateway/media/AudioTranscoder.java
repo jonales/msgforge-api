@@ -60,10 +60,7 @@ public class AudioTranscoder {
      * @throws GatewayException    se o ffmpeg falhar, estourar o tempo ou não existir
      */
     public byte[] toOggOpus(byte[] input) {
-        var command = List.of(properties.ffmpegPath(), "-hide_banner", "-loglevel", "error", "-nostdin",
-                "-i", "pipe:0", "-vn", "-map_metadata", "-1",
-                "-ac", "1", "-ar", "48000", "-c:a", "libopus", "-b:a", "32k", "-application", "voip",
-                "-f", "ogg", "pipe:1");
+        var command = command(properties.ffmpegPath());
         Process process;
         try {
             process = new ProcessBuilder(command).start();
@@ -104,6 +101,17 @@ public class AudioTranscoder {
             process.destroyForcibly();
             throw new GatewayException("Falha lendo a saída do ffmpeg", e);
         }
+    }
+
+    /**
+     * A entrada vem de quem chamou a API: {@code -protocol_whitelist pipe} impede que um demuxer de
+     * lista (hls, concat) abra arquivos locais ou URLs citados dentro dela. Só o stdin e o stdout.
+     */
+    static List<String> command(String ffmpeg) {
+        return List.of(ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                "-protocol_whitelist", "pipe", "-i", "pipe:0", "-vn", "-map_metadata", "-1",
+                "-ac", "1", "-ar", "48000", "-c:a", "libopus", "-b:a", "32k", "-application", "voip",
+                "-f", "ogg", "pipe:1");
     }
 
     /** Lê até {@code limit + 1} bytes (o byte extra indica que passou do limite) e descarta o resto. */

@@ -60,13 +60,20 @@ class CobaltWhatsAppGatewayTest {
         }
     }
 
-    private CobaltWhatsAppGateway gateway(boolean blockPrivateNetworks, long mediaMaxBytes) {
+    /** @param productionMediaCheck download de mídia como em produção (127.0.0.1 recusado) */
+    private CobaltWhatsAppGateway gateway(boolean productionMediaCheck, long mediaMaxBytes) {
         var properties = new MsgforgeProperties("http://localhost", null,
                 new MsgforgeProperties.Webhook(null, false, 2000, new MsgforgeProperties.Retry(1, 10, 10), 10,
-                        blockPrivateNetworks, java.util.List.of()),
+                        false, java.util.List.of()),
                 null, "cobalt",
                 new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), sessionDir.toString()));
-        return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(blockPrivateNetworks), TRANSCODER, properties, SECRETS);
+        if (productionMediaCheck) {
+            return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties, SECRETS);
+        }
+        // O servidor de teste fica em 127.0.0.1, que o download de mídia de verdade sempre recusa
+        var downloader = new dev.msgforge.gateway.media.MediaDownloader(url -> java.util.Optional.empty(),
+                java.time.Duration.ofSeconds(3));
+        return new CobaltWhatsAppGateway(events::add, sessions, downloader, TRANSCODER, properties, SECRETS);
     }
 
     private static Instance instance(String name) {
@@ -299,8 +306,9 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
-    void mediaUrlsArePrivateNetworkCheckedWhenTheGuardIsOn() throws Exception {
+    void mediaUrlsArePrivateNetworkCheckedEvenWithTheWebhookGuardOff() throws Exception {
         var url = serve(200, new byte[] {1});
+        // WEBHOOK_BLOCK_PRIVATE_NETWORKS=false no gateway(true, ...): a mídia é checada assim mesmo
         assertThatThrownBy(() -> gateway(true, 1024).loadMedia(url))
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("not allowed");
     }

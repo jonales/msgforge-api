@@ -1,6 +1,7 @@
 package dev.msgforge.instance;
 
 import java.util.Optional;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,15 @@ public class InstanceStateService {
             redis.opsForValue().set(KEY + instanceName, state.value());
         } catch (Exception ignored) {
             // Redis indisponível não pode derrubar o fluxo; o banco continua correto
+        }
+    }
+
+    /** Nome do perfil que chegou depois do login; só grava, não mexe no estado da conexão. */
+    @EventListener
+    @Transactional
+    public void on(ProfileNameChanged event) {
+        if (event.profileName() != null && !event.profileName().isBlank()) {
+            instances.findByName(event.instanceName()).ifPresent(i -> i.setProfileName(event.profileName()));
         }
     }
 

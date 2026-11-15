@@ -47,21 +47,20 @@ import dev.msgforge.event.GatewayEvent;
 import dev.msgforge.gateway.Jids;
 import dev.msgforge.gateway.WhatsAppGateway;
 import dev.msgforge.gateway.media.AudioTranscoder;
+import dev.msgforge.gateway.media.MediaDownloader;
 import dev.msgforge.gateway.media.MediaSignatures;
 import dev.msgforge.gateway.session.SessionStore;
 import dev.msgforge.instance.ConnectionState;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.instance.InstanceProxy;
 import dev.msgforge.instance.InstanceSettings;
+import dev.msgforge.instance.ProfileNameChanged;
 import dev.msgforge.security.PrivateNetworkGuard;
 import dev.msgforge.security.SecretCipher;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -92,6 +91,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -178,26 +178,30 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private final ConcurrentHashMap<UUID, Object> locks = new ConcurrentHashMap<>();
     private final ApplicationEventPublisher events;
     private final SessionStore sessions;
-    private final PrivateNetworkGuard guard;
     private final AudioTranscoder transcoder;
     private final MsgforgeProperties.Cobalt config;
     private final SecretCipher secrets;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
-    private final HttpClient http;
+    /** URL de mídia: sempre checada contra rede privada, com ou sem a proteção dos webhooks. */
+    private final MediaDownloader downloader;
 
+    @Autowired
     public CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
                                  PrivateNetworkGuard guard, AudioTranscoder transcoder,
                                  MsgforgeProperties properties, SecretCipher secrets) {
+        this(events, sessions, MediaDownloader.guarded(guard, Duration.ofMillis(properties.cobalt().sendTimeoutMs())),
+                transcoder, properties, secrets);
+    }
+
+    CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
+                          MediaDownloader downloader, AudioTranscoder transcoder,
+                          MsgforgeProperties properties, SecretCipher secrets) {
         this.secrets = secrets;
         this.events = events;
         this.sessions = sessions;
-        this.guard = guard;
+        this.downloader = downloader;
         this.transcoder = transcoder;
         this.config = properties.cobalt();
-        this.http = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
-                .followRedirects(guard.enabled() ? HttpClient.Redirect.NEVER : HttpClient.Redirect.NORMAL)
-                .build();
     }
 
     // ---------------------------------------------------------------- conexão
@@ -419,6 +423,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         }
     }
 
+    /** Nome do perfil válido: nem vazio nem o nome do aparelho (que o Store guarda antes do perfil). */
+    private String profileName(String candidate) {
+        return candidate == null || candidate.isBlank() || candidate.equals(config.deviceName()) ? null : candidate;
+    }
+
     private void registerListeners(Instance instance, Connection connection) {
         var id = instance.getId();
         var name = connection.instanceName;
@@ -426,10 +435,20 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         api.addLoggedInListener(whatsapp -> {
             var account = whatsapp.store().accountStore();
             var wuid = account.jid().map(jid -> jid.toUserJid().toString()).orElse(null);
-            var profile = account.name().orElse(null);
-            // Antes de o servidor informar o nome do perfil, o Store guarda o nome do aparelho
-            var profileName = profile == null || profile.equals(config.deviceName()) ? null : profile;
-            log.info("[cobalt] {}: conectada como {}", name, wuid);
+            // Conta Business: o nome vem no login (display_name do success). Conta comum: vem depois, pela
+            // sincronização do pushName (onNameChanged abaixo); até lá o Store guarda o nome do aparelho.
+            var profileName = profileName(account.name().orElse(null));
+            var source = profileName != null ? "login" : null;
+            if (profileName == null) {
+                // Reserva: o contato da própria conta, que a sincronização do pushName também preenche
+                profileName = account.jid()
+                        .flatMap(self -> whatsapp.store().contactStore().findContactByJid(self.withoutData()))
+                        .flatMap(contact -> contact.chosenName().or(contact::fullName))
+                        .map(this::profileName)
+                        .orElse(null);
+                source = profileName != null ? "contato próprio" : "a caminho (sincronização)";
+            }
+            log.info("[cobalt] {}: conectada como {}; nome do perfil: {}", name, wuid, source);
             account.lid().ifPresent(lid -> account.jid().ifPresent(phone -> connection.lids.learn(lid, phone)));
             sessions.save(id, SESSION_MARKER);
             // Antes do evento: quem reage ao connection.update "open" já pode enviar
@@ -438,6 +457,13 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.OPEN, REASON_OK,
                     wuid, profileName));
             connection.firstCode.complete(NO_CODE);
+        });
+        api.addNameChangedListener((whatsapp, oldName, newName) -> {
+            var profileName = profileName(newName);
+            if (profileName != null && connection.api == whatsapp) {
+                log.info("[cobalt] {}: nome do perfil recebido da sincronização", name);
+                events.publishEvent(new ProfileNameChanged(name, profileName));
+            }
         });
         api.addDisconnectedListener((whatsapp, reason) -> onDisconnected(id, connection, reason));
         var statuses = new SentStatusTracker(id,
@@ -451,30 +477,12 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                     CobaltEvents.groupNotification(name, node, connection.lids).forEach(events::publishEvent));
         });
         api.addNewMessageListener((whatsapp, info) -> {
-            if (!(info instanceof ChatMessageInfo message)) {
-                return;
-            }
-            var chat = message.key().parentJid().map(Jid::toString).orElse(null);
-            if (!connection.settings.delivers(chat)) {
-                // groupsIgnore / readStatus=false: nem messages.upsert, nem histórico
-                wire.debug("{}: nova mensagem chat={} ignorada pela configuração", name, chat);
-                return;
-            }
-            guarded(name, "mensagem apagada", () -> CobaltEvents.revoke(name, message, connection.lids)
-                    .ifPresent(events::publishEvent));
-            try {
-                var data = CobaltMessageMapper.upsert(message, id, connection.lids);
-                wire.debug("{}: nova mensagem id={} chat={} -> {}", name, message.key().id().orElse(null),
-                        message.key().parentJid().orElse(null), data.isPresent() ? "messages.upsert" : "ignorada");
-                data.ifPresent(d -> events.publishEvent(new GatewayEvent.MessageReceived(name, d)));
-            } catch (RuntimeException e) {
-                log.warn("[cobalt] {}: falha ao converter a mensagem {}: {}", name,
-                        message.key().id().orElse(null), e.toString());
-            }
-            if (connection.settings.marksAsRead(chat, message.key().fromMe())) {
-                executor.execute(() -> markReadOnArrival(connection, message));
+            if (info instanceof ChatMessageInfo message) {
+                onIncoming(id, connection, message);
             }
         });
+        // Status chegam por um listener próprio do motor, não pelo de mensagens (sem ele, readStatus nunca agia)
+        api.addNewStatusListener((whatsapp, status) -> onIncoming(id, connection, status));
         api.addCallListener((whatsapp, incoming) -> executor.execute(() -> onCall(instance, connection, incoming)));
         api.addMessageStatusListener((whatsapp, info) -> {
             try {
@@ -496,11 +504,42 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         }
     }
 
+    /** Mensagem ou status recebido: filtro da configuração, messages.upsert e leitura automática. */
+    private void onIncoming(UUID id, Connection connection, ChatMessageInfo message) {
+        var name = connection.instanceName;
+        var chat = message.key().parentJid().map(Jid::toString).orElse(null);
+        if (!connection.settings.delivers(chat)) {
+            // groupsIgnore / readStatus=false: nem messages.upsert, nem histórico
+            wire.debug("{}: nova mensagem chat={} ignorada pela configuração", name, chat);
+            return;
+        }
+        guarded(name, "mensagem apagada", () -> CobaltEvents.revoke(name, message, connection.lids)
+                .ifPresent(events::publishEvent));
+        try {
+            var data = CobaltMessageMapper.upsert(message, id, connection.lids);
+            wire.debug("{}: nova mensagem id={} chat={} -> {}", name, message.key().id().orElse(null),
+                    message.key().parentJid().orElse(null), data.isPresent() ? "messages.upsert" : "ignorada");
+            data.ifPresent(d -> events.publishEvent(new GatewayEvent.MessageReceived(name, d)));
+        } catch (RuntimeException e) {
+            log.warn("[cobalt] {}: falha ao converter a mensagem {}: {}", name,
+                    message.key().id().orElse(null), e.toString());
+        }
+        if (connection.settings.marksAsRead(chat, message.key().fromMe())) {
+            executor.execute(() -> markReadOnArrival(connection, message));
+        }
+    }
+
     /** readMessages / readStatus: o tique azul sai assim que a mensagem chega. */
     private void markReadOnArrival(Connection connection, ChatMessageInfo message) {
         try {
             call(() -> {
-                connection.api.markMessageAsRead(message.key());
+                if (message.key().parentJid().map(jid -> InstanceSettings.STATUS_BROADCAST.equals(jid.toString()))
+                        .orElse(false)) {
+                    // Status: o recibo "visto" vai ao autor pelo status@broadcast
+                    message.key().id().ifPresent(connection.api::markStatusViewed);
+                } else {
+                    connection.api.markMessageAsRead(message.key());
+                }
                 return null;
             }, "leitura automática");
         } catch (RuntimeException e) {
@@ -1104,7 +1143,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     }
 
     private GroupInfo groupInfo(Connection connection, Jid groupJid) {
-        var metadata = call(() -> connection.api.queryGroupInfo(groupJid), "consulta do grupo")
+        // w:g2 (queryGroupMetadata) traz o papel de cada participante (type=superadmin/admin) e os modos
+        // announcement/locked; a consulta MEX (queryGroupInfo) devolvia os dois modos sempre ligados e
+        // ninguém como admin (teste ao vivo de 2026-11-14)
+        var metadata = call(() -> connection.api.queryGroupMetadata(groupJid), "consulta do grupo").stream()
+                .findFirst()
                 .orElseThrow(() -> new BadRequestException("Group not found: " + groupJid));
         return groupInfo(metadata, connection.lids);
     }
@@ -1248,27 +1291,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     /** Mídia da API: URL http(s) ou base64 (com ou sem prefixo data:). */
     byte[] loadMedia(String media) {
         if (media.startsWith("http://") || media.startsWith("https://")) {
-            guard.check(media).ifPresent(reason -> {
-                throw new BadRequestException("Media url not allowed: " + reason);
-            });
-            try {
-                var response = http.send(HttpRequest.newBuilder(URI.create(media))
-                                .timeout(Duration.ofMillis(config.sendTimeoutMs())).GET().build(),
-                        HttpResponse.BodyHandlers.ofInputStream());
-                if (response.statusCode() / 100 != 2) {
-                    response.body().close();
-                    throw new BadRequestException("Could not download media: HTTP " + response.statusCode());
-                }
-                try (var body = response.body()) {
-                    var bytes = body.readNBytes((int) Math.min(Integer.MAX_VALUE - 8, config.mediaMaxBytes() + 1));
-                    return checkSize(bytes);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new GatewayException("Media download interrupted", e);
-            } catch (IOException | IllegalArgumentException e) {
-                throw new BadRequestException("Could not download media: " + e.getMessage());
-            }
+            return checkSize(downloader.download(media, (int) Math.min(Integer.MAX_VALUE - 8, config.mediaMaxBytes() + 1)));
         }
         var base64 = media.startsWith("data:") && media.contains(",") ? media.substring(media.indexOf(',') + 1) : media;
         try {

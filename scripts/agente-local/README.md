@@ -65,3 +65,12 @@ O que está pronto e testado, branch, último commit.
 - Tarefa que falha volta uma vez para a fila; na segunda, vai para `falhou/`.
 - Um modelo local não substitui o Claude em decisões de arquitetura: ele prepara, confere e
   executa o mecânico.
+
+## Acompanhar ao vivo
+
+`tarefa.py ao-vivo` segue o `.agente-local/ao-vivo.log` e mostra, colorido, cada tarefa que começa,
+o papel que está pensando (Pesquisador, Redator, Revisor, Auditor...), os tokens chegando em tempo
+real, a passagem de vez entre papéis e a entrega. O refinamento roda em dois papéis em sequência:
+o Pesquisador só junta fatos do contexto (com caminho) e o Redator escreve a especificação a
+partir deles. Com a fila vazia, o plantão gera sozinho uma fila de pendências de
+`PLANTAO_HORAS_SE_OCIOSO` horas (padrão 2; 0 desliga), no máximo uma vez nesse intervalo.
