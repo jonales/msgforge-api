@@ -46,6 +46,12 @@ public class Instance {
     @Column(name = "sign_messages", nullable = false)
     private boolean signMessages;
 
+    /** Como a assinatura aparece, com {@code {nome}} no lugar do nome de exibição. */
+    @Column(name = "signature_template", nullable = false, length = 60)
+    private String signatureTemplate = DEFAULT_SIGNATURE;
+
+    public static final String DEFAULT_SIGNATURE = "Atendente {nome}";
+
     /** Null quando a instância usa a conexão direta (ou o {@code COBALT_PROXY} global). */
     @jakarta.persistence.Embedded
     private InstanceProxy proxy;
@@ -98,6 +104,7 @@ public class Instance {
     public HistorySync getHistorySync() { return historySync; }
     public InstanceSettings getSettings() { return settings == null ? InstanceSettings.DEFAULTS : settings; }
     public boolean isSignMessages() { return signMessages; }
+    public String getSignatureTemplate() { return signatureTemplate == null ? DEFAULT_SIGNATURE : signatureTemplate; }
     public java.util.Optional<InstanceProxy> getProxy() { return java.util.Optional.ofNullable(proxy); }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
@@ -110,6 +117,7 @@ public class Instance {
     }
     public void setProxy(InstanceProxy proxy) { this.proxy = proxy; }
     public void setSignMessages(boolean signMessages) { this.signMessages = signMessages; }
+    public void setSignatureTemplate(String signatureTemplate) { this.signatureTemplate = signatureTemplate; }
     public void setHistorySync(HistorySync historySync) {
         this.historySync = java.util.Objects.requireNonNull(historySync, "historySync");
     }

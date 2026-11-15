@@ -103,7 +103,18 @@ class AttendantSignatureIT extends IntegrationTest {
 
         // Nome em negrito (sem os * que a pessoa digitou no nome) e a mensagem embaixo
         reply(ana, name, "tudo certo?");
-        assertThat(last(name)).containsEntry("text", "*Ana Souza*\ntudo certo?");
+        assertThat(last(name)).containsEntry("text", "*Atendente Ana Souza:*\ntudo certo?");
+
+        // Outro modelo de assinatura; sem {nome}, recusa perto do campo
+        mvc.perform(as(ana, MockMvcRequestBuilders.post("/manager/instances/" + name + "/settings/attendance"))
+                        .param("signMessages", "true").param("signatureTemplate", "Suporte"))
+                .andExpect(flash().attribute("fieldErrors",
+                        Map.of("settings.signatureTemplate", "manager.settings.error.signatureTemplate.invalid")));
+        mvc.perform(as(ana, MockMvcRequestBuilders.post("/manager/instances/" + name + "/settings/attendance"))
+                        .param("signMessages", "true").param("signatureTemplate", "{nome} (Suporte)"))
+                .andExpect(flash().attribute("saved", "attendance"));
+        reply(ana, name, "outra");
+        assertThat(last(name)).containsEntry("text", "*Ana Souza (Suporte):*\noutra");
 
         // A conversa mostra quem enviou
         mvc.perform(as(ana, MockMvcRequestBuilders.get("/manager/instances/" + name + "/messages")).param("jid", JID))

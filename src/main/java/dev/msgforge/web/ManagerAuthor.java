@@ -31,12 +31,16 @@ public class ManagerAuthor {
 
     /** O texto de uma resposta na conversa: assinado se a instância assina e a pessoa tem nome. */
     public static String reply(Instance instance, Sender sender, String text) {
-        return instance.isSignMessages() && sender.displayName() != null ? sign(sender.displayName(), text) : text;
+        return instance.isSignMessages() && sender.displayName() != null
+                ? sign(instance.getSignatureTemplate(), sender.displayName(), text) : text;
     }
 
-    /** {@code *Nome*} na primeira linha (negrito no WhatsApp) e o texto embaixo. */
-    static String sign(String displayName, String text) {
-        return "*" + displayName + "*\n" + text;
+    /**
+     * A assinatura em negrito na primeira linha, terminada em dois-pontos, e o texto embaixo: com o
+     * modelo "Atendente {nome}", {@code *Atendente Ana:*}.
+     */
+    static String sign(String template, String displayName, String text) {
+        return "*" + template.replace("{nome}", displayName) + ":*\n" + text;
     }
 
     /** @param displayName null sem nome de exibição (não assina) */

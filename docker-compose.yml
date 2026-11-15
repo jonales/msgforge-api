@@ -6,6 +6,7 @@ services:
       - "8080:8080"
     env_file: .env
     environment:
+      TZ: ${TZ:-America/Sao_Paulo}
       DATABASE_URL: jdbc:postgresql://postgres:5432/msgforge
       CACHE_REDIS_HOST: redis
       RABBITMQ_HOST: rabbitmq

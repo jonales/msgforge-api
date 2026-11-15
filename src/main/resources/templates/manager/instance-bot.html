@@ -36,6 +36,13 @@
             </ul>
         </nav>
         <p class="saved flash success" role="status" th:if="${saved == tab}" th:text="#{manager.bot.saved}">Salvo.</p>
+        <!-- Configurado e desligado: o aviso aparece em todas as abas (no teste ao vivo, o bot ficou
+             desligado sem ninguém perceber) -->
+        <p class="flash warning" role="status" th:if="${savedBot.configured and !savedBot.enabled}">
+            <span th:text="#{manager.bot.offWarning}">O bot está desligado.</span>
+            <a th:if="${tab != 'model'}" th:href="@{/manager/instances/{n}/integrations/bot/model(n=${instance.name})}"
+               th:text="#{manager.bot.offWarning.link}">Ligar na aba Modelo</a>
+        </p>
 
         <form th:unless="${tab == 'test'}" th:action="@{/manager/instances/{n}/integrations/bot/{t}(n=${instance.name},t=${tab})}"
               method="post" class="bot-form" autocomplete="off">

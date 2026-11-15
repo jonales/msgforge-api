@@ -23,6 +23,8 @@ RUN useradd -r -m -d /home/msgforge -u 1001 msgforge \
 # Sessões do Cobalt (uma pasta por instância): monte um volume aqui para sobreviverem ao container
 VOLUME /data/cobalt
 ENV COBALT_SESSION_DIR=/data/cobalt
+# Fuso das horas mostradas no Manager e do log (o Java usa a própria base de fusos). Troque com TZ no .env.
+ENV TZ=America/Sao_Paulo
 COPY --from=build /app/target/msgforge-api-*.jar app.jar
 # Avisos de licença dos componentes de terceiros distribuídos na imagem
 COPY THIRD-PARTY-NOTICES.md /app/

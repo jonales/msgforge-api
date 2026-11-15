@@ -343,7 +343,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     funcionam sem JS. Nunca conectada (`ownerJid` nulo) aparece como "Aguardando conexão" e o painel
     retoma. Os nomes `new` e `table` ficam reservados no Manager (rotas fixas em `/manager/instances/`).
   - [x] assinatura do atendente e autoria: com `Instance.signMessages` (grupo `attendance`, fora do
-    contrato), a resposta da conversa sai como `*Nome*\n texto` com o nome de exibição
+    contrato), a resposta da conversa sai como `*Atendente Nome:*\n texto` (modelo por instância, `signature_template` com `{nome}`) com o nome de exibição
     (`app_user.display_name`, sem `* _ ~ \``, lido a cada envio por `ManagerAuthor`). Chave global,
     usuário sem nome, Envio de teste e API nunca assinam. Toda enviada pela Msgforge grava `sent_by`
     (`USER`, `MANAGER_KEY`, `API_KEY`, `API_TOKEN`), o id e o nome da hora (`SentBy`); o eco do envio

@@ -69,6 +69,14 @@
                 </label>
 
                 <p class="note small" th:if="${group == 'presence'}" th:text="#{manager.settings.presence.note}">Ainda sem efeito.</p>
+                <label th:if="${group == 'attendance'}" th:with="err=${errors['settings.signatureTemplate']}">
+                    <span th:text="#{manager.settings.signatureTemplate}">Como a assinatura aparece</span>
+                    <input name="signatureTemplate" maxlength="60" th:value="${settings.signatureTemplate}"
+                           th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='signature-hint' + (${err != null} ? ' signature-error' : '')">
+                    <span class="field-error" id="signature-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                    <span class="hint" id="signature-hint"
+                          th:text="#{manager.settings.signatureTemplate.hint(${settings.signaturePreview('Ana')})}">Use {nome}.</span>
+                </label>
                 <p class="note small" th:if="${group == 'attendance'}" th:text="#{manager.settings.attendance.note}">Quem não tem nome envia sem assinatura.</p>
 
                 <div class="form-actions">
