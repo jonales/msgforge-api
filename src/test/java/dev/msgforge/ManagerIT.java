@@ -326,7 +326,8 @@ class ManagerIT extends IntegrationTest {
                 java.util.Map.of("degreesLatitude", -15.78, "degreesLongitude", -47.92, "name", "Obra"), now - 60);
         receive(name, group, lid, null, "G-5", "pollCreationMessage", java.util.Map.of("name", "Qual dia?",
                 "options", List.of(java.util.Map.of("optionName", "Seg"))), now - 50);
-        receive(name, group, lid, null, "G-6", "reactionMessage", java.util.Map.of("text", "👍"), now - 40);
+        receive(name, group, lid, null, "G-6", "reactionMessage", java.util.Map.of("text", "👍",
+                "key", java.util.Map.of("remoteJid", group, "fromMe", false, "id", "G-5")), now - 40);
         receive(name, group, lid, null, "G-7", "contactMessage", java.util.Map.of("displayName", "Bia"), now - 35);
         receive(name, group, lid, null, "G-8", "stickerMessage", java.util.Map.of(), now - 30);
         receive(name, group, lid, null, "G-9", "buttonsResponseMessage", java.util.Map.of(), now - 20);
@@ -353,7 +354,10 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(containsString("1,4 MB")))
                 .andExpect(content().string(containsString("openstreetmap.org")))
                 .andExpect(content().string(containsString("Qual dia?")))
-                .andExpect(content().string(containsString("Reagiu com 👍")))
+                // A reação vai junto da enquete, sem balão próprio
+                .andExpect(content().string(containsString("class=\"reaction-chip\"")))
+                .andExpect(content().string(Matchers.not(containsString("Reagiu com 👍"))))
+                .andExpect(content().string(Matchers.not(containsString("kind-reaction"))))
                 .andExpect(content().string(containsString("Bia")))
                 .andExpect(content().string(containsString("Figurinha")))
                 .andExpect(content().string(containsString("(buttonsResponse)")))
@@ -364,6 +368,35 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(containsString(lid)))
                 .andExpect(content().string(containsString("class=\"day-sep\"")))
                 .andExpect(content().string(containsString("continued")));
+    }
+
+    @Test
+    void reactionsShowOnTheTargetMessageAndInTheChatPreview() throws Exception {
+        var name = createInstance();
+        var ana = "5561955555555@s.whatsapp.net";
+        var now = java.time.Instant.now().getEpochSecond();
+        receive(name, ana, null, "Ana", "T-1", "conversation", "chego às nove", now - 60);
+        // Reação pela API (fromMe), que vai para o histórico pela resposta do envio
+        mvc.perform(POST("/message/sendReaction/" + name).header("apikey", API_KEY).contentType("application/json")
+                        .content("{\"key\":{\"remoteJid\":\"" + ana + "\",\"fromMe\":false,\"id\":\"T-1\"},"
+                                + "\"reaction\":\"👍\"}"))
+                .andExpect(status().isCreated());
+        // Reação da Ana (recebida) e a troca dela: vale a última
+        receive(name, ana, null, "Ana", "R-1", "reactionMessage", java.util.Map.of("text", "🙂",
+                "key", java.util.Map.of("remoteJid", ana, "fromMe", true, "id", "T-1")), now - 30);
+        receive(name, ana, null, "Ana", "R-2", "reactionMessage", java.util.Map.of("text", "🙏",
+                "key", java.util.Map.of("remoteJid", ana, "fromMe", true, "id", "T-1")), now + 5);
+
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", ana))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("chego às nove")))
+                .andExpect(content().string(containsString("🙏")))
+                .andExpect(content().string(containsString("👍")))
+                .andExpect(content().string(Matchers.not(containsString("🙂"))))
+                .andExpect(content().string(Matchers.not(containsString("kind-reaction"))));
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chats")))
+                .andExpect(content().string(containsString("Reagiu 🙏 a:")))
+                .andExpect(content().string(containsString("chego às nove")));
     }
 
     @Test

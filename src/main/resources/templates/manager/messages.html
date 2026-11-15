@@ -177,6 +177,14 @@
 
                                 <span th:case="*" class="unknown muted" th:text="#{manager.messages.unknown(${c.type})}">Mensagem sem pré-visualização</span>
                             </th:block>
+                            <ul class="reactions" th:unless="${#lists.isEmpty(m.reactions)}"
+                                th:attr="aria-label=#{manager.messages.reactions}">
+                                <li class="reaction-chip" th:each="r : ${m.reactions}"
+                                    th:title="${r.mine} ? #{manager.messages.reactionYou} : ${r.who}">
+                                    <span th:text="${r.emoji}">🙏</span>
+                                    <span class="small muted" th:text="${r.mine} ? #{manager.messages.reactionYou} : ${r.who}">Ana</span>
+                                </li>
+                            </ul>
                             <span class="meta small muted">
                                 <span th:text="${m.time}">10:00</span>
                                 <span th:if="${m.fromMe}" th:text="#{'manager.messages.status.' + ${m.status}}">enviada</span>
@@ -208,9 +216,17 @@
         <span class="preview">
             <span th:if="${chat.fromMe}" th:text="#{manager.messages.you}">Você:</span>
             <span th:if="${chat.lastAuthor}" th:text="${chat.lastAuthor} + ':'">Ana:</span>
+            <th:block th:if="${chat.reaction()}">
+                <span th:text="#{manager.messages.reactedTo(${chat.last.emoji})}">Reagiu 🙏 a:</span>
+                <span class="preview-kind" th:unless="${chat.reactedTo.kind() == 'text'}"
+                      th:text="#{${'manager.messages.kind.' + chat.reactedTo.labelKey()}}">Foto</span>
+                <span th:if="${chat.reactedSnippet()}" th:text="${chat.reactedSnippet()}">oi</span>
+            </th:block>
+            <th:block th:unless="${chat.reaction()}">
             <span class="preview-kind" th:unless="${chat.last.kind() == 'text'}"
                   th:text="#{${'manager.messages.kind.' + chat.last.labelKey()}}">Foto</span>
             <span th:if="${chat.last.summary()}" th:text="${chat.last.summary()}">oi</span>
+            </th:block>
         </span>
     </button>
 </th:block>

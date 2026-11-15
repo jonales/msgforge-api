@@ -290,7 +290,11 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     (`ChatList`); o nome do grupo vem do motor (`GroupNames`, uma consulta por instância, 5 min, nunca
     do pushName de quem mandou). Na conversa: separador de dia, remetente (pushName + número, LID
     como veio) só no começo de cada sequência (`ManagerViews.rows`). Apagada para todos vira
-    `protocolMessage` REVOKE no histórico (`MessageHistory.markRevoked`). O fragmento `chatItem` fica
+    `protocolMessage` REVOKE no histórico (`MessageHistory.markRevoked`). Reação (`reactionMessage`, linha
+    própria no histórico com a `key` da alvo; Cobalt, stub, `/message/sendReaction` e celular) não vira
+    balão: `ManagerViews.reactions` junta pelo id da alvo, vale a última de cada pessoa e a vazia tira;
+    alvo fora da página não aparece. Na lista, última = reação vira "Reagiu 🙏 a: <trecho>"
+    (`ChatRow.reactedTo`, uma consulta pelo id). O fragmento `chatItem` fica
     dentro de um `th:if="false"` (só sai quando inserido).
   - [x] mídia na conversa: `ManagerMediaController` (`/messages/media?jid&id&fromMe`, "ver conversas",
     só mensagem que está no histórico) chama `WhatsAppGateway.downloadMedia` (Cobalt: Store +

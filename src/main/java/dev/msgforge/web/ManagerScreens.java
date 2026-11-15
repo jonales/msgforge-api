@@ -101,10 +101,21 @@ public class ManagerScreens {
                     var chatName = group ? names.get(c.remoteJid()) : c.pushName();
                     var author = group && !last.key().fromMe()
                             ? firstNonBlank(last.pushName(), ManagerViews.phoneOrJid(last.key().participant())) : null;
-                    return new ChatRow(c.remoteJid(), chatName, MessageContent.of(last.messageType(), last.message()),
-                            ManagerViews.time(last.messageTimestamp()), last.key().fromMe(), author);
+                    var content = MessageContent.of(last.messageType(), last.message());
+                    return new ChatRow(c.remoteJid(), chatName, content,
+                            ManagerViews.time(last.messageTimestamp()), last.key().fromMe(), author,
+                            reactedTo(name, c.remoteJid(), content));
                 })
                 .toList());
+    }
+
+    /** A mensagem alvo, quando a última da conversa é uma reação (uma consulta pelo id). */
+    private MessageContent reactedTo(String name, String jid, MessageContent last) {
+        if (!(last instanceof MessageContent.Reaction reaction) || reaction.removed() || reaction.targetId() == null) {
+            return null;
+        }
+        return chats.findMessages(name, new KeyFilter(jid, null, reaction.targetId()), 1, 1).records().stream()
+                .findFirst().map(m -> MessageContent.of(m.messageType(), m.message())).orElse(null);
     }
 
     public Conversation conversation(String name, String jid, int page) {

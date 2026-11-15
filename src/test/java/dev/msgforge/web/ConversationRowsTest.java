@@ -52,6 +52,53 @@ class ConversationRowsTest {
         assertThat(rows.get(4).time()).isEqualTo("08:00");
     }
 
+    private static StoredRow reaction(String id, boolean fromMe, String pushName, String participant, String emoji,
+                                      String target, long ts) {
+        return new StoredRow(id, fromMe, pushName, participant, new MessageContent.Reaction(emoji, target), ts, "PENDING");
+    }
+
+    @Test
+    void reactionsGoToTheTargetMessageAndTheLastOneOfEachPersonWins() {
+        var ana = "5561911111111@s.whatsapp.net";
+        var bia = "5561922222222@s.whatsapp.net";
+        var rows = ManagerViews.rows(List.of(
+                row("1", false, "Ana", ana, at(TODAY, 9)),
+                row("2", true, null, null, at(TODAY, 9)),
+                reaction("R1", false, "Ana", ana, "👍", "2", at(TODAY, 10)),
+                reaction("R2", false, null, bia, "🙏", "2", at(TODAY, 10)),
+                reaction("R3", false, "Ana", ana, "❤️", "2", at(TODAY, 11)),   // troca a da Ana
+                reaction("R4", true, null, null, "😂", "1", at(TODAY, 11)),    // da própria conta (API ou celular)
+                reaction("R5", false, null, bia, "", "2", at(TODAY, 12)),      // a Bia tira a dela
+                reaction("R6", true, null, null, "🔥", "fora-da-pagina", at(TODAY, 12)),
+                reaction("R7", false, "Ana", ana, "👀", null, at(TODAY, 12)),
+                row("3", false, "Ana", ana, at(TODAY, 13))), true, TODAY);
+
+        // Nenhuma reação vira balão; a sequência e o separador ignoram as reações
+        assertThat(rows).extracting(MessageRow::id).containsExactly("1", "2", "3");
+        assertThat(rows).extracting(MessageRow::startsRun).containsExactly(true, true, true);
+        assertThat(rows.get(1).reactions()).containsExactly(new ManagerViews.ReactionChip("❤️", false, "Ana"));
+        assertThat(rows.get(0).reactions()).containsExactly(new ManagerViews.ReactionChip("😂", true, null));
+        assertThat(rows.get(2).reactions()).isEmpty();
+
+        // Sem pushName, em grupo, quem reagiu é o número
+        var other = ManagerViews.rows(List.of(row("1", true, null, null, at(TODAY, 9)),
+                reaction("R1", false, null, bia, "🙏", "1", at(TODAY, 10))), true, TODAY);
+        assertThat(other.getFirst().reactions()).containsExactly(new ManagerViews.ReactionChip("🙏", false, "+5561922222222"));
+    }
+
+    @Test
+    void theChatPreviewOfAReactionQuotesTheTarget() {
+        var target = new MessageContent.Text("vamos marcar a reunião de amanhã cedo, pode ser às 9h?");
+        var row = new ChatRow("5561911111111@s.whatsapp.net", "Ana", new MessageContent.Reaction("🙏", "X"), "",
+                false, null, target);
+        assertThat(row.reaction()).isTrue();
+        assertThat(row.reactedSnippet()).isEqualTo("vamos marcar a reunião de amanhã cedo, p…");
+        // Reação removida, ou alvo fora do histórico: a prévia de sempre
+        assertThat(new ChatRow("x", null, new MessageContent.Reaction("", "X"), "", false, null, target).reaction())
+                .isFalse();
+        assertThat(new ChatRow("x", null, new MessageContent.Reaction("🙏", "X"), "", false, null).reaction()).isFalse();
+    }
+
     @Test
     void inADirectChatTheSideIsTheSender() {
         var rows = ManagerViews.rows(List.of(

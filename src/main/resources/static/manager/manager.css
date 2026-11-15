@@ -237,6 +237,10 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .poll-options { margin: 4px 0 0; padding-left: 1.2rem; display: grid; gap: 2px; }
 .revoked, .unknown { font-style: italic; color: var(--muted); }
 .reaction { font-size: var(--fs-small); }
+/* Reações junto da mensagem alvo (a última de cada pessoa) */
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; }
+.reaction-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border: 1px solid var(--border);
+    border-radius: 999px; background: var(--bg); }
 
 /* Painel da instância: menu à esquerda, seções à direita. No celular, o menu vira abas que quebram
    linha no topo (sem rolagem lateral). */
