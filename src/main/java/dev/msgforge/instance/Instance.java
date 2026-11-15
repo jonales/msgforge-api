@@ -42,6 +42,10 @@ public class Instance {
     @jakarta.persistence.Embedded
     private InstanceSettings settings;
 
+    /** Respostas do Manager saem assinadas com o nome de exibição de quem respondeu (fora do contrato). */
+    @Column(name = "sign_messages", nullable = false)
+    private boolean signMessages;
+
     /** Null quando a instância usa a conexão direta (ou o {@code COBALT_PROXY} global). */
     @jakarta.persistence.Embedded
     private InstanceProxy proxy;
@@ -93,6 +97,7 @@ public class Instance {
     public ConnectionState getConnectionState() { return ConnectionState.from(connectionState); }
     public HistorySync getHistorySync() { return historySync; }
     public InstanceSettings getSettings() { return settings == null ? InstanceSettings.DEFAULTS : settings; }
+    public boolean isSignMessages() { return signMessages; }
     public java.util.Optional<InstanceProxy> getProxy() { return java.util.Optional.ofNullable(proxy); }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
@@ -104,6 +109,7 @@ public class Instance {
         this.settings = java.util.Objects.requireNonNull(settings, "settings");
     }
     public void setProxy(InstanceProxy proxy) { this.proxy = proxy; }
+    public void setSignMessages(boolean signMessages) { this.signMessages = signMessages; }
     public void setHistorySync(HistorySync historySync) {
         this.historySync = java.util.Objects.requireNonNull(historySync, "historySync");
     }

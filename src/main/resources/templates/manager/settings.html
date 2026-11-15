@@ -28,6 +28,7 @@
                         <span class="tab-state small" th:switch="${g}">
                             <th:block th:case="'calls'" th:text="${savedSettings.rejectCall} ? #{manager.settings.state.rejecting} : #{manager.settings.state.accepting}">Aceita ligações</th:block>
                             <th:block th:case="'reading'" th:text="#{manager.settings.state.count(${savedSettings.enabledIn('reading')}, 3)}">0 de 3 ligadas</th:block>
+                            <th:block th:case="'attendance'" th:text="${savedSettings.signMessages} ? #{manager.settings.state.signing} : #{manager.settings.state.off}">Desligado</th:block>
                             <th:block th:case="'presence'" th:text="${savedSettings.alwaysOnline} ? #{manager.settings.state.onNoEffect} : #{manager.settings.state.off}">Desligado</th:block>
                             <th:block th:case="'history'" th:text="#{'manager.history.' + ${savedSettings.historySync}}">Sem histórico</th:block>
                             <th:block th:case="'proxy'" th:text="${savedProxy.summary()} ?: #{manager.proxy.off}">Desligado</th:block>
@@ -43,7 +44,7 @@
             <p class="muted small" th:text="#{'manager.settings.group.' + ${group} + '.intro'}">O que fazer com ligações.</p>
 
             <!-- Chamadas, mensagens e leitura, presença: interruptores do grupo -->
-            <form th:if="${group == 'calls' or group == 'reading' or group == 'presence'}"
+            <form th:if="${group == 'calls' or group == 'reading' or group == 'presence' or group == 'attendance'}"
                   th:action="@{/manager/instances/{n}/settings/{g}(n=${instance.name},g=${group})}" method="post" class="settings-form">
                 <fieldset class="toggles">
                     <legend class="visually-hidden" th:text="#{'manager.settings.group.' + ${group}}">Chamadas</legend>
@@ -69,6 +70,7 @@
                 </label>
 
                 <p class="note small" th:if="${group == 'presence'}" th:text="#{manager.settings.presence.note}">Ainda sem efeito.</p>
+                <p class="note small" th:if="${group == 'attendance'}" th:text="#{manager.settings.attendance.note}">Quem não tem nome envia sem assinatura.</p>
 
                 <div class="form-actions">
                     <button type="submit" class="primary" th:text="#{manager.settings.submitGroup}">Salvar</button>

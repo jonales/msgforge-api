@@ -277,7 +277,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
   - [x] logout e exclusão
   - [x] histórico no pareamento por instância (rádios no card "Conectar", select no criar)
   - [x] configurações da instância: uma tela por grupo em `/manager/instances/{n}/settings/{grupo}`
-    (`calls`, `reading`, `presence`, `history`, `proxy`, `webhook`; `/settings` leva ao primeiro que a
+    (`calls`, `reading`, `presence`, `attendance`, `history`, `proxy`, `webhook`; `/settings` leva ao primeiro que a
     pessoa pode mudar), com abas que mostram o estado guardado. Cada grupo salva só o que é dele
     (`POST /settings/{grupo}` lê o resto do banco; o proxy e o webhook mantêm `POST /proxy` e
     `POST /webhook`). `webhook` pede `EVENTS_CONFIGURE`, os outros `ACCOUNT_CONFIGURE`. A senha do proxy
@@ -333,6 +333,13 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     mesmo trecho `instance :: live`). Uma página por passo, rascunho na sessão: voltar e recarregar
     funcionam sem JS. Nunca conectada (`ownerJid` nulo) aparece como "Aguardando conexão" e o painel
     retoma. Os nomes `new` e `table` ficam reservados no Manager (rotas fixas em `/manager/instances/`).
+  - [x] assinatura do atendente e autoria: com `Instance.signMessages` (grupo `attendance`, fora do
+    contrato), a resposta da conversa sai como `*Nome*\n texto` com o nome de exibição
+    (`app_user.display_name`, sem `* _ ~ \``, lido a cada envio por `ManagerAuthor`). Chave global,
+    usuário sem nome, Envio de teste e API nunca assinam. Toda enviada pela Msgforge grava `sent_by`
+    (`USER`, `MANAGER_KEY`, `API_KEY`, `API_TOKEN`), o id e o nome da hora (`SentBy`); o eco do envio
+    que chegar antes só ganha o autor. A conversa mostra "por Ana" (`MessageHistory.sentBy`, uma
+    consulta por página, fora do `findMessages` do contrato).
   - [x] usuários e papéis (`AccessController`, `/manager/users` com `USERS_MANAGE` e
     `/manager/roles` com `ROLES_MANAGE`; link "Usuários" no topo, ao lado de "Sair"). Sem a
     permissão, a tela "Sem acesso" com 403.

@@ -40,6 +40,15 @@ public class MessageHistory {
     /** Grava se ainda não existe; devolve false para mensagem repetida. */
     public boolean save(UUID instanceId, Key key, String pushName, String messageType, Map<String, Object> message,
                         String status, long timestamp) {
+        return save(instanceId, key, pushName, messageType, message, status, timestamp, null);
+    }
+
+    /**
+     * Como o outro {@code save}, com quem enviou. Se a mensagem já está gravada sem autor (o eco do
+     * próprio envio pode chegar antes da resposta do envio), só o autor é preenchido.
+     */
+    public boolean save(UUID instanceId, Key key, String pushName, String messageType, Map<String, Object> message,
+                        String status, long timestamp, SentBy sentBy) {
         var params = new MapSqlParameterSource()
                 .addValue("id", UUID.randomUUID())
                 .addValue("instance", instanceId)
@@ -51,13 +60,20 @@ public class MessageHistory {
                 .addValue("type", messageType)
                 .addValue("message", json.writeValueAsString(message))
                 .addValue("status", status != null && STATUS_ORDER.contains(status) ? status : "PENDING")
-                .addValue("ts", timestamp);
+                .addValue("ts", timestamp)
+                .addValue("sentBy", sentBy == null ? null : sentBy.kind().name())
+                .addValue("sentByUser", sentBy == null ? null : sentBy.userId())
+                .addValue("sentByName", sentBy == null ? null : sentBy.name());
         return jdbc.update("""
                 INSERT INTO message (id, instance_id, key_id, remote_jid, from_me, participant, push_name,
-                                     message_type, message, status, message_timestamp)
+                                     message_type, message, status, message_timestamp,
+                                     sent_by, sent_by_user_id, sent_by_name)
                 VALUES (:id, :instance, :keyId, :remoteJid, :fromMe, :participant, :pushName,
-                        :type, CAST(:message AS jsonb), :status, :ts)
-                ON CONFLICT ON CONSTRAINT uk_message_key DO NOTHING
+                        :type, CAST(:message AS jsonb), :status, :ts, :sentBy, :sentByUser, :sentByName)
+                ON CONFLICT ON CONSTRAINT uk_message_key DO UPDATE
+                    SET sent_by = EXCLUDED.sent_by, sent_by_user_id = EXCLUDED.sent_by_user_id,
+                        sent_by_name = EXCLUDED.sent_by_name
+                    WHERE message.sent_by IS NULL AND EXCLUDED.sent_by IS NOT NULL
                 """, params) == 1;
     }
 
@@ -142,6 +158,27 @@ public class MessageHistory {
                 ORDER BY last.message_timestamp DESC
                 """, new MapSqlParameterSource("instance", instanceId),
                 (rs, n) -> new Chat(rs.getString("remote_jid"), rs.getString("chat_name"), row(rs)));
+    }
+
+    /** Quem enviou cada mensagem (pelo id), entre as {@code keyIds} da conversa; só as que têm autor. */
+    public Map<String, SentBy> sentBy(UUID instanceId, String remoteJid, java.util.Collection<String> keyIds) {
+        if (keyIds.isEmpty()) {
+            return Map.of();
+        }
+        var params = new MapSqlParameterSource()
+                .addValue("instance", instanceId)
+                .addValue("remoteJid", remoteJid)
+                .addValue("ids", keyIds);
+        var out = new java.util.HashMap<String, SentBy>();
+        jdbc.query("""
+                SELECT key_id, sent_by, sent_by_user_id, sent_by_name FROM message
+                WHERE instance_id = :instance AND remote_jid = :remoteJid AND from_me = TRUE
+                  AND key_id IN (:ids) AND sent_by IS NOT NULL
+                """, params, rs -> {
+            out.put(rs.getString("key_id"), new SentBy(SentBy.Kind.valueOf(rs.getString("sent_by")),
+                    rs.getObject("sent_by_user_id", UUID.class), rs.getString("sent_by_name")));
+        });
+        return out;
     }
 
     private static MapSqlParameterSource filters(UUID instanceId, String remoteJid, Boolean fromMe, String keyId) {

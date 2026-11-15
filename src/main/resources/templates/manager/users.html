@@ -34,7 +34,7 @@
             <table class="people">
                 <thead>
                 <tr>
-                    <th scope="col" th:text="#{manager.users.col.email}">E-mail</th>
+                    <th scope="col" th:text="#{manager.users.col.person}">Pessoa</th>
                     <th scope="col" th:text="#{manager.users.col.role}">Papel</th>
                     <th scope="col" th:text="#{manager.users.col.status}">Situação</th>
                     <th scope="col" th:text="#{manager.users.col.lastLogin}">Último acesso</th>
@@ -44,9 +44,22 @@
                 <tbody>
                 <tr th:each="m : ${members}">
                     <td>
+                        <strong class="person-name" th:if="${m.displayName}" th:text="${m.displayName}">Ana</strong>
                         <span class="email" th:text="${m.email}">ana@exemplo.com</span>
                         <span class="tag tag-neutral" th:if="${m.platformAdmin}" th:text="#{manager.users.admin}">admin</span>
                         <span class="muted small" th:if="${m.self}" th:text="#{manager.users.you}">(você)</span>
+                        <!-- Nome de exibição: a própria pessoa, ou quem pode mexer nela -->
+                        <details class="rename" th:if="${m.manageable or m.self}">
+                            <summary th:text="${m.displayName} ? #{manager.users.rename} : #{manager.users.addName}">Dar um nome</summary>
+                            <form class="inline-form" method="post" th:action="@{/manager/users/{id}/name(id=${m.userId})}">
+                                <input type="hidden" name="org" th:value="${organization.id}">
+                                <label class="visually-hidden" th:for="'name-' + ${m.userId}"
+                                       th:text="#{manager.users.nameOf(${m.email})}">Nome de ana</label>
+                                <input type="text" name="displayName" th:id="'name-' + ${m.userId}" maxlength="60"
+                                       autocomplete="off" th:value="${m.displayName}">
+                                <button type="submit" th:text="#{manager.users.saveName}">Salvar</button>
+                            </form>
+                        </details>
                     </td>
                     <td th:attr="data-label=#{manager.users.col.role}">
                         <form class="role-change" method="post" th:if="${m.manageable and !m.self}"
@@ -90,6 +103,11 @@
                 <label for="new-email"><span th:text="#{manager.users.email}">E-mail</span>
                     <input id="new-email" name="email" type="email" required maxlength="254" autocomplete="off"
                            spellcheck="false" autocapitalize="none" th:value="${form.email}">
+                </label>
+                <label for="new-name"><span th:text="#{manager.users.displayName}">Nome de exibição</span>
+                    <input id="new-name" name="displayName" type="text" maxlength="60" autocomplete="off"
+                           aria-describedby="new-name-hint" th:value="${form.displayName}">
+                    <span class="hint" id="new-name-hint" th:text="#{manager.users.displayNameHint}">Assina as respostas.</span>
                 </label>
                 <label for="new-role"><span th:text="#{manager.users.role}">Papel</span>
                     <select id="new-role" name="roleId" required>

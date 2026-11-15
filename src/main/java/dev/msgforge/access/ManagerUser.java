@@ -26,6 +26,10 @@ public class ManagerUser {
     @Column(nullable = false, unique = true, length = 254)
     private String email;
 
+    /** O nome que assina as respostas na conversa; null = responde sem assinatura. */
+    @Column(name = "display_name", length = DISPLAY_NAME_MAX)
+    private String displayName;
+
     @Column(name = "password_hash")
     private String passwordHash;
 
@@ -61,6 +65,21 @@ public class ManagerUser {
         return email == null ? "" : email.strip().toLowerCase(Locale.ROOT);
     }
 
+    public static final int DISPLAY_NAME_MAX = 60;
+
+    /**
+     * O nome de exibição limpo: uma linha só, sem os sinais de formatação do WhatsApp ({@code * _ ~ `}),
+     * que quebrariam o negrito da assinatura. Vazio vira null; acima de {@link #DISPLAY_NAME_MAX}, null
+     * também (quem chama recusa).
+     */
+    public static String normalizeDisplayName(String name) {
+        if (name == null) {
+            return null;
+        }
+        var clean = name.replaceAll("[*_~`\\p{Cntrl}]", " ").replaceAll("\\s+", " ").strip();
+        return clean.isEmpty() || clean.length() > DISPLAY_NAME_MAX ? null : clean;
+    }
+
     @PreUpdate
     void touch() {
         this.updatedAt = Instant.now();
@@ -68,6 +87,7 @@ public class ManagerUser {
 
     public UUID getId() { return id; }
     public String getEmail() { return email; }
+    public String getDisplayName() { return displayName; }
     String getPasswordHash() { return passwordHash; }
     public UserStatus getStatus() { return status; }
     public boolean isPlatformAdmin() { return platformAdmin; }
@@ -76,6 +96,10 @@ public class ManagerUser {
 
     public boolean isActive() {
         return status == UserStatus.ATIVO;
+    }
+
+    void setDisplayName(String displayName) {
+        this.displayName = normalizeDisplayName(displayName);
     }
 
     void setStatus(UserStatus status) {

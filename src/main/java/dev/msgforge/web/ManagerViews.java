@@ -182,13 +182,14 @@ public final class ManagerViews {
      * que foi digitado quer dizer "não mudou".
      */
     public record SettingsView(boolean rejectCall, String msgCall, boolean groupsIgnore, boolean alwaysOnline,
-                               boolean readMessages, boolean readStatus, String historySync) {
+                               boolean readMessages, boolean readStatus, String historySync, boolean signMessages) {
 
         /** Os interruptores de cada grupo de configurações, na ordem da tela. */
         static final java.util.Map<String, List<String>> BEHAVIORS = java.util.Map.of(
                 "calls", List.of("rejectCall"),
                 "reading", List.of("readMessages", "readStatus", "groupsIgnore"),
-                "presence", List.of("alwaysOnline"));
+                "presence", List.of("alwaysOnline"),
+                "attendance", List.of("signMessages"));
 
         /** Os interruptores do grupo (vazio nos grupos sem interruptor). */
         public List<String> behaviors(String group) {
@@ -203,7 +204,8 @@ public final class ManagerViews {
         static SettingsView of(Instance instance) {
             var s = instance.getSettings();
             return new SettingsView(s.rejectCall(), s.msgCall() == null ? "" : s.msgCall(), s.groupsIgnore(),
-                    s.alwaysOnline(), s.readMessages(), s.readStatus(), instance.getHistorySync().name());
+                    s.alwaysOnline(), s.readMessages(), s.readStatus(), instance.getHistorySync().name(),
+                    instance.isSignMessages());
         }
 
         /** Ligado? Pelo nome do campo do contrato (o template percorre {@link #behaviors}). */
@@ -214,6 +216,7 @@ public final class ManagerViews {
                 case "readMessages" -> readMessages;
                 case "readStatus" -> readStatus;
                 case "alwaysOnline" -> alwaysOnline;
+                case "signMessages" -> signMessages;
                 default -> throw new IllegalArgumentException(behavior);
             };
         }
@@ -327,13 +330,19 @@ public final class ManagerViews {
      * inventado). {@code startsRun}: primeira de uma sequência do mesmo remetente no mesmo dia (só
      * ela mostra o remetente). {@code day}: não nulo na primeira mensagem de cada dia (o separador).
      */
+    /** @param sentBy quem enviou pela Msgforge (só nas enviadas que o histórico sabe de onde saíram) */
     public record MessageRow(String id, boolean fromMe, String author, String authorJid, MessageContent content,
                              String time, String status, Day day, boolean startsRun, List<ReactionChip> reactions,
-                             boolean mediaReady) {
+                             boolean mediaReady, dev.msgforge.history.SentBy sentBy) {
 
         public MessageRow(String id, boolean fromMe, String author, String authorJid, MessageContent content,
                           String time, String status, Day day, boolean startsRun) {
-            this(id, fromMe, author, authorJid, content, time, status, day, startsRun, List.of(), false);
+            this(id, fromMe, author, authorJid, content, time, status, day, startsRun, List.of(), false, null);
+        }
+
+        /** O texto de quem enviou, pela chave {@code manager.messages.sentBy.<tipo>}; null sem autor. */
+        public String sentByKey() {
+            return sentBy == null ? null : "manager.messages.sentBy." + sentBy.kind().name();
         }
 
         /** O número de quem mandou, para mostrar ao lado do nome: "+55..." ou o LID como veio. */
@@ -401,11 +410,11 @@ public final class ManagerViews {
 
     /** Uma mensagem gravada, já na ordem da tela (antes de agrupar). */
     record StoredRow(String id, boolean fromMe, String pushName, String participant, MessageContent content,
-                     long timestamp, String status, boolean mediaReady) {
+                     long timestamp, String status, boolean mediaReady, dev.msgforge.history.SentBy sentBy) {
 
         StoredRow(String id, boolean fromMe, String pushName, String participant, MessageContent content,
                   long timestamp, String status) {
-            this(id, fromMe, pushName, participant, content, timestamp, status, false);
+            this(id, fromMe, pushName, participant, content, timestamp, status, false, null);
         }
     }
 
@@ -429,7 +438,7 @@ public final class ManagerViews {
             out.add(new MessageRow(m.id(), m.fromMe(), m.pushName(), group && !m.fromMe() ? m.participant() : null,
                     m.content(), CLOCK_MINUTES.format(Instant.ofEpochSecond(m.timestamp())), m.status(),
                     newDay ? day : null, newDay || !sender.equals(previousSender),
-                    reactions.getOrDefault(m.id(), List.of()), m.mediaReady()));
+                    reactions.getOrDefault(m.id(), List.of()), m.mediaReady(), m.fromMe() ? m.sentBy() : null));
             previousDay = day.date();
             previousSender = sender;
         }
