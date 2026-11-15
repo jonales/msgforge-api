@@ -975,7 +975,14 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     public void sendPresence(Instance instance, String jid, Presence presence, Integer delayMs) {
         var connection = requireConnected(instance);
         var target = resolve(connection, jid);
-        chatState(connection, target, contactStatus(presence));
+        switch (presence) {
+            // available/unavailable valem para a conta; composing/recording/paused, para a conversa
+            case AVAILABLE, UNAVAILABLE -> call(() -> {
+                connection.api.editPresence(presence == Presence.AVAILABLE ? ContactStatus.AVAILABLE : ContactStatus.UNAVAILABLE);
+                return null;
+            }, "presença");
+            default -> chatState(connection, target, chatState(presence));
+        }
         var temporary = presence == Presence.COMPOSING || presence == Presence.RECORDING;
         if (temporary && delayMs != null && delayMs > 0) {
             try {
@@ -984,7 +991,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                 Thread.currentThread().interrupt();
                 return;
             }
-            chatState(connection, target, ContactStatus.AVAILABLE);
+            chatState(connection, target, chatState(Presence.PAUSED));
         }
     }
 
@@ -995,13 +1002,15 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         }, "presença");
     }
 
-    /** O Cobalt não tem "paused": voltar a AVAILABLE encerra o "digitando...". */
-    static ContactStatus contactStatus(Presence presence) {
+    /**
+     * Estado da conversa no Cobalt: só COMPOSING, RECORDING e UNAVAILABLE (que é o "pausado", o fim do
+     * "digitando..."); AVAILABLE ali lança IllegalArgumentException.
+     */
+    static ContactStatus chatState(Presence presence) {
         return switch (presence) {
-            case AVAILABLE, PAUSED -> ContactStatus.AVAILABLE;
-            case UNAVAILABLE -> ContactStatus.UNAVAILABLE;
             case COMPOSING -> ContactStatus.COMPOSING;
             case RECORDING -> ContactStatus.RECORDING;
+            case PAUSED, AVAILABLE, UNAVAILABLE -> ContactStatus.UNAVAILABLE;
         };
     }
 
@@ -1239,7 +1248,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         try {
             chatState(connection, jid, ContactStatus.COMPOSING);
             Thread.sleep(Math.min(delayMs, MAX_TYPING_DELAY_MS));
-            chatState(connection, jid, ContactStatus.AVAILABLE);
+            chatState(connection, jid, chatState(Presence.PAUSED));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (RuntimeException e) {
