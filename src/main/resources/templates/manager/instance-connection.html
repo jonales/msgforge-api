@@ -27,7 +27,8 @@
              th:data-announce-key="${live.announceKey()}"
              hx-swap="outerHTML">
         <h2 id="live-title" th:text="#{manager.connection.title}">Conexão</h2>
-        <p><span th:class="'badge ' + ${live.state}" th:text="#{'manager.state.' + ${live.state}}">close</span></p>
+        <!-- Conectada, a confirmação abaixo já diz o estado: o selo só aparece nos outros -->
+        <p th:unless="${live.open()}"><span th:class="'badge ' + ${live.state}" th:text="#{'manager.state.' + ${live.state}}">close</span></p>
 
         <div th:if="${live.hasCode()}" class="qr-layout">
             <div class="qr">
