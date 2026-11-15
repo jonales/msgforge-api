@@ -39,6 +39,9 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
 - [x] **Integrações por instância:** tela Integrações no painel de cada instância; a primeira real é o
   bot com IA compatível com a API da OpenAI (ADR 0015), com gatilho, sessão e pausa quando o atendente
   assume. Dify, Flowise e Typebot usam a mesma base
+- [x] **Atendimento:** resposta pela conversa, assinatura do atendente com modelo por instância e
+  registro de quem enviou cada mensagem
+- [x] **Licença:** AGPL-3.0-only com licença comercial à parte (licenciamento duplo; ADR 0016)
 - [ ] **Fase 4, link de conexão:** página isolada do QR para o cliente, enviada por e-mail
 - [ ] **Fase 5, alertas:** desconexão, sessão encerrada, webhook falhando, resumo do gestor
 - [ ] Depois: 2FA, chaves de API com escopo por organização, proxy e comportamento por instância,

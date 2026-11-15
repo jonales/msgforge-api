@@ -159,6 +159,26 @@ tamanho variável e falhava quando precisava de reamostragem.
 **Para diagnosticar o motor:** `COBALT_LOG_LEVEL=WARNING` (ou `DEBUG`) no `.env` liga os logs
 internos do Cobalt, que ficam desligados sem essa variável.
 
+## Rodada de 2026-11-15
+
+Duas instâncias (uma conta comum e uma Business), motor no cobalt-2 com o PR #4.
+
+| Item | Resultado |
+|---|---|
+| Vídeo (`sendMedia`, MP4 H.264 de 5 s) | ✅ chegou com miniatura, duração e som. Antes, nenhum vídeo saía (cobalt-2#4: perfil e nível do H.264, `+faststart` e miniatura JFIF) |
+| Foto de grupo (`updateGroupPicture`) | ✅ aceita pelo servidor e notificada aos dois aparelhos. O 406 era a imagem: agora vai como JPEG 640×640, sem EXIF, igual ao recorte do WhatsApp Web (#55) |
+| Nome no `fetchProfile` de outro número | ✅ "4C3RT0 Tecnologia" e o nome da conta comum. Antes vinha `null` (#55) |
+| `MESSAGES_DELETE` (apagar para todos) | ✅ nas duas instâncias, com `status: DELETED` |
+| `PRESENCE_UPDATE` | ✅ `composing` e `available` |
+| `CALL` | ✅ oferta e recusa automática (`rejectCall`) |
+| `CHATS_UPDATE` (arquivar) | ⚠️ chegou, mas com 17 eventos, um por conversa, por causa da ressincronização do app state. Filtrado no #56 (ainda não visto ao vivo) |
+| `CONTACTS_UPDATE` (troca de recado) | ❌ não saía. Corrigido no #56 (ainda não visto ao vivo) |
+| Bot com IA (Ollama `qwen2.5:7b`) | ✅ responde à palavra-chave, continua a conversa sem ela e pausa quando o atendente responde pelo Manager |
+| Assinatura do atendente | ✅ nome em negrito na primeira linha; o formato "Atendente {nome}" veio depois (#56) |
+
+Falta ver ao vivo: `CONTACTS_UPDATE` e o filtro de `CHATS_UPDATE` do #56, o modelo de assinatura,
+`MESSAGES_SET` (histórico no pareamento) e `CHATS_DELETE`.
+
 ## Resultados (preencha e cole numa issue do fork ou numa conversa com o Claude)
 
 Commit do fork testado: `________`
