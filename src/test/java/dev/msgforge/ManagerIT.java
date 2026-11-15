@@ -317,8 +317,9 @@ class ManagerIT extends IntegrationTest {
         var lid = "222222222222222@lid";
         var now = java.time.Instant.now().getEpochSecond();
         receive(name, ana, null, "Ana", "D-1", "conversation", "oi direto", now - 100);
-        receive(name, group, ana, "Ana", "G-1", "imageMessage",
-                java.util.Map.of("caption", "foto da obra", "mimetype", "image/jpeg"), now - 90);
+        // Foto com os campos de mídia (baixável); o áudio é de antes deles (sem como baixar)
+        receive(name, group, ana, "Ana", "G-1", "imageMessage", java.util.Map.of("caption", "foto da obra",
+                "mimetype", "image/jpeg", "directPath", "/v/t62/a.enc", "mediaKey", "AAAA"), now - 90);
         receive(name, group, ana, "Ana", "G-2", "audioMessage", java.util.Map.of("ptt", true, "seconds", 75), now - 80);
         receive(name, group, lid, null, "G-3", "documentMessage",
                 java.util.Map.of("fileName", "contrato.pdf", "fileLength", 1_468_006), now - 70);
@@ -326,7 +327,8 @@ class ManagerIT extends IntegrationTest {
                 java.util.Map.of("degreesLatitude", -15.78, "degreesLongitude", -47.92, "name", "Obra"), now - 60);
         receive(name, group, lid, null, "G-5", "pollCreationMessage", java.util.Map.of("name", "Qual dia?",
                 "options", List.of(java.util.Map.of("optionName", "Seg"))), now - 50);
-        receive(name, group, lid, null, "G-6", "reactionMessage", java.util.Map.of("text", "👍"), now - 40);
+        receive(name, group, lid, null, "G-6", "reactionMessage", java.util.Map.of("text", "👍",
+                "key", java.util.Map.of("remoteJid", group, "fromMe", false, "id", "G-5")), now - 40);
         receive(name, group, lid, null, "G-7", "contactMessage", java.util.Map.of("displayName", "Bia"), now - 35);
         receive(name, group, lid, null, "G-8", "stickerMessage", java.util.Map.of(), now - 30);
         receive(name, group, lid, null, "G-9", "buttonsResponseMessage", java.util.Map.of(), now - 20);
@@ -348,12 +350,18 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(containsString("/messages/media?jid=")))
                 .andExpect(content().string(containsString("Mensagem de voz")))
                 .andExpect(content().string(containsString("1:15")))
-                .andExpect(content().string(containsString("<audio data-media controls preload=\"none\"")))
+                // Áudio antigo, sem os campos de mídia e fora do motor: o aviso direto, sem player morto
+                .andExpect(content().string(Matchers.not(containsString("<audio data-media"))))
+                .andExpect(content().string(containsString("class=\"media audio media-failed\"")))
+                .andExpect(content().string(containsString("Mensagem de voz indisponível agora")))
                 .andExpect(content().string(containsString("contrato.pdf")))
                 .andExpect(content().string(containsString("1,4 MB")))
                 .andExpect(content().string(containsString("openstreetmap.org")))
                 .andExpect(content().string(containsString("Qual dia?")))
-                .andExpect(content().string(containsString("Reagiu com 👍")))
+                // A reação vai junto da enquete, sem balão próprio
+                .andExpect(content().string(containsString("class=\"reaction-chip\"")))
+                .andExpect(content().string(Matchers.not(containsString("Reagiu com 👍"))))
+                .andExpect(content().string(Matchers.not(containsString("kind-reaction"))))
                 .andExpect(content().string(containsString("Bia")))
                 .andExpect(content().string(containsString("Figurinha")))
                 .andExpect(content().string(containsString("(buttonsResponse)")))
@@ -364,6 +372,37 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(content().string(containsString(lid)))
                 .andExpect(content().string(containsString("class=\"day-sep\"")))
                 .andExpect(content().string(containsString("continued")));
+    }
+
+    @Test
+    void reactionsShowOnTheTargetMessageAndInTheChatPreview() throws Exception {
+        var name = createInstance();
+        var ana = "5561955555555@s.whatsapp.net";
+        var now = java.time.Instant.now().getEpochSecond();
+        receive(name, ana, null, "Ana", "T-1", "conversation", "chego às nove", now - 60);
+        // Reação pela API (fromMe), que vai para o histórico pela resposta do envio
+        mvc.perform(POST("/message/sendReaction/" + name).header("apikey", API_KEY).contentType("application/json")
+                        .content("{\"key\":{\"remoteJid\":\"" + ana + "\",\"fromMe\":false,\"id\":\"T-1\"},"
+                                + "\"reaction\":\"👍\"}"))
+                .andExpect(status().isCreated());
+        // Reação da Ana (recebida) e a troca dela: vale a última
+        receive(name, ana, null, "Ana", "R-1", "reactionMessage", java.util.Map.of("text", "🙂",
+                "key", java.util.Map.of("remoteJid", ana, "fromMe", true, "id", "T-1")), now - 30);
+        receive(name, ana, null, "Ana", "R-2", "reactionMessage", java.util.Map.of("text", "🙏",
+                "key", java.util.Map.of("remoteJid", ana, "fromMe", true, "id", "T-1")), now + 5);
+
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", ana))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("chego às nove")))
+                .andExpect(content().string(containsString("🙏")))
+                .andExpect(content().string(containsString("👍")))
+                .andExpect(content().string(Matchers.not(containsString("🙂"))))
+                .andExpect(content().string(Matchers.not(containsString("kind-reaction"))));
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chats")))
+                .andExpect(content().string(containsString("<span>Reagiu</span>")))
+                .andExpect(content().string(containsString("<span class=\"reaction-emoji\">🙏</span>")))
+                .andExpect(content().string(containsString("<span>a:</span>")))
+                .andExpect(content().string(containsString("chego às nove")));
     }
 
     @Test
@@ -404,6 +443,18 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(header().string("Content-Disposition", Matchers.startsWith("inline")))
                 .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray())
                         .isEqualTo(java.util.Base64.getDecoder().decode(png)));
+        // Range (o <audio>/<video> pede pedaços): 206 com Content-Range e o tamanho do pedaço
+        var bytes = java.util.Base64.getDecoder().decode(png);
+        mvc.perform(asManager(GET(url)).param("jid", jid).param("id", id).param("fromMe", "true")
+                        .header("Range", "bytes=0-9"))
+                .andExpect(status().isPartialContent())
+                .andExpect(header().string("Accept-Ranges", "bytes"))
+                .andExpect(header().string("Content-Range", "bytes 0-9/" + bytes.length))
+                .andExpect(header().string("Content-Length", "10"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        mvc.perform(asManager(GET(url)).param("jid", jid).param("id", id).param("fromMe", "true"))
+                .andExpect(header().string("Content-Length", String.valueOf(bytes.length)))
+                .andExpect(header().string("Accept-Ranges", "bytes"));
         // A conversa mostra a imagem enviada pela própria instância
         mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", jid))
                 .andExpect(content().string(containsString("id=" + id)))
@@ -414,6 +465,28 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(asManager(GET("/manager/instances/nao-existe-" + name + "/messages/media"))
                         .param("jid", jid).param("id", id).param("fromMe", "true"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void voiceNotesPlayAsOggOpusAndCanBeDownloaded() throws Exception {
+        var name = createInstance();
+        var ogg = java.util.Base64.getEncoder().encodeToString("OggS-nota-de-voz".getBytes());
+        var sent = mvc.perform(POST("/message/sendWhatsAppAudio/" + name).header("apikey", API_KEY)
+                        .contentType("application/json")
+                        .content("{\"number\":\"5561944444444\",\"audio\":\"" + ogg + "\"}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(json.readTree(sent).get("message").get("audioMessage").get("ptt").asBoolean()).isTrue();
+        var id = json.readTree(sent).get("key").get("id").asString();
+        var jid = "5561944444444@s.whatsapp.net";
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/media"))
+                        .param("jid", jid).param("id", id).param("fromMe", "true"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", Matchers.matchesPattern("audio/ogg; ?codecs=opus")))
+                .andExpect(header().string("Content-Disposition", Matchers.startsWith("inline")));
+        mvc.perform(asManager(GET("/manager/instances/" + name + "/messages/chat")).param("jid", jid))
+                .andExpect(content().string(containsString("<audio data-media")))
+                .andExpect(content().string(containsString("Baixar o áudio")));
     }
 
     @Test

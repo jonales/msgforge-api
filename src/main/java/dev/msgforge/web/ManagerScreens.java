@@ -101,18 +101,32 @@ public class ManagerScreens {
                     var chatName = group ? names.get(c.remoteJid()) : c.pushName();
                     var author = group && !last.key().fromMe()
                             ? firstNonBlank(last.pushName(), ManagerViews.phoneOrJid(last.key().participant())) : null;
-                    return new ChatRow(c.remoteJid(), chatName, MessageContent.of(last.messageType(), last.message()),
-                            ManagerViews.time(last.messageTimestamp()), last.key().fromMe(), author);
+                    var content = MessageContent.of(last.messageType(), last.message());
+                    return new ChatRow(c.remoteJid(), chatName, content,
+                            ManagerViews.time(last.messageTimestamp()), last.key().fromMe(), author,
+                            reactedTo(name, c.remoteJid(), content));
                 })
                 .toList());
+    }
+
+    /** A mensagem alvo, quando a última da conversa é uma reação (uma consulta pelo id). */
+    private MessageContent reactedTo(String name, String jid, MessageContent last) {
+        if (!(last instanceof MessageContent.Reaction reaction) || reaction.removed() || reaction.targetId() == null) {
+            return null;
+        }
+        return chats.findMessages(name, new KeyFilter(jid, null, reaction.targetId()), 1, 1).records().stream()
+                .findFirst().map(m -> MessageContent.of(m.messageType(), m.message())).orElse(null);
     }
 
     public Conversation conversation(String name, String jid, int page) {
         var current = Math.max(page, 1);
         var found = chats.findMessages(name, new KeyFilter(jid, null, null), current, CONVERSATION_PAGE_SIZE);
         var ordered = new ArrayList<>(found.records().stream()
-                .map(m -> new ManagerViews.StoredRow(m.key().id(), m.key().fromMe(), m.pushName(), m.key().participant(),
-                        MessageContent.of(m.messageType(), m.message()), m.messageTimestamp(), m.status()))
+                .map(m -> {
+                    var content = MessageContent.of(m.messageType(), m.message());
+                    return new ManagerViews.StoredRow(m.key().id(), m.key().fromMe(), m.pushName(), m.key().participant(),
+                            content, m.messageTimestamp(), m.status(), mediaReady(name, jid, m, content));
+                })
                 .toList());
         Collections.reverse(ordered);   // a página vem da mais nova para a mais antiga
         var group = ManagerViews.isGroup(jid);
@@ -121,6 +135,20 @@ public class ManagerScreens {
                         .filter(n -> n != null && !n.isBlank()).findFirst().orElse(null);
         return new Conversation(jid, chatName, ManagerViews.rows(ordered, group, java.time.LocalDate.now()),
                 current, found.pages());
+    }
+
+    /**
+     * A mídia tem como ser baixada: o histórico guardou os campos de mídia ou o motor ainda tem a
+     * mensagem na memória. Sem nenhum dos dois (mensagem antiga, depois de reiniciar), a tela mostra o
+     * aviso do tipo direto, sem um player que não toca.
+     */
+    private boolean mediaReady(String name, String jid, dev.msgforge.chat.ChatDtos.MessageRecord m,
+                               MessageContent content) {
+        if (!content.media()) {
+            return false;
+        }
+        return MessageContent.stored(m.messageType(), m.message()).isPresent()
+                || chats.hasMedia(name, new dev.msgforge.gateway.WhatsAppGateway.MessageKey(jid, m.key().id(), m.key().fromMe()));
     }
 
     private static String firstNonBlank(String first, String second) {

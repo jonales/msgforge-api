@@ -119,6 +119,12 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   ignoradas (`ON CONFLICT`). Falha ao gravar só vai para o log. `HistoryRetention` (`@Scheduled`, de
   hora em hora) apaga em lotes o que passou de `HISTORY_RETENTION_DAYS`. Mensagem sem `status`
   (ou status desconhecido) entra como `PENDING`: `List.of(...).contains(null)` lança NPE.
+  Mídia no histórico: o `message` guarda os campos para baixar (`url`, `mimetype`, `fileSha256`,
+  `fileLength`, `mediaKey`, `fileEncSha256`, `directPath`, `mediaKeyTimestamp`; bytes em base64),
+  vindos do `CobaltMessageMapper.media` no upsert e, no envio, do `SentMessage.media` (preenchido
+  depois do `uploadMedia`). O `downloadMedia` do gateway procura no Store do Cobalt (memória, some
+  no reinício) e, sem achar, remonta a mensagem a partir do `StoredMedia` (tipo neutro, lido por
+  `MessageContent.stored`). Linha antiga, sem esses campos, fica com o aviso por tipo.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log). O ffmpeg roda
@@ -284,14 +290,23 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     (`ChatList`); o nome do grupo vem do motor (`GroupNames`, uma consulta por instância, 5 min, nunca
     do pushName de quem mandou). Na conversa: separador de dia, remetente (pushName + número, LID
     como veio) só no começo de cada sequência (`ManagerViews.rows`). Apagada para todos vira
-    `protocolMessage` REVOKE no histórico (`MessageHistory.markRevoked`). O fragmento `chatItem` fica
+    `protocolMessage` REVOKE no histórico (`MessageHistory.markRevoked`). Reação (`reactionMessage`, linha
+    própria no histórico com a `key` da alvo; Cobalt, stub, `/message/sendReaction` e celular) não vira
+    balão: `ManagerViews.reactions` junta pelo id da alvo, vale a última de cada pessoa e a vazia tira;
+    alvo fora da página não aparece. Na lista, última = reação vira "Reagiu 🙏 a: <trecho>"
+    (`ChatRow.reactedTo`, uma consulta pelo id). O fragmento `chatItem` fica
     dentro de um `th:if="false"` (só sai quando inserido).
   - [x] mídia na conversa: `ManagerMediaController` (`/messages/media?jid&id&fromMe`, "ver conversas",
     só mensagem que está no histórico) chama `WhatsAppGateway.downloadMedia` (Cobalt: Store +
     `downloadMedia`, em memória, teto de 25 MB; stub: o base64 enviado, em memória). Inline só
     imagem raster, áudio e vídeo (`INLINE`); o resto sai como download `octet-stream`, sempre com
-    `nosniff` e CSP `sandbox`. Mídia que falha (desconectada, fora do Store) vira o aviso do tipo
-    (`manager.js` marca `.media-failed`).
+    `nosniff` e CSP `sandbox`. Fora do Store, o Cobalt baixa com os campos de mídia do histórico
+    (`StoredMedia`, ver `history/`). Sem `StoredMedia` e fora do motor (`WhatsAppGateway.hasMedia`),
+    a linha sai com `mediaReady` false: nada de `<img>`/`<audio>`/`<video>`, só o aviso do tipo. O que
+    falha ao carregar (desconectada, CDN) também vira o aviso (`manager.js` marca `.media-failed`). A resposta é um `Resource`: o Spring atende
+    `Range` (206) e manda `Content-Length` e `Accept-Ranges`, que o `<audio>`/`<video>` usam. Nota de
+    voz sai como `audio/ogg; codecs=opus`; o Safari não toca OGG/Opus, então o áudio tem o link
+    "Baixar o áudio".
   - [x] menu lateral do painel (`layout :: panelNav(nome, can, atual)`): âncoras das seções do painel
     (`#connect`, `#send`, `#danger`) e as páginas de mensagens e configurações, só o
     que o `PanelAccess` permite, item atual com `aria-current="page"`, "Integrações" como "Em breve".

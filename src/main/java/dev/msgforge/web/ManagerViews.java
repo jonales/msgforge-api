@@ -266,7 +266,25 @@ public final class ManagerViews {
      * grupo, quem mandou a última mensagem.
      */
     public record ChatRow(String jid, String name, MessageContent last, String time, boolean fromMe,
-                          String lastAuthor) {
+                          String lastAuthor, MessageContent reactedTo) {
+
+        public ChatRow(String jid, String name, MessageContent last, String time, boolean fromMe, String lastAuthor) {
+            this(jid, name, last, time, fromMe, lastAuthor, null);
+        }
+
+        /** A última é uma reação (não removida) a uma mensagem que está no histórico. */
+        public boolean reaction() {
+            return last instanceof MessageContent.Reaction r && !r.removed() && reactedTo != null;
+        }
+
+        /** O trecho da mensagem que recebeu a reação; sem texto, fica só o tipo (Foto, Áudio...). */
+        public String reactedSnippet() {
+            if (reactedTo == null || reactedTo.summary() == null) {
+                return null;
+            }
+            var text = reactedTo.summary().strip();
+            return text.length() > 40 ? text.substring(0, 40).strip() + "…" : text;
+        }
 
         public boolean group() {
             return isGroup(jid);
@@ -305,7 +323,13 @@ public final class ManagerViews {
      * ela mostra o remetente). {@code day}: não nulo na primeira mensagem de cada dia (o separador).
      */
     public record MessageRow(String id, boolean fromMe, String author, String authorJid, MessageContent content,
-                             String time, String status, Day day, boolean startsRun) {
+                             String time, String status, Day day, boolean startsRun, List<ReactionChip> reactions,
+                             boolean mediaReady) {
+
+        public MessageRow(String id, boolean fromMe, String author, String authorJid, MessageContent content,
+                          String time, String status, Day day, boolean startsRun) {
+            this(id, fromMe, author, authorJid, content, time, status, day, startsRun, List.of(), false);
+        }
 
         /** O número de quem mandou, para mostrar ao lado do nome: "+55..." ou o LID como veio. */
         public String authorNumber() {
@@ -325,6 +349,12 @@ public final class ManagerViews {
             return author != null && !author.isBlank() && authorNumber() != null;
         }
     }
+
+    /**
+     * Uma reação mostrada junto da mensagem alvo: o emoji e quem reagiu ({@code mine}: a própria
+     * conta, pela API ou pelo celular; senão {@code who}, o pushName ou o número).
+     */
+    public record ReactionChip(String emoji, boolean mine, String who) {}
 
     /** Separador de dia: {@code kind} {@code today}, {@code yesterday} ou {@code date} (com {@code date}). */
     public record Day(String kind, String date) {
@@ -366,26 +396,68 @@ public final class ManagerViews {
 
     /** Uma mensagem gravada, já na ordem da tela (antes de agrupar). */
     record StoredRow(String id, boolean fromMe, String pushName, String participant, MessageContent content,
-                     long timestamp, String status) {}
+                     long timestamp, String status, boolean mediaReady) {
+
+        StoredRow(String id, boolean fromMe, String pushName, String participant, MessageContent content,
+                  long timestamp, String status) {
+            this(id, fromMe, pushName, participant, content, timestamp, status, false);
+        }
+    }
 
     /**
      * Monta as linhas da conversa: separador no primeiro de cada dia e o remetente só no começo de
      * cada sequência (mesmo remetente, mesmo dia). Em conversa individual, o remetente é o lado.
+     * Reações não viram linha: vão para a mensagem alvo ({@link #reactions}).
      */
     static List<MessageRow> rows(List<StoredRow> ordered, boolean group, java.time.LocalDate today) {
+        var reactions = reactions(ordered, group);
         var out = new java.util.ArrayList<MessageRow>(ordered.size());
         String previousDay = null;
         String previousSender = null;
         for (var m : ordered) {
+            if (m.content() instanceof MessageContent.Reaction) {
+                continue;
+            }
             var day = Day.of(m.timestamp(), today);
             var newDay = !day.date().equals(previousDay);
             var sender = m.fromMe() ? "(me)" : group ? String.valueOf(m.participant()) : "(them)";
             out.add(new MessageRow(m.id(), m.fromMe(), m.pushName(), group && !m.fromMe() ? m.participant() : null,
                     m.content(), CLOCK_MINUTES.format(Instant.ofEpochSecond(m.timestamp())), m.status(),
-                    newDay ? day : null, newDay || !sender.equals(previousSender)));
+                    newDay ? day : null, newDay || !sender.equals(previousSender),
+                    reactions.getOrDefault(m.id(), List.of()), m.mediaReady()));
             previousDay = day.date();
             previousSender = sender;
         }
+        return out;
+    }
+
+    /**
+     * As reações de cada mensagem (pelo id da mensagem alvo), na ordem em que chegaram: vale a última
+     * de cada pessoa, e a vazia tira a reação dela. Quem reagiu: a própria conta (fromMe, pela API ou
+     * pelo celular), o participante (grupo) ou o contato (conversa individual). Reação sem alvo, ou
+     * com o alvo fora da página, não aparece.
+     */
+    static java.util.Map<String, List<ReactionChip>> reactions(List<StoredRow> ordered, boolean group) {
+        var byTarget = new java.util.LinkedHashMap<String, java.util.LinkedHashMap<String, ReactionChip>>();
+        for (var m : ordered) {
+            if (!(m.content() instanceof MessageContent.Reaction reaction) || reaction.targetId() == null) {
+                continue;
+            }
+            var reactor = m.fromMe() ? "(me)" : group ? String.valueOf(m.participant()) : "(them)";
+            var chips = byTarget.computeIfAbsent(reaction.targetId(), id -> new java.util.LinkedHashMap<>());
+            chips.remove(reactor);   // a mais nova vai para o fim
+            if (!reaction.removed()) {
+                var who = m.pushName() != null && !m.pushName().isBlank() ? m.pushName()
+                        : group ? phoneOrJid(m.participant()) : null;
+                chips.put(reactor, new ReactionChip(reaction.emoji(), m.fromMe(), who));
+            }
+        }
+        var out = new java.util.HashMap<String, List<ReactionChip>>();
+        byTarget.forEach((id, chips) -> {
+            if (!chips.isEmpty()) {
+                out.put(id, List.copyOf(chips.values()));
+            }
+        });
         return out;
     }
 

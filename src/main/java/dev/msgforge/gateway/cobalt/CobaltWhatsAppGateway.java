@@ -35,6 +35,8 @@ import com.github.auties00.cobalt.wire.linked.message.location.LocationMessageBu
 import com.github.auties00.cobalt.wire.linked.message.media.AudioMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.media.DocumentMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.media.ImageMessageBuilder;
+import com.github.auties00.cobalt.wire.linked.message.media.MediaMessage;
+import com.github.auties00.cobalt.wire.linked.message.media.StickerMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.media.VideoMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.poll.PollCreationMessage;
 import com.github.auties00.cobalt.wire.linked.message.poll.PollCreationMessageBuilder;
@@ -45,6 +47,7 @@ import dev.msgforge.common.ApiExceptionHandler.NumberNotOnWhatsAppException;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.GatewayEvent;
 import dev.msgforge.gateway.Jids;
+import dev.msgforge.gateway.StoredMedia;
 import dev.msgforge.gateway.WhatsAppGateway;
 import dev.msgforge.gateway.media.AudioTranscoder;
 import dev.msgforge.gateway.media.MediaDownloader;
@@ -570,7 +573,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             try {
                 // Quem ligou pode vir por LID: traduz para o número quando a sessão conhece o par
                 var caller = Jid.of(connection.lids.apply(incoming.peer().toUserJid()));
-                deliver(instance, connection, caller, LinkedMessageContainer.of(reply), "resposta à chamada");
+                deliver(instance, connection, caller, LinkedMessageContainer.of(reply), "resposta à chamada",
+                        Map.of());
             } catch (RuntimeException e) {
                 log.warn("[cobalt] {}: falha ao responder a chamada {}: {}", connection.instanceName,
                         incoming.callId(), rootMessage(e));
@@ -796,7 +800,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var connection = requireConnected(instance);
         var jid = resolve(connection, text.jid());
         typing(connection, jid, text.delayMs());
-        return deliver(instance, connection, jid, LinkedMessageContainer.of(text.text()), "envio de texto");
+        return deliver(instance, connection, jid, LinkedMessageContainer.of(text.text()), "envio de texto", Map.of());
     }
 
     @Override
@@ -810,7 +814,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var message = buildMedia(media);
         upload(connection, (MediaProvider) message, bytes);
         typing(connection, jid, media.delayMs());
-        return deliver(instance, connection, jid, LinkedMessageContainer.of(message), "envio de mídia");
+        return deliver(instance, connection, jid, LinkedMessageContainer.of(message), "envio de mídia",
+                CobaltMessageMapper.media((MediaMessage) message));
     }
 
     @Override
@@ -823,7 +828,9 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             upload(connection, (MediaProvider) built, audio);
         }
         typing(connection, jid, message.delayMs());
-        return deliver(instance, connection, jid, LinkedMessageContainer.of(built), "envio");
+        // Depois do upload, a mensagem de voz traz chave e endereço: vão para a resposta e o histórico
+        var media = audio != null ? CobaltMessageMapper.media((MediaMessage) built) : Map.<String, Object>of();
+        return deliver(instance, connection, jid, LinkedMessageContainer.of(built), "envio", media);
     }
 
     /** Envia a mídia para o CDN do WhatsApp; o Cobalt preenche chaves, hashes e URL na própria mensagem. */
@@ -977,25 +984,19 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     }
 
     /**
-     * A mensagem sai do Store do Cobalt (pela key e, se não achar, pelo id na conversa); o motor baixa
-     * do CDN e decifra com a chave da própria mensagem. Nada vai para o disco. Quem não está no Store
-     * (anterior à sessão, ou endereçada por LID quando o histórico guardou o telefone) fica sem mídia.
+     * A mensagem sai do Store do Cobalt (pela key e, se não achar, pelo id na conversa). Fora do Store
+     * (o Store é memória: some a cada reinício; ou a conversa é endereçada por LID e o histórico guardou
+     * o telefone), a mensagem de mídia é remontada com os campos do histórico ({@code stored}). O motor
+     * baixa do CDN e decifra com a chave da mensagem; nada vai para o disco. Sem nenhum dos dois, vazio.
      */
     @Override
-    public Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, long maxBytes) {
+    public Optional<MediaContent> downloadMedia(Instance instance, MessageKey key, StoredMedia stored, long maxBytes) {
         var connection = requireConnected(instance);
-        var chat = Jid.of(key.remoteJid());
-        var chats = connection.api.store().chatStore();
-        var cobaltKey = new MessageKeyBuilder().parentJid(chat).fromMe(key.fromMe()).id(key.id()).build();
-        Optional<? extends com.github.auties00.cobalt.wire.linked.message.LinkedMessageInfo> found =
-                chats.findMessageByKey(cobaltKey);
+        var found = fromStore(connection, key).or(() -> storedMessage(stored));
         if (found.isEmpty()) {
-            found = chats.findMessageById(chat, key.id());
-        }
-        if (found.isEmpty()
-                || !(found.get().message().content() instanceof com.github.auties00.cobalt.wire.linked.message.media.MediaMessage media)) {
             return Optional.empty();
         }
+        var media = found.get();
         if (media.fileLength().orElse(0) > maxBytes) {
             throw new MediaTooLargeException(maxBytes);
         }
@@ -1010,6 +1011,66 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             throw new MediaTooLargeException(maxBytes);
         }
         return Optional.of(new MediaContent(bytes, media.mimetype().orElse(null)));
+    }
+
+    @Override
+    public boolean hasMedia(Instance instance, MessageKey key) {
+        var connection = connections.get(instance.getId());
+        if (connection == null || !connection.loggedIn) {
+            return false;
+        }
+        try {
+            return fromStore(connection, key).isPresent();
+        } catch (RuntimeException e) {
+            return false;   // JID que o Cobalt não aceita, Store fechando: sem mídia
+        }
+    }
+
+    private static Optional<MediaMessage> fromStore(Connection connection, MessageKey key) {
+        var chat = Jid.of(key.remoteJid());
+        var chats = connection.api.store().chatStore();
+        var cobaltKey = new MessageKeyBuilder().parentJid(chat).fromMe(key.fromMe()).id(key.id()).build();
+        Optional<? extends com.github.auties00.cobalt.wire.linked.message.LinkedMessageInfo> found =
+                chats.findMessageByKey(cobaltKey);
+        if (found.isEmpty()) {
+            found = chats.findMessageById(chat, key.id());
+        }
+        return found.map(info -> info.message().content() instanceof MediaMessage media ? media : null);
+    }
+
+    /**
+     * A mensagem de mídia do Cobalt remontada com o que o histórico guardou (chave, hashes, URL e
+     * directPath): é o que o {@code downloadMedia} do motor lê para baixar e conferir o arquivo.
+     */
+    static Optional<MediaMessage> storedMessage(StoredMedia stored) {
+        if (stored == null) {
+            return Optional.empty();
+        }
+        var timestamp = stored.mediaKeyTimestamp() == null ? null : Instant.ofEpochSecond(stored.mediaKeyTimestamp());
+        MediaMessage message = switch (stored.messageType()) {
+            case "imageMessage" -> new ImageMessageBuilder().mediaUrl(stored.url()).mediaDirectPath(stored.directPath())
+                    .mimetype(stored.mimetype()).mediaKey(stored.mediaKey()).mediaSha256(stored.fileSha256())
+                    .mediaEncryptedSha256(stored.fileEncSha256()).mediaSize(stored.fileLength())
+                    .mediaKeyTimestamp(timestamp).build();
+            case "videoMessage", "ptvMessage" -> new VideoMessageBuilder().mediaUrl(stored.url())
+                    .mediaDirectPath(stored.directPath()).mimetype(stored.mimetype()).mediaKey(stored.mediaKey())
+                    .mediaSha256(stored.fileSha256()).mediaEncryptedSha256(stored.fileEncSha256())
+                    .mediaSize(stored.fileLength()).mediaKeyTimestamp(timestamp).build();
+            case "audioMessage" -> new AudioMessageBuilder().mediaUrl(stored.url()).mediaDirectPath(stored.directPath())
+                    .mimetype(stored.mimetype()).mediaKey(stored.mediaKey()).mediaSha256(stored.fileSha256())
+                    .mediaEncryptedSha256(stored.fileEncSha256()).mediaSize(stored.fileLength())
+                    .mediaKeyTimestamp(timestamp).ptt(stored.ptt()).build();
+            case "documentMessage" -> new DocumentMessageBuilder().mediaUrl(stored.url())
+                    .mediaDirectPath(stored.directPath()).mimetype(stored.mimetype()).mediaKey(stored.mediaKey())
+                    .mediaSha256(stored.fileSha256()).mediaEncryptedSha256(stored.fileEncSha256())
+                    .mediaSize(stored.fileLength()).mediaKeyTimestamp(timestamp).build();
+            case "stickerMessage" -> new StickerMessageBuilder().mediaUrl(stored.url())
+                    .mediaDirectPath(stored.directPath()).mimetype(stored.mimetype()).mediaKey(stored.mediaKey())
+                    .mediaSha256(stored.fileSha256()).mediaEncryptedSha256(stored.fileEncSha256())
+                    .mediaSize(stored.fileLength()).mediaKeyTimestamp(timestamp).build();
+            default -> null;
+        };
+        return Optional.ofNullable(message);
     }
 
     @Override
@@ -1358,11 +1419,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
 
     /** Envia, publica o send.message e libera os status que chegaram durante o envio. */
     private SentMessage deliver(Instance instance, Connection connection, Jid jid, LinkedMessageContainer message,
-                                String what) {
+                                String what, Map<String, Object> media) {
         var key = call(() -> connection.api.sendMessage(jid, message), what);
         var id = key.id().orElseThrow(() -> new GatewayException("Falha no " + what + ": mensagem sem id", null));
         var remoteJid = jid.toString();
-        var sent = new SentMessage(id, remoteJid, Instant.now().getEpochSecond());
+        var sent = new SentMessage(id, remoteJid, Instant.now().getEpochSecond(), media);
         events.publishEvent(new GatewayEvent.MessageSent(instance.getName(), sent));
         // Depois do send.message: os status que chegaram durante o envio saem aqui, já na ordem certa
         connection.statuses.sent(id, remoteJid);

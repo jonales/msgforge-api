@@ -14,6 +14,8 @@ import java.util.Locale;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +38,11 @@ import org.springframework.web.bind.annotation.RequestParam;
  * executar nada (imagem raster, áudio, vídeo) saem inline; o resto (SVG, HTML, PDF...) sai como
  * download, em {@code application/octet-stream}. Toda resposta leva {@code nosniff} e um CSP
  * {@code sandbox} próprio.
+ *
+ * <p>O motor procura a mensagem na memória dele; se não achar (o processo reiniciou), baixa com os
+ * campos de mídia que o histórico guardou ({@code url}, {@code mediaKey}, {@code directPath}...).
+ * A resposta é um {@link Resource}: o Spring atende {@code Range} (206) e manda {@code Content-Length}
+ * e {@code Accept-Ranges}, que o {@code <audio>} e o {@code <video>} usam para tocar e avançar.
  */
 @Controller
 @RequestMapping("/manager/instances/{name}/messages")
@@ -60,7 +67,7 @@ public class ManagerMediaController {
     }
 
     @GetMapping("/media")
-    public ResponseEntity<byte[]> media(@PathVariable String name, @RequestParam String jid, @RequestParam String id,
+    public ResponseEntity<Resource> media(@PathVariable String name, @RequestParam String jid, @RequestParam String id,
                                         @RequestParam(defaultValue = "false") boolean fromMe) {
         try {
             guard.require(name, Permission.CHAT_VIEW);
@@ -79,7 +86,8 @@ public class ManagerMediaController {
             return ResponseEntity.notFound().build();
         }
         try {
-            return chats.downloadMedia(name, new MessageKey(record.key().remoteJid(), id, fromMe), MAX_BYTES)
+            var saved = MessageContent.stored(record.messageType(), record.message()).orElse(null);
+            return chats.downloadMedia(name, new MessageKey(record.key().remoteJid(), id, fromMe), saved, MAX_BYTES)
                     .map(media -> respond(media.bytes(), declaredType(content, media.mimeType()), fileName(content)))
                     .orElseGet(() -> ResponseEntity.notFound().build());
         } catch (MediaTooLargeException e) {
@@ -91,20 +99,19 @@ public class ManagerMediaController {
         }
     }
 
-    private static ResponseEntity<byte[]> respond(byte[] bytes, String declared, String fileName) {
+    private static ResponseEntity<Resource> respond(byte[] bytes, String declared, String fileName) {
         var type = safeType(declared);
         var inline = !MediaType.APPLICATION_OCTET_STREAM_VALUE.equals(type) && fileName == null;
         var disposition = (inline ? ContentDisposition.inline() : ContentDisposition.attachment())
                 .filename(fileName != null ? fileName : "midia", StandardCharsets.UTF_8).build();
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(type))
-                .contentLength(bytes.length)
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .header("X-Content-Type-Options", "nosniff")
                 .header("Content-Security-Policy", "sandbox; default-src 'none'")
                 // A conversa é trocada a cada poucos segundos: o navegador reaproveita sem baixar de novo
                 .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePrivate())
-                .body(bytes);
+                .body(new ByteArrayResource(bytes));
     }
 
     /** O tipo que a mensagem declara, sem parâmetros e em minúsculas; figurinha sem tipo é WebP. */
@@ -121,13 +128,24 @@ public class ManagerMediaController {
         return declared;
     }
 
-    /** O tipo de mídia na resposta: o declarado, se for um dos {@link #INLINE}; senão, binário. */
+    /**
+     * O tipo de mídia na resposta: o declarado, se for um dos {@link #INLINE}; senão, binário. Os
+     * parâmetros caem, menos o {@code codecs=opus} do OGG (nota de voz), que o navegador usa para
+     * decidir se toca. O Safari não toca OGG/Opus: na tela, o áudio tem também o link de download.
+     */
     static String safeType(String declared) {
         if (declared == null) {
             return MediaType.APPLICATION_OCTET_STREAM_VALUE;
         }
-        var base = declared.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
-        return INLINE.contains(base) ? base : MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        var parts = declared.toLowerCase(Locale.ROOT).split(";", 2);
+        var base = parts[0].trim();
+        if (!INLINE.contains(base)) {
+            return MediaType.APPLICATION_OCTET_STREAM_VALUE;
+        }
+        if ("audio/ogg".equals(base) && parts.length > 1 && parts[1].contains("opus")) {
+            return "audio/ogg; codecs=opus";
+        }
+        return base;
     }
 
     /** Documento sai como download com o nome dele; o resto, inline. */
