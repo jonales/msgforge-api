@@ -99,7 +99,11 @@
         <p class="muted small" th:text="#{manager.danger.intro}">Desconectar e excluir.</p>
         <div class="row">
             <form th:if="${can.connect}" th:action="@{/manager/instances/{n}/logout(n=${instance.name})}" method="post">
-                <button type="submit" th:text="#{manager.danger.logout}">Desconectar</button>
+                <!-- Sem conexão não há aparelho para desvincular: o botão fica desabilitado, com o motivo -->
+                <button type="submit" th:text="#{manager.danger.logout}" th:disabled="${instance.state == 'close'}"
+                        th:attr="aria-describedby=${instance.state == 'close'} ? 'logout-hint' : null">Desconectar</button>
+                <span id="logout-hint" class="muted small" th:if="${instance.state == 'close'}"
+                      th:text="#{manager.danger.logoutDisabled}">Já está desconectada.</span>
             </form>
             <form th:if="${can.delete}" th:action="@{/manager/instances/{n}/delete(n=${instance.name})}" method="post">
                 <label class="check"><input type="checkbox" name="confirm" required>

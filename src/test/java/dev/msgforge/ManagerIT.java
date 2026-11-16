@@ -1095,4 +1095,18 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(POST("/manager/theme").with(csrf()).param("theme", "light"))
                 .andExpect(redirectedUrl("/manager/login"));
     }
+
+    @Test
+    void logoutIsDisabledWhileDisconnectedAndTheAvatarOnlyExistsForAPairedAccount() throws Exception {
+        var name = createInstance();
+        var panel = "/manager/instances/" + name;
+        mvc.perform(asManager(GET(panel + "/connection")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Já está desconectada")))
+                .andExpect(content().string(containsString("disabled=\"disabled\"")));
+        // Nunca pareada: sem foto na Visão geral e a rota responde 404
+        mvc.perform(asManager(GET(panel)))
+                .andExpect(content().string(Matchers.not(containsString("class=\"avatar\""))));
+        mvc.perform(asManager(GET(panel + "/avatar"))).andExpect(status().isNotFound());
+    }
 }

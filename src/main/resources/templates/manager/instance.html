@@ -47,7 +47,13 @@
             </div>
             <div>
                 <dt th:text="#{manager.col.profile}">Perfil</dt>
-                <dd th:text="${instance.profileName} ?: '—'">Loja</dd>
+                <dd class="profile">
+                    <!-- Foto pela rota do Manager (o CSP só aceita imagem do próprio servidor); sem foto,
+                         o manager.js esconde a imagem -->
+                    <img class="avatar" th:if="${instance.paired}" width="40" height="40" alt="" loading="lazy"
+                         th:src="@{/manager/instances/{n}/avatar(n=${instance.name})}">
+                    <span th:text="${instance.profileName} ?: '—'">Loja</span>
+                </dd>
             </div>
             <div>
                 <dt th:text="#{manager.engine.label}">Motor</dt>

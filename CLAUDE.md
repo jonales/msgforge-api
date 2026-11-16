@@ -319,11 +319,13 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     voz sai como `audio/ogg; codecs=opus`; o Safari não toca OGG/Opus, então o áudio tem o link
     "Baixar o áudio".
   - [x] menu do painel (`layout :: panelNav(nome, can, atual)`): **cada item é uma tela** (nunca
-    âncora): Visão geral `/{n}` (resumo: estado, número, perfil, motor, histórico, aviso de webhook
+    âncora): Visão geral `/{n}` (resumo: estado, número, perfil com a foto da conta
+    por `/{n}/avatar` (`ManagerAvatarController`: busca no servidor, cache de 10 min, só JPEG; o CSP
+    não aceita imagem de fora), motor, histórico, aviso de webhook
     em nova tentativa e atalhos; o resumo `/{n}/summary` é buscado de novo a cada evento `live` do
     SSE, `hx-trigger="sse:live"`), Conexão `/{n}/connection` ("ver status": trecho ao vivo
     `instance-connection :: live`, que o SSE e a conexão guiada também usam; formulário de conectar
-    só fora do ar; desconectar e excluir na zona de perigo), Mensagens, Envio de teste `/{n}/send`
+    só fora do ar; desconectar, desabilitado sem conexão, e excluir na zona de perigo), Mensagens, Envio de teste `/{n}/send`
     (`CHAT_SEND`) e Configurações. Só o que o `PanelAccess` permite, item atual com
     `aria-current="page"`, "Integrações" (tela própria) apagado com o selo "Em breve". No celular, faixa de abas
     numa linha que rola dentro dela mesma (44 px). Trilha `layout :: panelCrumbs(nome, chave)` em
@@ -410,11 +412,12 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    `CONTACTS_UPSERT`, `CHATS_UPSERT`, `SEND_MESSAGE` e `MESSAGES_UPDATE` em grupo (2026-11-14);
    `MESSAGES_DELETE`, `PRESENCE_UPDATE`, `CALL`, `CHATS_UPDATE`, `CHATS_DELETE`, `CONTACTS_UPDATE`
    (recado e foto) e `MESSAGES_SET` (2026-11-15). Limites:
-   - repetições: o mesmo status sai duas vezes (o motor dispara `onNewMessage` e `onNewStatus`, e o
-     gateway assina os dois), o `CONTACTS_UPDATE` de um recado sai até 3 vezes, e o primeiro retrato
-     de app state numa conexão nova sai uma vez por conversa (85 `CHATS_UPDATE` ao parear; o
-     `CHATS_DELETE` reenvia exclusões antigas). O `CobaltEvents.fingerprint` só filtra a repetição
-     do mesmo estado dentro da conexão;
+   - repetições (tratadas em 2026-11-15): o status só entra pelo `onNewStatus` (o `onNewMessage`
+     ignora `status@broadcast`); o `CONTACTS_UPDATE` do mesmo contato não se repete em 10 s; as
+     ações de app state passam pelo `AppStateFilter` (lote de 1 s: num lote com mais de 5 conversas,
+     um retrato da coleção, só sai o que mudou de um estado já visto; a mesma ação com o mesmo estado
+     nunca sai de novo; apagar e limpar conversa são identificados pela última mensagem). Limite: uma
+     mudança real que chegue dentro de um retrato e sem estado anterior conhecido não sai;
    - `CHATS_UPSERT`/`CONTACTS_UPSERT` repetem a lista inteira depois de reiniciar o processo (filtro
      por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
      `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas
@@ -423,7 +426,8 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
    status de contato (#10) e logout que fecha a conexão (#11). Em "Aparelhos conectados" o aparelho
    aparece como "Windows": o nome vem do `DeviceProps.os` (fixo no motor) e o ícone do
    `platformType` (o celular desenha com os ícones dele; não há campo de imagem). O usuário decidiu
-   manter o ícone; trocar o nome para "Msgforge" fica para um PR do motor.
+   manter o ícone; o nome configurado (`CONFIG_SESSION_PHONE_CLIENT`) passa a valer a partir do
+   cobalt-2#13, só em pareamentos novos.
 
 ## Memória entre sessões
 

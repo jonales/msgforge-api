@@ -133,6 +133,9 @@ final class CobaltEvents {
             case MarkChatAsReadAction r -> "read:" + r.read();
             case LockChatAction l -> "lock:" + l.locked();
             case ContactAction c -> "contact:" + c.fullName().orElse("") + ":" + c.firstName().orElse("");
+            // Apagar e limpar: a última mensagem coberta identifica a ação (reenviada num retrato)
+            case DeleteChatAction d -> "delete:" + d.messageRange().flatMap(r -> r.lastMessageTimestamp()).orElse(null);
+            case ClearChatAction c -> "clear:" + c.messageRange().flatMap(r -> r.lastMessageTimestamp()).orElse(null);
             default -> null;
         };
     }
