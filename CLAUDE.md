@@ -401,24 +401,29 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
 5. Histórico (ADR 0008): o que chegou antes de a instância receber eventos não aparece. A
    retenção (`HISTORY_RETENTION_DAYS`) vem desligada por padrão.
 6. `/instance/create`: `alwaysOnline` é aceito e guardado, mas **ainda sem efeito** (o motor
-   anuncia "disponível" no login e nada manda "indisponível"). `rejectCall` foi validado ao vivo
-   (2026-11-14), e `msgCall`, `readMessages` e `groupsIgnore` também (2026-11-14). `readStatus`
-   foi corrigido depois do teste (os status chegam por `addNewStatusListener`, não pelo listener de
-   mensagens) e falta repetir ao vivo. O proxy não é testado no
-   create (a referência devolve 400 "Invalid proxy").
-7. Eventos validados ao vivo no Cobalt em 2026-11-14 (duas instâncias): `GROUPS_UPSERT`,
-   `GROUP_UPDATE` (assunto, descrição, announce, restrict), `GROUP_PARTICIPANTS_UPDATE` (add, remove,
-   promote, demote), `CONTACTS_UPSERT`, `CHATS_UPSERT`, `SEND_MESSAGE` e `MESSAGES_UPDATE` em grupo.
-   Ainda não vistos ao vivo: `MESSAGES_SET`, `MESSAGES_DELETE`, `PRESENCE_UPDATE`, `CHATS_UPDATE`/`DELETE`,
-   `CONTACTS_UPDATE` e `CALL` (o motor recebeu o revoke, o chatstate e a chamada; faltou o webhook). Limites:
-   `CHATS_UPSERT`/`CONTACTS_UPSERT` repetem a lista inteira depois de reiniciar o processo (o
-   filtro é por conexão, em memória); o `CHATS_UPDATE` ignora a ação de app state que repete o estado
-   já visto na conexão (`CobaltEvents.fingerprint`), mas o primeiro retrato da coleção depois de
-   reiniciar ainda sai uma vez por conversa (o motor não diz se a ação veio de retrato ou de patch);
-   `CONTACTS_UPDATE` sai também na troca de recado e de foto de um contato (validado ao vivo em
-   2026-11-15, junto com `MESSAGES_DELETE`, `PRESENCE_UPDATE` e `CALL`); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
-   `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas pela
-   própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
+   anuncia "disponível" no login e nada manda "indisponível"). Validados ao vivo: `rejectCall`,
+   `msgCall`, `readMessages`, `groupsIgnore` (2026-11-14) e `readStatus` (2026-11-15, depois do
+   cobalt-2#10: o status de contato chega como `<status>` e só agora dispara `onNewStatus`). O
+   proxy não é testado no create (a referência devolve 400 "Invalid proxy").
+7. Eventos validados ao vivo no Cobalt (duas instâncias): `GROUPS_UPSERT`, `GROUP_UPDATE` (assunto,
+   descrição, announce, restrict), `GROUP_PARTICIPANTS_UPDATE` (add, remove, promote, demote),
+   `CONTACTS_UPSERT`, `CHATS_UPSERT`, `SEND_MESSAGE` e `MESSAGES_UPDATE` em grupo (2026-11-14);
+   `MESSAGES_DELETE`, `PRESENCE_UPDATE`, `CALL`, `CHATS_UPDATE`, `CHATS_DELETE`, `CONTACTS_UPDATE`
+   (recado e foto) e `MESSAGES_SET` (2026-11-15). Limites:
+   - repetições: o mesmo status sai duas vezes (o motor dispara `onNewMessage` e `onNewStatus`, e o
+     gateway assina os dois), o `CONTACTS_UPDATE` de um recado sai até 3 vezes, e o primeiro retrato
+     de app state numa conexão nova sai uma vez por conversa (85 `CHATS_UPDATE` ao parear; o
+     `CHATS_DELETE` reenvia exclusões antigas). O `CobaltEvents.fingerprint` só filtra a repetição
+     do mesmo estado dentro da conexão;
+   - `CHATS_UPSERT`/`CONTACTS_UPSERT` repetem a lista inteira depois de reiniciar o processo (filtro
+     por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
+     `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas
+     pela própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
+8. Motor (cobalt-2, corrigido e validado em 2026-11-15): vídeo (#4), foto da própria conta (#9),
+   status de contato (#10) e logout que fecha a conexão (#11). Em "Aparelhos conectados" o aparelho
+   aparece como "Windows": o nome vem do `DeviceProps.os` (fixo no motor) e o ícone do
+   `platformType` (o celular desenha com os ícones dele; não há campo de imagem). O usuário decidiu
+   manter o ícone; trocar o nome para "Msgforge" fica para um PR do motor.
 
 ## Memória entre sessões
 

@@ -179,6 +179,22 @@ Duas instâncias (uma conta comum e uma Business), motor no cobalt-2 com o PR #4
 Falta ver ao vivo: `CONTACTS_UPDATE` e o filtro de `CHATS_UPDATE` do #56, o modelo de assinatura,
 `MESSAGES_SET` (histórico no pareamento) e `CHATS_DELETE`.
 
+## Rodada de 2026-11-15 (segunda parte)
+
+Motor no cobalt-2 com os PRs #9, #10 e #11.
+
+| Item | Resultado |
+|---|---|
+| `CONTACTS_UPDATE` (troca de recado e de foto) | ✅ chega, mas repetido (até 3 vezes no recado) |
+| Filtro do `CHATS_UPDATE` | ✅ depois do primeiro retrato, 1 evento por ação. Numa conexão nova, ainda 1 por conversa (85 ao parear) |
+| Assinatura "Atendente {nome}" | ✅ |
+| Bot (pausa, volta sozinho, palavra de encerrar) | ✅ |
+| `CHATS_DELETE` | ✅ chega, junto com exclusões antigas reenviadas |
+| Foto da própria conta (`updateProfilePicture`) | ✅ depois do cobalt-2#9 (antes: 30 s e a foto não mudava). Troca em 2 s |
+| Status de contato e `readStatus` | ✅ depois do cobalt-2#10 (antes o motor descartava o `<status>`). O mesmo status sai duas vezes |
+| Logout | ✅ depois do cobalt-2#11, a conexão fecha logo depois do desvínculo (antes: 47 s) |
+| `MESSAGES_SET` (histórico "Recente") | ✅ o evento chega; o histórico vem em partes |
+
 ## Resultados (preencha e cole numa issue do fork ou numa conversa com o Claude)
 
 Commit do fork testado: `________`
