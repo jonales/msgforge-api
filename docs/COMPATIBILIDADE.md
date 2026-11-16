@@ -16,7 +16,7 @@ Legenda: ✅ implementado · 🟡 parcial · ⬜ pendente
 
 ### Configurações e proxy do `/instance/create`
 Os campos são guardados na instância e lidos a cada conexão. No stub, nada muda (ele não recebe
-mensagens nem chamadas). No Cobalt (chamadas e leitura automática ainda não testadas ao vivo):
+mensagens nem chamadas). No Cobalt (`rejectCall`, `msgCall`, `groupsIgnore`, `readMessages` e `readStatus` validados ao vivo em 2026-11-14/15; o proxy ainda não):
 - `syncFullHistory: true` = histórico completo no pareamento (`historySync = FULL`); ausente/false = nenhum.
 - `rejectCall`: recusa a chamada (`REJECTED`). `msgCall`: texto a quem ligou, independente do
   `rejectCall`, como na referência; sai como `send.message` (a referência emite `messages.upsert`).
@@ -77,8 +77,8 @@ Diferenças:
 | Bloqueio opcional de webhook para rede interna (SSRF) | ✅ `WEBHOOK_BLOCK_PRIVATE_NETWORKS` (padrão `false`; sem equivalente na Evolution) |
 | Eventos emitidos: QRCODE_UPDATED, CONNECTION_UPDATE, SEND_MESSAGE, MESSAGES_UPSERT | ✅ |
 | APPLICATION_STARTUP | ✅ só webhook global e RabbitMQ, `data: {status: "started"}` (a Evolution declara o evento, mas não o emite) |
-| GROUPS_UPSERT, GROUP_UPDATE (`groups.update`), GROUP_PARTICIPANTS_UPDATE (`group-participants.update`) | ✅ stub e Cobalt (no Cobalt, das notificações do WhatsApp; não testado ao vivo). Diferente da Evolution, `GROUP_UPDATE` em `webhook.events` entrega o `groups.update`. `participantsData` só com `jid` e `phoneNumber` |
-| MESSAGES_SET, MESSAGES_DELETE, CONTACTS_UPSERT/UPDATE, PRESENCE_UPDATE, CHATS_UPSERT/UPDATE/DELETE, CALL | 🟡 só Cobalt, não testados ao vivo. Formatos e limites em `docs/eventos.md` |
+| GROUPS_UPSERT, GROUP_UPDATE (`groups.update`), GROUP_PARTICIPANTS_UPDATE (`group-participants.update`) | ✅ stub e Cobalt (no Cobalt, das notificações do WhatsApp; validado ao vivo em 2026-11-14). Diferente da Evolution, `GROUP_UPDATE` em `webhook.events` entrega o `groups.update`. `participantsData` só com `jid` e `phoneNumber` |
+| MESSAGES_SET, MESSAGES_DELETE, CONTACTS_UPSERT/UPDATE, PRESENCE_UPDATE, CHATS_UPSERT/UPDATE/DELETE, CALL | 🟡 só Cobalt, validados ao vivo em 2026-11-15 (`CONTACTS_UPSERT`/`CHATS_UPSERT` em 2026-11-14). Formatos e limites (repetições, `profilePicUrl` null) em `docs/eventos.md` |
 | MESSAGES_UPDATE (status SERVER_ACK / DELIVERY_ACK / READ / PLAYED) | 🟡 só com `MSGFORGE_GATEWAY=cobalt` |
 | `connection.update` com `wuid` e `profileName` ao conectar; `statusReason` 401/403/428 | 🟡 Cobalt |
 | `qrcode.updated` com `base64` (PNG em data URL) | 🟡 Cobalt (o stub não gera imagem) |
