@@ -713,3 +713,7 @@ label.checkbox input { accent-color: var(--accent); }
 .settings-tabs .tab-disabled { display: grid; gap: 2px; min-height: 44px; height: 100%; padding: 8px 12px;
     border: 1px dashed var(--border); border-radius: var(--radius); color: var(--muted); }
 input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+/* Foto da conta na Visão geral: redonda, ao lado do nome do perfil */
+.facts dd.profile { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--bg);
+    border: 1px solid var(--border); flex: none; }

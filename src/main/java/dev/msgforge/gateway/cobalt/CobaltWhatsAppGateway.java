@@ -150,8 +150,10 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         volatile boolean loggedIn;
         /** LID → número: Store do Cobalt e, como reforço, os nós recebidos. */
         volatile LidResolver lids = new LidResolver();
-        /** Último estado de cada índice do app state nesta conexão (para não repetir CHATS_UPDATE). */
-        final java.util.Map<String, String> appState = new java.util.concurrent.ConcurrentHashMap<>();
+        /** Ações de app state em lote: retrato da coleção não vira um evento por conversa. */
+        final AppStateFilter appState = new AppStateFilter();
+        /** Último CONTACTS_UPDATE por contato (recado e foto chegam em notificações repetidas). */
+        final java.util.Map<Jid, Long> contactChangedAt = new java.util.concurrent.ConcurrentHashMap<>();
         /** messages.update das mensagens enviadas, a partir dos recibos. */
         volatile SentStatusTracker statuses;
         /** Configurações (rejectCall, groupsIgnore...): lidas no connect, trocadas por {@code settingsChanged}. */
@@ -188,6 +190,10 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private final AudioTranscoder transcoder;
     private final MsgforgeProperties.Cobalt config;
     private final SecretCipher secrets;
+    /** Janela do lote de app state (ver {@link AppStateFilter}). */
+    static final long APP_STATE_BATCH_MS = 1_000;
+    /** A mesma troca de recado ou de foto, repetida dentro disto, não vira outro CONTACTS_UPDATE. */
+    static final long CONTACT_CHANGE_WINDOW_MS = 10_000;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     /** URL de mídia: sempre checada contra rede privada, com ou sem a proteção dos webhooks. */
     private final MediaDownloader downloader;
@@ -484,7 +490,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                     CobaltEvents.groupNotification(name, node, connection.lids).forEach(events::publishEvent));
         });
         api.addNewMessageListener((whatsapp, info) -> {
-            if (info instanceof ChatMessageInfo message) {
+            // Status também dispara o onNewStatus, abaixo: aqui ele contaria duas vezes
+            if (info instanceof ChatMessageInfo message && !isStatus(message)) {
                 onIncoming(id, connection, message);
             }
         });
@@ -534,6 +541,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         if (connection.settings.marksAsRead(chat, message.key().fromMe())) {
             executor.execute(() -> markReadOnArrival(connection, message));
         }
+    }
+
+    private static boolean isStatus(ChatMessageInfo message) {
+        return message.key().parentJid().map(jid -> InstanceSettings.STATUS_BROADCAST.equals(jid.toString()))
+                .orElse(false);
     }
 
     /** readMessages / readStatus: o tique azul sai assim que a mensagem chega. */
@@ -614,12 +626,22 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             }
         }));
         api.addWebAppStateActionListener((whatsapp, action, index) -> guarded(name, "app state", () -> {
-            // Ressincronização: a mesma ação, com o mesmo estado, não vira outro evento
-            var state = CobaltEvents.fingerprint(action);
-            if (index != null && state != null && state.equals(connection.appState.put(index, state))) {
+            var event = CobaltEvents.appState(name, action, index, connection.lids).orElse(null);
+            if (event == null) {
                 return;
             }
-            CobaltEvents.appState(name, action, index, connection.lids).ifPresent(events::publishEvent);
+            // Em lote: um retrato da coleção (ao parear, ou baixado depois de uma alteração) não vira
+            // um evento por conversa; só o que mudou de fato (AppStateFilter)
+            if (connection.appState.add(index, CobaltEvents.fingerprint(action), () -> events.publishEvent(event))) {
+                executor.execute(() -> {
+                    try {
+                        Thread.sleep(APP_STATE_BATCH_MS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    guarded(name, "app state", () -> connection.appState.flush().forEach(Runnable::run));
+                });
+            }
         }));
         // Recado e foto de um contato: CONTACTS_UPDATE (grupos têm os eventos de grupo)
         api.addContactTextStatusListener((whatsapp, contact, status) -> guarded(name, "recado", () ->
@@ -1160,6 +1182,12 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             return;
         }
         var target = jid.withoutData();
+        // O WhatsApp manda a mesma troca de recado em mais de uma notificação: um evento só
+        var now = System.currentTimeMillis();
+        var last = connection.contactChangedAt.put(target, now);
+        if (last != null && now - last < CONTACT_CHANGE_WINDOW_MS) {
+            return;
+        }
         var pushName = contactName(connection.api.store(), target).orElse(null);
         events.publishEvent(new GatewayEvent.ContactsUpdated(name,
                 List.of(new GatewayEvent.Contact(connection.lids.apply(target), pushName))));

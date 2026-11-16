@@ -11,7 +11,7 @@
 | `MESSAGES_UPDATE` | Status: `SERVER_ACK`, `DELIVERY_ACK`, `READ`, `PLAYED` |
 | `MESSAGES_DELETE` | Mensagem apagada para todos |
 | `CONTACTS_UPSERT` | Contatos sincronizados no login ou contato novo |
-| `CONTACTS_UPDATE` | Nome do contato alterado na agenda (sincronizado entre os aparelhos) |
+| `CONTACTS_UPDATE` | Nome do contato alterado na agenda (sincronizado entre os aparelhos), ou o contato trocou o recado ou a foto |
 | `PRESENCE_UPDATE` | Presença de um contato (digitando, gravando, online, offline) nas conversas em que a conta assina a presença |
 | `CHATS_UPSERT` | Conversas sincronizadas no login |
 | `CHATS_UPDATE` | Conversa arquivada, silenciada, fixada, marcada como lida, trancada ou limpa em outro aparelho |
@@ -57,7 +57,11 @@ endereça por LID e o número não é conhecido, o JID sai como `<lid>@lid`, nun
 - **Cobalt** (`MSGFORGE_GATEWAY=cobalt`): todos. Contatos e conversas vêm da sincronização do
   login; o Cobalt repete a lista inteira a cada login, e só o que ainda não saiu nesta conexão
   sai de novo (depois de reiniciar o processo, a lista volta a sair inteira). `CHATS_UPDATE`,
-  `CHATS_DELETE` e `CONTACTS_UPDATE` vêm das ações sincronizadas entre os aparelhos da conta. Os
+  `CHATS_DELETE` e `CONTACTS_UPDATE` vêm das ações sincronizadas entre os aparelhos da conta. Essas ações chegam em lote: quando o WhatsApp reenvia o estado de
+  todas as conversas (ao parear, ou depois de uma alteração), só sai `CHATS_UPDATE`/`CHATS_DELETE`
+  para o que mudou em relação a um estado já visto na conexão, e a mesma ação com o mesmo estado não
+  sai de novo. A mesma troca de recado ou foto de um contato gera um `CONTACTS_UPDATE` só, mesmo que
+  chegue em mais de uma notificação. Os
   eventos de grupo vêm das notificações que o WhatsApp manda aos participantes. O `CALL` de fim
   completa conversa, grupo e vídeo com a oferta, quando o processo a viu tocar.
 - **Stub** (padrão): `APPLICATION_STARTUP` e os de grupo, nas operações de `/group/*` (criar,
