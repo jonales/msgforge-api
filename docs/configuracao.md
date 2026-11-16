@@ -31,7 +31,7 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `WEBHOOK_BLOCK_PRIVATE_NETWORKS` | `false` | Recusa webhooks de instância para IPs internos (SSRF). Não vale para a mídia por URL, que é sempre checada (`docs/api.md`) |
 | `RABBITMQ_ENABLED` e `RABBITMQ_*` | desligado | Publica os eventos no RabbitMQ |
 | `RABBITMQ_EVENTS` | vazio (todos) | Eventos publicados no RabbitMQ, separados por vírgula |
-| `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome do aparelho (Cobalt), aplicado só ao parear uma conexão nova; a sessão salva mantém o nome do perfil sincronizado |
+| `CONFIG_SESSION_PHONE_CLIENT` | `Msgforge` | Nome do aparelho em "Aparelhos conectados" no celular (o ícone é escolhido pelo próprio WhatsApp). Vale só ao parear uma conexão nova; a sessão salva mantém o nome do perfil sincronizado |
 | `COBALT_PROXY` | vazio | Proxy para a conexão com o WhatsApp (Cobalt); uma instância criada com `proxyHost` usa o dela |
 | `SECRETS_ENCRYPTION_KEY` | vazio | Chave (32+ caracteres, ex.: `openssl rand -hex 32`) que cifra no banco a senha do proxy da instância (ADR 0014). Sem ela, create com `proxyPassword` dá 400; trocá-la invalida as senhas já guardadas |
 | `DATABASE_SAVE_DATA_NEW_MESSAGE` | `true` | Grava as mensagens no banco (histórico de `/chat/findMessages`) |
