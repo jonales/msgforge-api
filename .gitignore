@@ -21,3 +21,6 @@ graphify-out/*
 # cache do Python (plantão local)
 __pycache__/
 *.pyc
+
+# Capturas do navegador das sessões de teste (podem ter números reais)
+.playwright-mcp/
