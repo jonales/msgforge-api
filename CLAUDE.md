@@ -381,7 +381,9 @@ defeitos são corrigidos no `jonales/cobalt-2` (branch a partir do `master`, PR 
 nunca squash), junto com o usuário, e o commit fixado em `scripts/install-cobalt.sh` sobe quando a
 correção entra. A variante com whatsmeow (Go) vive em outro repositório
 (`jonales/msgforge-whatsmeow`); o spike comparativo está na ADR 0009. Roteiro ao vivo:
-`docs/VALIDACAO-COBALT-FORK.md`. Na nuvem não dá para testar ao vivo (o proxy bloqueia
+`docs/VALIDACAO-COBALT-FORK.md`; a seção "Cobertura das rotas" diz o que já foi visto ao vivo, rota
+a rota, e a "Próxima rodada" traz as pendências por risco (proxy por instância, pairing code,
+convite de grupo, localização/contato/enquete, perfil da conta...). Ao validar, atualize as duas. Na nuvem não dá para testar ao vivo (o proxy bloqueia
 `web.whatsapp.com`).
 
 Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daqui no mesmo PR):

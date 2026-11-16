@@ -195,6 +195,96 @@ Motor no cobalt-2 com os PRs #9, #10 e #11.
 | Logout | ✅ depois do cobalt-2#11, a conexão fecha logo depois do desvínculo (antes: 47 s) |
 | `MESSAGES_SET` (histórico "Recente") | ✅ o evento chega; o histórico vem em partes |
 
+## Cobertura das rotas (levantamento de 2026-11-16)
+
+As 42 rotas da API cruzadas com as rodadas acima, o `CLAUDE.md` e o ledger do motor
+(`cobalt-2/docs/engine-review/STATUS.md`). ✅ = visto ao vivo; 🟡 = em parte; ⬜ = nenhum registro.
+Ao validar um item, mude a marca aqui e registre a rodada.
+
+| Grupo | ✅ validadas | 🟡 em parte | ⬜ sem registro |
+|---|---|---|---|
+| Instance | `create`, `connect` (QR), `logout`; `connectionState` e `fetchInstances` (indireto) | | `connect?number=` (pairing code), `delete` |
+| Message | `sendText` (com `delay`), `sendWhatsAppAudio` (MP3, OGG, `encoding: false`) | `sendMedia` (falta documento e vídeo que transcodifica), `sendReaction` (falta remover) | `sendLocation`, `sendContact`, `sendPoll` |
+| Chat | `fetchProfile`, `updateProfilePicture`, `findMessages`/`findChats` (só banco) | `sendPresence` (corrigido no #48, sem reteste), `markMessageAsRead` (só via `readMessages`), `whatsappNumbers` (só via `resolve` dos envios) | `fetchProfilePictureUrl`, `updateProfileName`, `updateProfileStatus` |
+| Group | `create`, `findGroupInfos`, `participants`, `updateParticipant` (4 ações), `updateGroupSubject`, `updateGroupDescription`, `updateGroupPicture`, `updateSetting` | | `fetchAllGroups`, `inviteCode`, `revokeInviteCode`, `acceptInviteCode`, `leaveGroup`; grupo com participantes em LID |
+| Settings/proxy/webhook | `webhook/set`/`find` | `settings/set`/`find` (falta troca com a conexão aberta e `syncFullHistory: true`) | `proxy/set`/`find` e o proxy no `create` |
+
+Pendências do motor que só se veem ao vivo: retry (`receipt type=retry`, 3.1), nome em "Aparelhos
+conectados" num pareamento novo (3.11), vídeo que transcodifica (3.7) e `removeProfilePicture`
+(sem rota na API).
+
+## Próxima rodada (pendências, por risco)
+
+Mesma stack do passo 1, duas instâncias (`A` e `B`, números de teste). Nos comandos,
+`K=$AUTHENTICATION_API_KEY`, `NB` = número do B e `G` = um grupo de teste criado pelo A.
+
+```bash
+H=(-H "apikey: $K" -H "Content-Type: application/json"); U=http://localhost:8080
+```
+
+1. **Proxy por instância** (nunca testado). Precisa de um proxy de verdade (ex.: `ssh -D 1080` ou
+   um squid local). Defina e reconecte (o proxy só vale numa conexão nova):
+   ```bash
+   curl -X POST $U/proxy/set/A "${H[@]}" -d '{"enabled":true,"host":"HOST","port":"1080","protocol":"socks5"}'
+   curl $U/proxy/find/A -H "apikey: $K"          # sem a senha
+   docker compose restart msgforge                # restaura a sessão pelo proxy
+   ```
+   Esperado: volta conectada e o tráfego passa pelo proxy (log do proxy). Repita com usuário e
+   senha (`SECRETS_ENCRYPTION_KEY` no `.env`) e com um proxy desligado (deve falhar no connect,
+   sem apagar a sessão). Por fim, `{"enabled":false}`.
+2. **Código de pareamento:** instância nova, `curl "$U/instance/connect/C?number=55DDDNUMERO" -H "apikey: $K"`
+   e digite o `pairingCode` no celular (Aparelhos conectados > Conectar com número). Anote o tempo
+   até conectar. Confira também o nome em "Aparelhos conectados" (item 3.11 do motor).
+3. **Convite e saída de grupo:**
+   ```bash
+   curl "$U/group/inviteCode/A?groupJid=$G" -H "apikey: $K"
+   curl -X POST "$U/group/revokeInviteCode/A?groupJid=$G" -H "apikey: $K"   # o código antigo deixa de valer
+   curl "$U/group/acceptInviteCode/B?inviteCode=CODIGO_NOVO" -H "apikey: $K"
+   curl -X DELETE "$U/group/leaveGroup/B?groupJid=$G" -H "apikey: $K"
+   curl "$U/group/fetchAllGroups/A?getParticipants=true" -H "apikey: $K"
+   ```
+   Esperado: o B entra pelo código novo (o antigo dá erro), sai, e os `group-participants.update`
+   chegam nas duas instâncias. `fetchAllGroups` lista o grupo com os participantes certos.
+4. **Localização, contato e enquete:**
+   ```bash
+   curl -X POST $U/message/sendLocation/A "${H[@]}" -d '{"number":"NB","latitude":-15.7939,"longitude":-47.8828,"name":"Esplanada","address":"Brasília"}'
+   curl -X POST $U/message/sendContact/A "${H[@]}" -d '{"number":"NB","contact":[{"fullName":"Teste Um","phoneNumber":"5561999990001"}]}'
+   curl -X POST $U/message/sendContact/A "${H[@]}" -d '{"number":"NB","contact":[{"fullName":"Um","phoneNumber":"5561999990001"},{"fullName":"Dois","phoneNumber":"5561999990002","organization":"Org","email":"dois@exemplo.com"}]}'
+   curl -X POST $U/message/sendPoll/A "${H[@]}" -d '{"number":"NB","name":"Qual?","values":["Sim","Não","Talvez"],"selectableCount":1}'
+   ```
+   Esperado: o mapa abre no ponto; o cartão salva o número (e os dois contatos na versão com
+   vários); a enquete aceita um voto só. Vote do B e anote como o voto chega no A: o
+   `CobaltMessageMapper` não trata voto de enquete, então ele pode não sair ou sair como tipo
+   desconhecido.
+5. **Perfil da conta e de outro número:**
+   ```bash
+   curl -X POST $U/chat/updateProfileName/A "${H[@]}" -d '{"name":"Teste Msgforge"}'
+   curl -X POST $U/chat/updateProfileStatus/A "${H[@]}" -d '{"status":"recado de teste"}'
+   curl -X POST $U/chat/fetchProfilePictureUrl/A "${H[@]}" -d '{"number":"NB"}'
+   ```
+   Esperado: o B vê o nome e o recado novos (e o A recebe o `CONTACTS_UPDATE` do recado); a URL
+   da foto abre. Com a foto escondida pela privacidade, `profilePictureUrl` null (não erro).
+6. **Leitura, números e presença:**
+   ```bash
+   curl -X POST $U/chat/markMessageAsRead/A "${H[@]}" -d '{"readMessages":[{"remoteJid":"NB@s.whatsapp.net","fromMe":false,"id":"ID_DE_UMA_RECEBIDA"}]}'
+   curl -X POST $U/chat/whatsappNumbers/A "${H[@]}" -d '{"numbers":["NB","NB_SEM_O_9","5561000000000"]}'
+   curl -X POST $U/chat/sendPresence/A "${H[@]}" -d '{"number":"NB","presence":"composing","delay":3000}'
+   curl -X POST $U/chat/sendPresence/A "${H[@]}" -d '{"number":"NB","presence":"recording","delay":3000}'
+   ```
+   Esperado: o tique azul só na mensagem pedida (com `readMessages` desligado); o número sem o 9
+   resolve para o mesmo JID e o inexistente volta `exists: false`; "digitando..." e "gravando..."
+   aparecem no B e somem no fim do `delay` (reteste do #48). Se houver uma conversa endereçada
+   por LID, repita o `markMessageAsRead` nela.
+7. **Mídia e configurações restantes:**
+   - `sendMedia` com `mediatype: "document"` (um PDF, com `fileName`) e um vídeo que precise
+     transcodificar (ex.: H.265 ou 1080p);
+   - `sendWhatsAppAudio` com um WAV;
+   - `sendReaction` com `"reaction": ""` (tira a reação);
+   - `settings/set` com a conexão aberta (ex.: ligar `rejectCall` e ligar do B na hora, sem reconectar);
+   - `syncFullHistory: true` num pareamento novo (`MESSAGES_SET` com o histórico completo);
+   - `instance/delete` de uma instância conectada (a pasta da sessão em `/data/cobalt` some e o
+     aparelho sai da lista do celular).
+
 ## Resultados (preencha e cole numa issue do fork ou numa conversa com o Claude)
 
 Commit do fork testado: `________`
