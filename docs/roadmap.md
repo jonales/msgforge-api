@@ -38,7 +38,10 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
     e leitura do QR ao vivo; quem para no QR fica "Aguardando conexão" e o painel retoma
 - [x] **Integrações por instância:** tela Integrações no painel de cada instância; a primeira real é o
   bot com IA compatível com a API da OpenAI (ADR 0015), com gatilho, sessão e pausa quando o atendente
-  assume. Dify, Flowise e Typebot usam a mesma base
+  assume. Em 2026-11-16 a tela passou a mostrar só canais e automação: WhatsApp Web em uso, Cloud API
+  oficial e Telegram "Em breve", e o bot; as integrações de terceiros saíram dela
+- [ ] **Canais novos:** Cloud API oficial do WhatsApp e Telegram, cada um com o seu motor atrás do
+  mesmo contrato
 - [x] **Atendimento:** resposta pela conversa, assinatura do atendente com modelo por instância e
   registro de quem enviou cada mensagem
 - [x] **Licença:** AGPL-3.0-only com licença comercial à parte (licenciamento duplo; ADR 0016)

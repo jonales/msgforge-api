@@ -55,9 +55,11 @@ ajuda.
 
 ## Capabilities and Constraints
 
-- **Canal atual:** só WhatsApp, pelo motor Cobalt (`jonales/cobalt-2`). Outros canais e integrações
-  (bots, plataformas de atendimento, automação, outras filas) aparecem no painel como **"Em breve"**:
-  visíveis no menu, sem função, até o backend existir. Nunca simular uma função que não existe.
+- **Canal atual:** WhatsApp Web, pelo motor Cobalt (`jonales/cobalt-2`). Os próximos canais, Cloud API
+  oficial e Telegram, aparecem no painel como **"Em breve"**: visíveis, sem função, até o backend
+  existir. Nunca simular uma função que não existe. A automação é o bot com IA da própria Msgforge;
+  integrações com plataformas de terceiros (bots, atendimento, automação) não aparecem no painel por
+  enquanto (decisão de 2026-11-16).
 - **Chat:** começa como inspeção e teste (ver o que entrou e saiu, mandar mensagem de teste) e deve
   evoluir para atendimento real. Decisões de tela não podem impedir essa evolução.
 - **Eventos:** webhook por instância e global, RabbitMQ (exchange tópico) e histórico das mensagens
