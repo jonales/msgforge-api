@@ -280,7 +280,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     continuar a conexão, ver conexão, reconectar), número e perfil, aviso de webhook em nova tentativa
     (`DeliveryHealth`, uma consulta à fila viva da outbox), estado vazio que leva à criação guiada,
     busca e filtro no navegador só acima de 8 instâncias (`SEARCH_THRESHOLD`). Canais e integrações
-    ficam por instância (`/{n}/integrations`: o bot com IA e os "Em breve", sem link nem botão), não na lista. Escala de títulos em `--fs-*` no `manager.css`
+    ficam por instância (`/{n}/integrations`: canais, com o WhatsApp Web em uso e Cloud API e Telegram "Em breve" sem link nem botão, e a automação, o bot com IA; integrações de terceiros saíram em 2026-11-16), não na lista. Escala de títulos em `--fs-*` no `manager.css`
   - [x] criar instância
   - [x] conectar (QR/pairing ao vivo)
   - [x] webhook
@@ -327,7 +327,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     `instance-connection :: live`, que o SSE e a conexão guiada também usam; formulário de conectar
     só fora do ar; desconectar, desabilitado sem conexão, e excluir na zona de perigo), Mensagens, Envio de teste `/{n}/send`
     (`CHAT_SEND`) e Configurações. Só o que o `PanelAccess` permite, item atual com
-    `aria-current="page"`, "Integrações" (tela própria) apagado com o selo "Em breve". No celular, faixa de abas
+    `aria-current="page"`, "Integrações" (tela própria: canais e automação). No celular, faixa de abas
     numa linha que rola dentro dela mesma (44 px). Trilha `layout :: panelCrumbs(nome, chave)` em
     todas as telas da instância. Os POSTs voltam para a tela do formulário (`redirectTo(nome, tela)`
     e `ManagerExceptionHandler.backTo`). O painel mostra o motor real (`WhatsAppGateway.engine`),

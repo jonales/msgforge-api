@@ -76,9 +76,11 @@ public class ManagerController {
     /** A busca e o filtro da lista só aparecem acima disto: com poucas instâncias, atrapalham. */
     static final int SEARCH_THRESHOLD = 8;
 
-    /** Canais e integrações sem backend: aparecem como "Em breve" (PRODUCT.md), sem link nem botão. */
-    static final List<String> SOON_CHANNELS = List.of("cloudApi");
-    static final List<String> SOON_INTEGRATIONS = List.of("typebot", "chatwoot", "dify", "flowise", "n8n");
+    /**
+     * Canais sem backend: aparecem como "Em breve" (PRODUCT.md), sem link nem botão. Integrações de
+     * terceiros saíram da tela em 2026-11-16 (decisão do usuário): fica só o que existe ou está no plano.
+     */
+    static final List<String> SOON_CHANNELS = List.of("cloudApi", "telegram");
 
     /** Só as instâncias em que a pessoa tem "ver status"; o resumo conta só essas. */
     @GetMapping({"", "/"})
@@ -178,14 +180,16 @@ public class ManagerController {
         return "manager/instance-send";
     }
 
-    /** Integrações e canais da instância: por enquanto só a lista "Em breve" (quem vê a instância). */
+    /**
+     * Canais e integrações da instância (quem vê a instância): o WhatsApp Web em uso, os canais
+     * "Em breve" e o bot com IA.
+     */
     @GetMapping("/instances/{name}/integrations")
     public String integrationsPage(@PathVariable String name, Model model) {
         var check = guard.current();
-        panel(model, check, guard.require(check, name, Permission.INSTANCE_VIEW));
-        model.addAttribute("soonChannels", SOON_CHANNELS);
-        model.addAttribute("soonIntegrations", SOON_INTEGRATIONS);
         var instance = guard.require(check, name, Permission.INSTANCE_VIEW);
+        panel(model, check, instance);
+        model.addAttribute("soonChannels", SOON_CHANNELS);
         model.addAttribute("botEnabled", ManagerBotController.botOn(bots, instance));
         return "manager/instance-integrations";
     }

@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-11-15T11:56:40.613Z",
         "reason": "Claude: o template não define tamanhos; a escala vem dos tokens --fs-* do manager.css, e a captura mostra h1 bem maior que h2 e o corpo"
+      },
+      {
+        "rule": "flat-type-hierarchy",
+        "value": "*",
+        "files": [
+          "src/main/resources/templates/manager/instance-integrations.html"
+        ],
+        "createdAt": "2026-11-17T01:05:35.924Z",
+        "reason": "Claude: falso positivo; os tamanhos vêm da escala global --fs-* do manager.css (h1 ~28px, h2 ~20px, texto 15px), conferida nas capturas de 2026-11-16"
       }
     ]
   }

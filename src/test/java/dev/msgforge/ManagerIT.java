@@ -1038,18 +1038,26 @@ class ManagerIT extends IntegrationTest {
     }
 
     @Test
-    void comingSoonIntegrationsAreAScreenOfEachInstanceWithNoLinkOrButton() throws Exception {
-        assertThat(html("/manager")).doesNotContain("class=\"soon").doesNotContain("Typebot");
+    void channelsAndIntegrationsAreAScreenOfEachInstanceAndComingSoonHasNoLinkOrButton() throws Exception {
+        assertThat(html("/manager")).doesNotContain("soon-item").doesNotContain("Telegram");
         var name = createInstance();
         var page = html("/manager/instances/" + name + "/integrations");
         assertThat(page).contains("href=\"/manager/instances/" + name + "/integrations\" aria-current=\"page\"");
-        var start = page.indexOf("<section class=\"card soon\"");
+
+        // Canais: o WhatsApp Web em uso leva à conexão; Cloud API e Telegram só aparecem
+        var start = page.indexOf("aria-labelledby=\"channels-title\"");
         assertThat(start).isPositive();
-        var soon = page.substring(start, page.indexOf("</section>", start));
-        assertThat(soon)
-                .contains("Em breve").contains("Cloud API oficial").contains("Typebot").contains("Chatwoot")
-                .doesNotContain("OpenAI").contains("Dify").contains("Flowise").contains("n8n")
+        var channels = page.substring(start, page.indexOf("</section>", start));
+        assertThat(channels).contains("WhatsApp Web").contains("Em uso")
+                .contains("href=\"/manager/instances/" + name + "/connection\"");
+        var soon = channels.substring(channels.indexOf("soon-item"));
+        assertThat(soon).contains("Cloud API oficial").contains("Telegram").contains("Em breve")
                 .doesNotContain("<a ").doesNotContain("<button").doesNotContain("href=");
+
+        // Integrações: só o bot com IA; as de terceiros saíram da tela (2026-11-16)
+        assertThat(page).contains("Bot com IA")
+                .doesNotContain("Typebot").doesNotContain("Chatwoot").doesNotContain("Dify")
+                .doesNotContain("Flowise").doesNotContain("n8n");
     }
 
     @Test

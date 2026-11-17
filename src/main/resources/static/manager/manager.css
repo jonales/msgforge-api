@@ -569,26 +569,12 @@ table.instances tbody tr:hover { background: var(--hover); }
 .filter-status { grid-column: 1 / -1; margin: 6px 0 0; min-height: 1.2em; }
 .filter-empty { margin: 0; padding: 4px 16px 18px; }
 
-/* Em breve: discreto, sem cara de botão (nada aqui é clicável) */
-.soon { margin: 32px 0 8px; padding-top: 20px; border-top: 1px solid var(--border); }
-.soon-head { display: grid; gap: 4px; margin-bottom: 14px; }
-.soon h2 { font-size: var(--fs-h3); margin: 0; }
-.soon-head p { margin: 0; max-width: 70ch; }
-.soon-groups { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); gap: 16px 24px; }
-.soon h3 { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
-    margin: 0 0 8px; }
-.soon-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; margin: 0;
-    padding: 0; list-style: none; }
-.soon-list li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; padding: 10px 12px;
-    border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); }
+/* Nome, descrição e selo "Em breve" dos cartões de canais e integrações (nada "Em breve" é clicável) */
 .soon-name { font-weight: 600; color: var(--text); }
 .soon-what { grid-column: 1; font-size: .8rem; }
 .soon-tag { grid-column: 2; grid-row: 1 / span 2; align-self: center; background: var(--bg); color: var(--muted);
     border: 1px solid var(--border); }
 
-@media (max-width: 720px) {
-    .soon-groups { grid-template-columns: 1fr; }
-}
 /* Celular: cada instância vira um bloco; a ação ocupa a largura toda (alvo grande, ao alcance do polegar) */
 @media (max-width: 640px) {
     .home-head { align-items: stretch; }
@@ -611,7 +597,6 @@ table.instances tbody tr:hover { background: var(--hover); }
     .cell-number.no-number::before { content: none; }
     .list-summary { gap: 2px 14px; }
     .list-summary span + span::before { content: none; }
-    .soon-list { grid-template-columns: 1fr; }
     .cell-action { grid-column: 1 / -1; margin-top: 6px; text-align: left; }
     .cell-action .button { width: 100%; }
 }
@@ -695,6 +680,8 @@ input[type=email]:focus-visible { outline: 2px solid var(--focus); outline-offse
 a.integration:hover { background: var(--hover); border-color: var(--control-border); }
 .integration .badge { grid-column: 2; grid-row: 1 / span 2; }
 .integration .soon-what { color: var(--muted); }
+/* Canal "Em breve": o mesmo cartão, tracejado e sem link (PRODUCT.md) */
+.integration.soon-item { border-style: dashed; color: var(--muted); }
 
 /* Bot com IA: tela de configuração, estado na conversa e os botões de pausar e reativar */
 .bot-form { display: grid; gap: 16px; }

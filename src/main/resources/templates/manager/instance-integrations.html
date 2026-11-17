@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
-<!-- Painel da instância, Integrações: as que funcionam (bot com IA, ADR 0015) abrem a própria
-     configuração; as que ainda não existem só aparecem, sem link nem botão (PRODUCT.md, "Em breve"). -->
+<!-- Painel da instância, Integrações: os canais (o WhatsApp Web em uso e os "Em breve", sem link nem
+     botão, PRODUCT.md) e as integrações que funcionam (bot com IA, ADR 0015), cada uma abrindo a sua
+     configuração. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.integrations} + ' · ' + ${instance.name})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
@@ -12,11 +13,31 @@
     <div class="panel-main">
         <header class="panel-head">
             <h1 th:text="#{manager.panelNav.integrations}">Integrações</h1>
-            <p class="muted" th:text="#{manager.integrationsPage.intro}">Cada instância terá as suas.</p>
+            <p class="muted" th:text="#{manager.integrationsPage.intro}">Os canais e as integrações desta instância.</p>
         </header>
-    <!-- Integrações que já funcionam: cada uma abre a própria configuração -->
+
+    <!-- Canais: por onde as mensagens desta instância entram e saem -->
+    <section class="card" aria-labelledby="channels-title">
+        <h2 id="channels-title" th:text="#{manager.channels.title}">Canais</h2>
+        <ul class="integration-list">
+            <li>
+                <a class="integration" th:href="@{/manager/instances/{n}/connection(n=${instance.name})}">
+                    <span class="soon-name" th:text="#{manager.channels.whatsappWeb}">WhatsApp Web</span>
+                    <span class="soon-what" th:text="#{manager.channels.whatsappWeb.what}">Pelo aparelho conectado</span>
+                    <span class="badge open" th:text="#{manager.channels.inUse}">Em uso</span>
+                </a>
+            </li>
+            <li class="integration soon-item" th:each="item : ${soonChannels}">
+                <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Cloud API oficial</span>
+                <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Canal</span>
+                <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
+            </li>
+        </ul>
+    </section>
+
+    <!-- Automação: as integrações que funcionam, cada uma abre a própria configuração -->
     <section class="card" aria-labelledby="live-title">
-        <h2 id="live-title" th:text="#{manager.integrations.available}">Disponíveis</h2>
+        <h2 id="live-title" th:text="#{manager.integrations.available}">Automação</h2>
         <ul class="integration-list">
             <li>
                 <a class="integration" th:href="@{/manager/instances/{n}/integrations/bot(n=${instance.name})}"
@@ -34,34 +55,6 @@
                 </span>
             </li>
         </ul>
-    </section>
-    <section class="card soon" aria-labelledby="soon-title">
-        <div class="soon-head">
-            <h2 id="soon-title" th:text="#{manager.soon.title}">Em breve</h2>
-            <p class="muted small" th:text="#{manager.soon.text}">Hoje o Msgforge conecta pelo WhatsApp.</p>
-        </div>
-        <div class="soon-groups">
-            <div class="soon-group">
-                <h3 th:text="#{manager.soon.channels}">Canais</h3>
-                <ul class="soon-list">
-                    <li th:each="item : ${soonChannels}">
-                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Cloud API oficial</span>
-                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Canal</span>
-                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
-                    </li>
-                </ul>
-            </div>
-            <div class="soon-group">
-                <h3 th:text="#{manager.soon.integrations}">Integrações</h3>
-                <ul class="soon-list">
-                    <li th:each="item : ${soonIntegrations}">
-                        <span class="soon-name" th:text="#{'manager.soon.' + ${item}}">Typebot</span>
-                        <span class="soon-what" th:text="#{'manager.soon.' + ${item} + '.what'}">Bots</span>
-                        <span class="tag soon-tag" th:text="#{manager.soon.tag}">Em breve</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
     </section>
         <p class="muted small" th:if="${can.events}">
             <span th:text="#{manager.integrationsPage.today}">Hoje, os eventos saem pelo webhook.</span>
