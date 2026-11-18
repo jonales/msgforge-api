@@ -27,3 +27,4 @@ Uma decisão aceita não é editada; se ela mudar, crie um ADR novo que a substi
 | [0014](0014-segredos-cifrados-no-banco.md) | Segredos cifrados no banco (senha do proxy da instância), com `SECRETS_ENCRYPTION_KEY` | aceita |
 | [0015](0015-bot-com-ia-por-instancia.md) | Bot com IA por instância (compatível com a API da OpenAI), com gatilho, sessão e pausa quando o atendente assume | aceita |
 | [0016](0016-licenca-agpl-com-licenca-comercial.md) | Licença AGPL-3.0-only com licença comercial à parte (licenciamento duplo) | aceita |
+| [0017](0017-politica-de-senha.md) | Política de senha do Manager: 15 caracteres a 72 bytes, sem regras de composição, bloqueio local e medidor ao digitar | aceita |

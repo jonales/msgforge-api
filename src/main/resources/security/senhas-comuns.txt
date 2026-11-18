@@ -1,0 +1,77 @@
+# Senhas e frases comuns com 15+ caracteres (ADR 0017). O NIST SP 800-63B diz que a lista de bloqueio
+# "só precisa ter entradas que cumpram o tamanho mínimo": as curtas já caem pelo tamanho. Repetição,
+# sequência (teclado, números, alfabeto) e palavras do contexto (e-mail, nome do serviço) são pegas pelas
+# regras da PasswordPolicy e não precisam estar aqui. Comparação sem diferenciar maiúsculas e sem espaços.
+# Uma por linha; # começa comentário.
+
+# português
+minhasenhasegura
+minhasenhaforte
+minhasenhasecreta
+senhamuitoforte
+senhamuitosegura
+senhasuperforte
+senhasupersegura
+senhaforte12345
+senhasegura12345
+senhasegura2026
+minhasenha12345
+minhasenha123456
+euamominhafamilia
+teamoparasempre
+deuseamor123456
+jesuscristoesenhor
+jesusmeama12345
+brasilbrasil2026
+palmeiras2026123
+flamengo123456789
+corinthians12345
+saopaulofc12345
+vascodagama12345
+gremiocampeao123
+internacional123
+cruzeiro12345678
+botafogo12345678
+fluminense123456
+santosfc12345678
+trocarasenha123
+trocar123456789
+senhatemporaria1
+senhaprovisoria1
+senhainicial1234
+primeiroacesso123
+bemvindo12345678
+administrador123
+administrador2026
+adminadmin12345
+suporte123456789
+atendimento12345
+whatsappweb12345
+whatsapp12345678
+
+# inglês
+passwordpassword
+password123456789
+mypasswordissecure
+mysecurepassword
+mysupersecretpassword
+supersecretpassword
+thisismypassword
+iloveyouforever
+iloveyouiloveyou
+letmein123456789
+welcome123456789
+welcometothejungle
+correcthorsebatterystaple
+changeme12345678
+changethispassword
+temporarypassword
+administrator123
+trustno1trustno1
+football12345678
+baseball12345678
+princess12345678
+sunshine12345678
+starwars12345678
+dragon1234567890
+monkey1234567890

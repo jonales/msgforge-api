@@ -303,3 +303,100 @@
         }
     });
 })();
+
+// Medidor de força da senha (criar usuário): as regras da PasswordPolicy que o navegador consegue ver
+// (tamanho, repetição, sequência, e-mail e nome). Só orienta: quem aceita ou recusa é o servidor, que
+// também confere a lista de senhas comuns. Os textos vêm do HTML (data-text-*).
+(function () {
+    'use strict';
+    var SEQUENCIAS = ['abcdefghijklmnopqrstuvwxyz', '0123456789', 'qwertyuiopasdfghjklçzxcvbnm',
+        'qwertyuiopasdfghjklzxcvbnm', '1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik9ol0p', 'qazwsxedcrfvtgbyhnujmikolp'];
+
+    function simples(texto) { return texto.toLowerCase().replace(/\s+/g, ''); }
+    function tamanho(texto) { return Array.from(texto).length; }
+
+    function repetitiva(p) {
+        return new Set(Array.from(p)).size <= 3 || /^(.{1,7})\1+.{0,3}$/u.test(p);
+    }
+
+    function sequencia(p, minimo) {
+        return SEQUENCIAS.some(function (base) {
+            var volta = base.repeat(3);
+            var avesso = Array.from(volta).reverse().join('');
+            for (var corte = 0; corte <= 2 && p.length - corte >= minimo - 2; corte++) {
+                var miolo = p.slice(0, p.length - corte);
+                if (volta.indexOf(miolo) >= 0 || avesso.indexOf(miolo) >= 0) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    function quaseContexto(p, palavras, minimo) {
+        var resto = p;
+        palavras.concat(['msgforge']).forEach(function (w) { resto = resto.split(w).join(''); });
+        return resto.length < minimo - 5 && resto.length < p.length;
+    }
+
+    function palavrasDe(ids) {
+        var lista = [];
+        ids.forEach(function (id) {
+            var campo = document.getElementById(id);
+            if (campo && campo.value) {
+                simples(campo.value).split(/[@._+\-]/).forEach(function (w) {
+                    if (w.length >= 4) { lista.push(w); }
+                });
+            }
+        });
+        return lista;
+    }
+
+    function avaliar(box, input) {
+        var minimo = parseInt(box.getAttribute('data-min'), 10) || 15;
+        var valor = input.value;
+        var p = simples(valor);
+        var n = tamanho(valor);
+        var estado, nivel;
+        if (!valor) {
+            estado = 'empty'; nivel = 0;
+        } else if (n < minimo) {
+            estado = 'short'; nivel = 1;
+        } else if (repetitiva(p)) {
+            estado = 'repetitive'; nivel = 1;
+        } else if (sequencia(p, minimo)) {
+            estado = 'sequence'; nivel = 1;
+        } else if (quaseContexto(p, palavrasDe((box.getAttribute('data-context-fields') || '').split(/\s+/)), minimo)) {
+            estado = 'context'; nivel = 1;
+        } else if (n >= minimo + 5) {
+            estado = 'strong'; nivel = 3;
+        } else {
+            estado = 'ok'; nivel = 2;
+        }
+        var texto = (box.getAttribute('data-text-' + estado) || '').replace('{0}', String(minimo - n));
+        box.querySelector('.meter-state').textContent = texto;
+        box.setAttribute('data-level', String(nivel));
+        box.setAttribute('data-state', estado);
+    }
+
+    function ligar() {
+        document.querySelectorAll('[data-password-meter]').forEach(function (box) {
+            var input = document.getElementById(box.getAttribute('data-password-meter'));
+            if (!input || box.dataset.ligado) { return; }
+            box.dataset.ligado = '1';
+            var atualizar = function () { avaliar(box, input); };
+            input.addEventListener('input', atualizar);
+            (box.getAttribute('data-context-fields') || '').split(/\s+/).forEach(function (id) {
+                var campo = document.getElementById(id);
+                if (campo) { campo.addEventListener('input', atualizar); }
+            });
+            atualizar();
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', ligar);
+    } else {
+        ligar();
+    }
+})();

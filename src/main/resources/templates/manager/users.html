@@ -119,9 +119,29 @@
             <div class="field">
                 <label for="new-password"><span th:text="#{manager.users.password}">Senha inicial</span>
                     <input id="new-password" name="password" type="password" required autocomplete="new-password"
-                           th:attr="minlength=${passwordMin}" maxlength="72" aria-describedby="new-password-hint">
+                           th:attr="minlength=${passwordMin}" maxlength="72"
+                           aria-describedby="new-password-hint new-password-meter">
                 </label>
-                <p class="hint" id="new-password-hint" th:text="#{manager.users.passwordHint(${passwordMin})}">10+.</p>
+                <!-- Medidor ao digitar (manager.js): as mesmas regras da PasswordPolicy que dá para ver no
+                     navegador (tamanho, repetição, sequência, e-mail e nome). A lista de senhas comuns só o
+                     servidor confere; quem decide é o servidor. Textos daqui, sem pt-BR no script. -->
+                <div class="password-meter" id="new-password-meter" data-password-meter="new-password"
+                     data-context-fields="new-email new-name" data-level="0"
+                     th:attr="data-min=${passwordMin},
+                              data-text-empty=#{manager.password.meter.empty},
+                              data-text-short=#{manager.password.meter.short},
+                              data-text-repetitive=#{manager.password.meter.repetitive},
+                              data-text-sequence=#{manager.password.meter.sequence},
+                              data-text-context=#{manager.password.meter.context},
+                              data-text-ok=#{manager.password.meter.ok},
+                              data-text-strong=#{manager.password.meter.strong}">
+                    <span class="meter-bar" aria-hidden="true"><span class="meter-fill"></span></span>
+                    <span class="meter-text" aria-live="polite">
+                        <span class="visually-hidden" th:text="#{manager.password.meter.label} + ': '">Força da senha: </span><span
+                              class="meter-state" th:text="#{manager.password.meter.empty}">Digite a senha</span>
+                    </span>
+                </div>
+                <p class="hint" id="new-password-hint" th:text="#{manager.users.passwordHint(${passwordMin})}">15+.</p>
             </div>
             <label class="toggle" for="new-admin" th:if="${platformAdmin}">
                 <span class="toggle-text">
