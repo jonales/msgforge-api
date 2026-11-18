@@ -277,7 +277,8 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
   - [x] login
   - [x] lista de instâncias com status
   - [x] página inicial (`/manager`): uma ação principal por estado (`InstanceRow.action()`: abrir,
-    continuar a conexão, ver conexão, reconectar), número e perfil, aviso de webhook em nova tentativa
+    continuar a conexão, ver conexão, reconectar), foto da conta (`layout :: avatar`, 36 px) ao lado do
+    nome da instância e do perfil, número legível (`ManagerViews.formatNumber`: "+55 61 98462-2220"), aviso de webhook em nova tentativa
     (`DeliveryHealth`, uma consulta à fila viva da outbox), estado vazio que leva à criação guiada,
     busca e filtro no navegador só acima de 8 instâncias (`SEARCH_THRESHOLD`). Canais e integrações
     ficam por instância (`/{n}/integrations`: canais, com o WhatsApp Web em uso e Cloud API e Telegram "Em breve" sem link nem botão, e a automação, o bot com IA; integrações de terceiros saíram em 2026-11-16), não na lista. Escala de títulos em `--fs-*` no `manager.css`
@@ -319,9 +320,11 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     voz sai como `audio/ogg; codecs=opus`; o Safari não toca OGG/Opus, então o áudio tem o link
     "Baixar o áudio".
   - [x] menu do painel (`layout :: panelNav(nome, can, atual)`): **cada item é uma tela** (nunca
-    âncora): Visão geral `/{n}` (resumo: estado, número, perfil com a foto da conta
-    por `/{n}/avatar` (`ManagerAvatarController`: busca no servidor, cache de 10 min, só JPEG; o CSP
-    não aceita imagem de fora), motor, histórico, aviso de webhook
+    âncora): Visão geral `/{n}` (cabeçalho da conta: foto de 64 px, nome do perfil, número e estado; abaixo,
+    motor, histórico no pareamento e criada em. Foto por `/{n}/avatar` (`ManagerAvatarController`: busca
+    no servidor, cache de 10 min também no navegador, só JPEG; conta pareada sem foto = 204, nunca
+    pareada = 404; o CSP não aceita imagem de fora). O avatar é o fragmento `layout :: avatar`: iniciais
+    por baixo, foto por cima, e o `manager.js` tira a `<img>` que falha), aviso de webhook
     em nova tentativa e atalhos; o resumo `/{n}/summary` é buscado de novo a cada evento `live` do
     SSE, `hx-trigger="sse:live"`), Conexão `/{n}/connection` ("ver status": trecho ao vivo
     `instance-connection :: live`, que o SSE e a conexão guiada também usam; formulário de conectar

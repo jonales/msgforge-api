@@ -109,6 +109,17 @@
     </ul>
 </nav>
 
+<!-- Avatar da conta do WhatsApp: as iniciais ficam por baixo e a foto por cima. Sem foto (404), o
+     manager.js tira a imagem e as iniciais aparecem; sem JS, a imagem com alt vazio não desenha nada.
+     A foto vem da rota do Manager (o CSP só aceita imagem do próprio servidor). Decorativo: o nome
+     da conta está sempre ao lado. size: "sm" (36 px, lista) ou "lg" (64 px, Visão geral). -->
+<span th:fragment="avatar(name, paired, initials, size)" class="avatar" th:classappend="'avatar-' + ${size}"
+      aria-hidden="true" th:with="px=${size == 'lg' ? 64 : 36}">
+    <span class="avatar-initials" th:text="${initials}">JM</span>
+    <img th:if="${paired}" alt="" loading="lazy" decoding="async" th:width="${px}" th:height="${px}"
+         th:src="@{/manager/instances/{n}/avatar(n=${name})}">
+</span>
+
 <div th:fragment="flash">
     <div class="flash success" role="status" th:if="${success}" th:text="#{${success}}">ok</div>
     <div class="flash error" role="alert" th:if="${error}" th:text="#{${error}}">erro</div>

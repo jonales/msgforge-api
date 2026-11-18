@@ -5,6 +5,7 @@ package dev.msgforge.web;
 import dev.msgforge.instance.ConnectionState;
 import dev.msgforge.instance.Instance;
 import dev.msgforge.webhook.WebhookDtos.WebhookResponse;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.util.List;
 
@@ -63,6 +64,16 @@ public final class ManagerViews {
         public boolean needsAction() {
             return "resume".equals(action()) || "reconnect".equals(action());
         }
+
+        /** O número legível ("+55 61 98462-2220"); null sem número. */
+        public String displayNumber() {
+            return formatNumber(number);
+        }
+
+        /** Iniciais para o avatar sem foto: do nome do perfil, ou da instância. */
+        public String initials() {
+            return initialsOf(profileName, name);
+        }
     }
 
     public record InstanceDetail(String name, String state, String number, String profileName, String integration,
@@ -78,9 +89,19 @@ public final class ManagerViews {
             return "open".equals(state);
         }
 
-        /** O número como no resto do Manager ("+55..."); null sem número. */
+        /** O número legível, como na lista ("+55 61 98462-2220"); null sem número. */
         public String displayNumber() {
-            return number == null || number.isBlank() ? null : number.matches("\\d+") ? "+" + number : number;
+            return formatNumber(number);
+        }
+
+        /** Iniciais para o avatar sem foto: do nome do perfil, ou da instância. */
+        public String initials() {
+            return initialsOf(profileName, name);
+        }
+
+        /** Dia em que a instância foi criada (dd/MM/aaaa, no fuso da aplicação); null sem data. */
+        public String createdOn() {
+            return createdAt == null ? null : DAY.format(createdAt);
         }
 
         /** Criada e ainda sem conexão: o painel oferece retomar a conexão guiada. */
@@ -264,6 +285,48 @@ public final class ManagerViews {
 
     private static boolean everPaired(Instance instance) {
         return instance.getOwnerJid() != null;
+    }
+
+    /**
+     * Número para leitura: no Brasil, "+55 DD NNNNN-NNNN" (ou NNNN-NNNN no fixo e no celular antigo);
+     * fora do Brasil, "+" e os dígitos. O que não é só dígitos (um LID, por exemplo) sai como veio.
+     */
+    static String formatNumber(String number) {
+        if (number == null || number.isBlank()) {
+            return null;
+        }
+        if (!number.matches("\\d+")) {
+            return number;
+        }
+        if (number.startsWith("55") && (number.length() == 12 || number.length() == 13)) {
+            var local = number.substring(4);
+            var split = local.length() - 4;
+            return "+55 " + number.substring(2, 4) + " " + local.substring(0, split) + "-" + local.substring(split);
+        }
+        return "+" + number;
+    }
+
+    /**
+     * Até duas iniciais (primeira e última palavra) do primeiro texto com letra: o nome do perfil e,
+     * sem ele, o da instância. Sem acento, em maiúsculas; sem nenhuma letra, "?".
+     */
+    static String initialsOf(String preferred, String fallback) {
+        for (var text : new String[] {preferred, fallback}) {
+            if (text == null) {
+                continue;
+            }
+            var plain = Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+            var words = plain.replaceAll("[^\\p{L}\\p{N}]+", " ").trim().split(" ");
+            var letters = java.util.Arrays.stream(words).filter(w -> !w.isEmpty()
+                    && Character.isLetter(w.charAt(0))).toList();
+            if (letters.isEmpty()) {
+                continue;
+            }
+            var first = letters.getFirst().substring(0, 1);
+            var last = letters.size() > 1 ? letters.getLast().substring(0, 1) : "";
+            return (first + last).toUpperCase(java.util.Locale.ROOT);
+        }
+        return "?";
     }
 
     private static String badgeOf(String state, boolean paired) {

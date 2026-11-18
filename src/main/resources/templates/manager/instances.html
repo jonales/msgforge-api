@@ -88,13 +88,19 @@
                 <tbody>
                 <tr th:each="row : ${instances}" data-instance
                     th:attr="data-badge=${row.badge()},data-attention=${row.needsAction()} ? 'true' : null,
-                             data-search=${#strings.toLowerCase(row.name + ' ' + (row.number ?: '') + ' ' + (row.profileName ?: ''))}">
+                             data-search=${#strings.toLowerCase(row.name + ' ' + (row.number ?: '') + ' ' + (row.displayNumber() ?: '') + ' ' + (row.profileName ?: ''))}">
                     <td class="cell-name">
-                        <a class="instance-name" th:href="@{/manager/instances/{n}(n=${row.name})}" th:text="${row.name}">vendas</a>
-                        <span class="profile" th:if="${row.profileName}" th:text="${row.profileName}">Loja</span>
+                        <!-- Quem é a conta: foto (ou iniciais), a instância e o nome do perfil no WhatsApp -->
+                        <div class="identity">
+                            <span th:replace="~{manager/fragments/layout :: avatar(${row.name}, ${row.paired}, ${row.initials()}, 'sm')}"></span>
+                            <div class="identity-text">
+                                <a class="instance-name" th:href="@{/manager/instances/{n}(n=${row.name})}" th:text="${row.name}">vendas</a>
+                                <span class="profile" th:if="${row.profileName}" th:text="${row.profileName}">Loja</span>
+                            </div>
+                        </div>
                     </td>
                     <td class="cell-number" th:classappend="${row.number} ? '' : 'no-number'" th:attr="data-label=#{manager.col.number}">
-                        <span th:if="${row.number}" class="number" th:text="${row.number}">5561999999999</span>
+                        <span th:if="${row.number}" class="number" th:text="${row.displayNumber()}">+55 61 99999-9999</span>
                         <span th:unless="${row.number}" class="muted" th:text="#{manager.home.noNumber}">Sem número</span>
                     </td>
                     <td class="cell-state">

@@ -1112,9 +1112,16 @@ class ManagerIT extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Já está desconectada")))
                 .andExpect(content().string(containsString("disabled=\"disabled\"")));
-        // Nunca pareada: sem foto na Visão geral e a rota responde 404
+        // Nunca pareada: as iniciais no lugar da foto (sem pedir a foto), na Visão geral e na lista; a rota responde 404
+        var avatarSrc = "src=\"/manager/instances/" + name + "/avatar\"";
         mvc.perform(asManager(GET(panel)))
-                .andExpect(content().string(Matchers.not(containsString("class=\"avatar\""))));
+                .andExpect(content().string(containsString("class=\"avatar avatar-lg\"")))
+                .andExpect(content().string(containsString("class=\"avatar-initials\"")))
+                .andExpect(content().string(containsString("Nenhum número conectado ainda")))
+                .andExpect(content().string(Matchers.not(containsString(avatarSrc))));
+        mvc.perform(asManager(GET("/manager")))
+                .andExpect(content().string(containsString("class=\"avatar avatar-sm\"")))
+                .andExpect(content().string(Matchers.not(containsString(avatarSrc))));
         mvc.perform(asManager(GET(panel + "/avatar"))).andExpect(status().isNotFound());
     }
 }
