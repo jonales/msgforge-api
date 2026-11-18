@@ -719,3 +719,20 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .avatar-sm { width: 36px; height: 36px; font-size: .8125rem; }
 .avatar-lg { width: 64px; height: 64px; font-size: 1.375rem; }
+
+/* Medidor de força da senha (criar usuário): barra fina e o texto do estado. O texto sempre diz o que
+   falta, então a cor nunca é o único sinal. A transição respeita quem pede menos movimento. */
+.password-meter { display: grid; gap: 4px; margin-top: 6px; }
+.password-meter .meter-bar { display: block; height: 6px; border-radius: 999px; background: var(--border);
+    overflow: hidden; }
+.password-meter .meter-fill { display: block; height: 100%; width: 0; border-radius: inherit;
+    background: var(--control-border); transition: width .25s ease-out, background-color .25s ease-out; }
+.password-meter[data-level="1"] .meter-fill { width: 34%; background: var(--danger); }
+.password-meter[data-level="2"] .meter-fill { width: 70%; background: var(--accent); }
+.password-meter[data-level="3"] .meter-fill { width: 100%; background: var(--accent); }
+.password-meter .meter-text { font-size: var(--fs-small); color: var(--muted); }
+.password-meter[data-level="1"] .meter-text { color: var(--err-text); }
+.password-meter[data-level="2"] .meter-text, .password-meter[data-level="3"] .meter-text { color: var(--ok-text); }
+@media (prefers-reduced-motion: reduce) {
+    .password-meter .meter-fill { transition: none; }
+}

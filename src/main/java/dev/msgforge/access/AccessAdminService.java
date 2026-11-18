@@ -5,7 +5,6 @@ package dev.msgforge.access;
 import dev.msgforge.access.AccessRules.Member;
 import dev.msgforge.access.AccessRules.Subject;
 import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -27,9 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AccessAdminService {
 
-    public static final int PASSWORD_MIN = 10;
-    /** O BCrypt só usa os primeiros 72 bytes; acima disso, recusa em vez de truncar calado. */
-    static final int PASSWORD_MAX_BYTES = 72;
+    public static final int PASSWORD_MIN = PasswordPolicy.MIN;
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
     /** Erro de regra para a tela: {@code getMessage()} é a chave em {@code messages.properties}. */
@@ -115,7 +112,7 @@ public class AccessAdminService {
         if (normalized.length() > 254 || !EMAIL.matcher(normalized).matches()) {
             throw new AccessRuleException("manager.access.error.email");
         }
-        checkPassword(password);
+        checkPassword(password, email, displayName);
         var role = roleOf(organizationId, roleId);
         if (!AccessRules.canGrant(subject, organizationId, role.getPermissions())) {
             throw new AccessRuleException("manager.access.error.escalation");
@@ -319,11 +316,11 @@ public class AccessAdminService {
         return clean;
     }
 
-    static void checkPassword(String password) {
-        if (password == null || password.length() < PASSWORD_MIN
-                || password.getBytes(StandardCharsets.UTF_8).length > PASSWORD_MAX_BYTES) {
-            throw new AccessRuleException("manager.access.error.password");
-        }
+    /** A senha cumpre a {@link PasswordPolicy}? Senão, o erro diz o motivo (chave por problema). */
+    static void checkPassword(String password, String... context) {
+        PasswordPolicy.check(password, context).ifPresent(problem -> {
+            throw new AccessRuleException("manager.access.error.password." + problem.name().toLowerCase(java.util.Locale.ROOT));
+        });
     }
 
     /** Permissões vindas do formulário (nomes do catálogo); nome desconhecido é recusado. */

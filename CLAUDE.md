@@ -204,7 +204,10 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   `AccessService.can(quem, permissão, instância)`; as regras puras ficam em `AccessRules`. A sessão
   guarda só o `ManagerPrincipal` (id e e-mail; chave global = `GLOBAL_KEY`); as permissões são
   lidas do banco a cada pergunta. As travas (sem escalada, último gestor de papéis, papel em uso)
-  ficam no `AccessAdminService`. Permissão nova: migration no `CHECK` de `role_permission` e textos
+  ficam no `AccessAdminService`. Senha (ADR 0017): `access/PasswordPolicy`, regra pura (15 caracteres a
+  72 bytes, sem composição, bloqueio de repetição, sequência, contexto e `security/senhas-comuns.txt`),
+  erro por motivo `manager.access.error.password.<motivo>` e medidor no `manager.js` com as mesmas regras.
+  Toda tela que definir senha (troca, esqueci a senha) usa a mesma política. Permissão nova: migration no `CHECK` de `role_permission` e textos
   `manager.permission.*` (o `PermissionCatalogTest` cobra os dois). Nos ITs, limpe com
   `AccessFixtures.reset` (o `TRUNCATE instance` não alcança usuários).
 
