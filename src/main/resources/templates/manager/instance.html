@@ -33,28 +33,26 @@
     <section class="card overview" th:fragment="summary" id="summary" aria-labelledby="summary-title"
              th:attr="hx-get=@{/manager/instances/{n}/summary(n=${instance.name})}"
              hx-trigger="sse:live, every 30s" hx-swap="outerHTML">
-        <div class="overview-head">
-            <h2 id="summary-title" th:text="#{manager.connection.title}">Conexão</h2>
+        <h2 id="summary-title" class="visually-hidden" th:text="#{manager.connection.title}">Conexão</h2>
+        <!-- Quem é a conta: foto (ou iniciais), nome do perfil e número; o estado ao lado -->
+        <div class="account">
+            <span th:replace="~{manager/fragments/layout :: avatar(${instance.name}, ${instance.paired}, ${instance.initials()}, 'lg')}"></span>
+            <div class="account-text">
+                <p class="account-name" th:if="${instance.paired}"
+                   th:text="${instance.profileName} ?: (${instance.displayNumber()} ?: ${instance.name})">Loja</p>
+                <p class="account-name muted" th:unless="${instance.paired}" th:text="#{manager.overview.noAccount}">Nenhum número conectado ainda</p>
+                <p class="account-number number" th:if="${instance.displayNumber() != null and instance.profileName != null}"
+                   th:text="${instance.displayNumber()}">+55 61 99999-9999</p>
+            </div>
             <span th:class="'badge ' + ${instance.badge()}" th:data-state="${instance.state}"
                   th:text="#{'manager.state.' + ${instance.badge()}}">Conectada</span>
         </div>
-        <p class="overview-state" th:text="#{'manager.overview.state.' + ${instance.badge()}}">Conectada.</p>
+        <!-- Conectada, o selo basta; nunca conectada, o aviso do topo já explica e leva à conexão;
+             nos outros estados, a frase diz o que isso significa -->
+        <p class="overview-state" th:unless="${instance.open() or instance.pending()}"
+           th:text="#{'manager.overview.state.' + ${instance.badge()}}">Nada é enviado nem recebido até reconectar.</p>
 
-        <dl class="facts">
-            <div>
-                <dt th:text="#{manager.col.number}">Número</dt>
-                <dd><span class="number" th:text="${instance.displayNumber()} ?: '—'">+5561999999999</span></dd>
-            </div>
-            <div>
-                <dt th:text="#{manager.col.profile}">Perfil</dt>
-                <dd class="profile">
-                    <!-- Foto pela rota do Manager (o CSP só aceita imagem do próprio servidor); sem foto,
-                         o manager.js esconde a imagem -->
-                    <img class="avatar" th:if="${instance.paired}" width="40" height="40" alt="" loading="lazy"
-                         th:src="@{/manager/instances/{n}/avatar(n=${instance.name})}">
-                    <span th:text="${instance.profileName} ?: '—'">Loja</span>
-                </dd>
-            </div>
+        <dl class="facts facts-quiet">
             <div>
                 <dt th:text="#{manager.engine.label}">Motor</dt>
                 <dd th:text="#{'manager.engine.' + ${engine}}">Cobalt</dd>
@@ -62,6 +60,10 @@
             <div>
                 <dt th:text="#{manager.overview.historySync}">Histórico no pareamento</dt>
                 <dd th:text="#{'manager.history.' + ${instance.historySync}}">Sem histórico</dd>
+            </div>
+            <div th:if="${instance.createdOn()}">
+                <dt th:text="#{manager.overview.createdOn}">Criada em</dt>
+                <dd class="number" th:text="${instance.createdOn()}">15/11/2026</dd>
             </div>
         </dl>
 

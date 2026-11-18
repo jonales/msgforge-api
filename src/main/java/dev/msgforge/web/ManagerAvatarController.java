@@ -66,7 +66,9 @@ public class ManagerAvatarController {
             cache.put(key, cached);
         }
         if (cached.bytes() == null) {
-            return ResponseEntity.notFound().build();
+            // Conta sem foto: 204 (a <img> falha e ficam as iniciais, sem o 404 que o navegador registra
+            // como erro no console) e com cache, porque a lista se atualiza a cada evento e pediria de novo
+            return ResponseEntity.noContent().cacheControl(CacheControl.maxAge(CACHE).cachePrivate()).build();
         }
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)

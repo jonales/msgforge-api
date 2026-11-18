@@ -140,9 +140,10 @@
 
     document.addEventListener('error', function (evt) {
         var target = evt.target;
-        // Foto da conta sem foto (404): some, e o nome do perfil fica sozinho
-        if (target && target.classList && target.classList.contains('avatar')) {
-            target.hidden = true;
+        // Conta sem foto (404) ou foto que não carregou: a imagem sai e ficam as iniciais por baixo
+        if (target && target.tagName === 'IMG' && target.parentElement
+                && target.parentElement.classList.contains('avatar')) {
+            target.remove();
             return;
         }
         if (target && target.hasAttribute && target.hasAttribute('data-media')) {
