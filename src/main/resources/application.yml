@@ -100,6 +100,8 @@ msgforge:
   history:
     enabled: ${DATABASE_SAVE_DATA_NEW_MESSAGE:true}
     retention-days: ${HISTORY_RETENTION_DAYS:0}
+  audit:
+    retention-days: ${AUDIT_RETENTION_DAYS:180}
   media:
     ffmpeg-path: ${FFMPEG_PATH:ffmpeg}
     transcode-timeout-ms: ${MEDIA_TRANSCODE_TIMEOUT_MS:60000}

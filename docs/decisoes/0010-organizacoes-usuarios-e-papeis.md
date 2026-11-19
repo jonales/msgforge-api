@@ -96,7 +96,7 @@ Pontos que a decisão acima não fixava. Nada do que foi aceito muda.
   convite por e-mail ainda não existe e a tela já faz o resto. "Conversas", nos papéis-modelo,
   é o grupo inteiro (ver e enviar) para Operador e Atendente. O `CHECK` de `role_permission` lista
   o catálogo; o `PermissionCatalogTest` lembra a migration e os textos de uma permissão nova.
-  "Gerar link de conexão" e "ver auditoria" aparecem com "Em breve" na tela de papéis.
+  "Gerar link de conexão" aparece com "Em breve" na tela de papéis ("ver auditoria" chegou na ADR 0018).
 - **Pergunta única:** `AccessService.can(quem, permissão, instância)` respeita a organização da
   instância e o escopo do vínculo; `canInOrganization` responde as permissões da organização
   (usuários, papéis). As regras são puras (`AccessRules`) e têm teste próprio. As permissões não
@@ -121,7 +121,7 @@ Pontos que a decisão acima não fixava. Nada do que foi aceito muda.
   cadeia do Manager), sem esperar a sessão expirar.
 - **Travas:** sem escalada (só dá papéis, ou mexe em pessoas e papéis, cujas permissões a pessoa
   tem), "pelo menos uma pessoa ativa com gerenciar papéis" (quando a organização já tinha uma) e
-  ninguém bloqueia a si mesmo. A auditoria ainda não existe; entra junto do convite.
+  ninguém bloqueia a si mesmo. A auditoria entrou na ADR 0018.
 - **Limite desta fase:** o papel controla só as telas de usuários e papéis. As telas de
   instâncias, conversas e os streams SSE ainda mostram tudo a quem está logado (fatia 5), e a tela
   de usuários avisa isso. Até lá, crie usuários só para quem já pode ver tudo.

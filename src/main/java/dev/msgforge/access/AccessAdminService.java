@@ -4,8 +4,13 @@ package dev.msgforge.access;
 
 import dev.msgforge.access.AccessRules.Member;
 import dev.msgforge.access.AccessRules.Subject;
+import dev.msgforge.audit.AuditAction;
+import dev.msgforge.audit.AuditEvent;
+import dev.msgforge.audit.AuditLog;
+import dev.msgforge.audit.AuditOutcome;
 import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -42,15 +47,18 @@ public class AccessAdminService {
     private final RoleRepository roles;
     private final OrganizationRepository organizations;
     private final PasswordEncoder passwords;
+    private final AuditLog audit;
 
     public AccessAdminService(AccessService access, ManagerUserRepository users, MembershipRepository memberships,
-                              RoleRepository roles, OrganizationRepository organizations, PasswordEncoder passwords) {
+                              RoleRepository roles, OrganizationRepository organizations, PasswordEncoder passwords,
+                              AuditLog audit) {
         this.access = access;
         this.users = users;
         this.memberships = memberships;
         this.roles = roles;
         this.organizations = organizations;
         this.passwords = passwords;
+        this.audit = audit;
     }
 
     // ------------------------------------------------------------ leitura
@@ -127,6 +135,8 @@ public class AccessAdminService {
         created.setDisplayName(name);
         var user = users.save(created);
         memberships.save(new Membership(user, role));
+        audit(actor, AuditAction.USER_CREATED, organizationId, user.getEmail(),
+                platformAdmin ? role.getName() + " + admin da plataforma" : role.getName());
         return user;
     }
 
@@ -145,8 +155,10 @@ public class AccessAdminService {
                 throw new AccessRuleException("manager.access.error.escalation");
             }
         }
-        users.findById(userId).orElseThrow(() -> new AccessRuleException("manager.access.error.userNotFound"))
-                .setDisplayName(name);
+        var user = users.findById(userId)
+                .orElseThrow(() -> new AccessRuleException("manager.access.error.userNotFound"));
+        user.setDisplayName(name);
+        audit(actor, AuditAction.USER_RENAMED, organizationId, user.getEmail(), null);
     }
 
     /** O nome de exibição da pessoa, lido na hora (null sem nome ou para a chave global). */
@@ -180,7 +192,10 @@ public class AccessAdminService {
         }
         checkKeepsRoleManager(organizationId, m -> m.getId().equals(membership.getId())
                 ? new Member(m.getUser().getId(), m.getUser().isActive(), role.getPermissions()) : member(m));
+        var before = membership.getRole().getName();
         membership.changeRole(role);
+        audit(actor, AuditAction.USER_ROLE_CHANGED, organizationId, membership.getUser().getEmail(),
+                before + " → " + role.getName());
     }
 
     /** Bloqueia ou reativa. O bloqueio vale para o usuário inteiro (todas as organizações). */
@@ -201,6 +216,8 @@ public class AccessAdminService {
                     ? new Member(userId, false, m.getRole().getPermissions()) : member(m));
         }
         user.setStatus(blocked ? UserStatus.BLOQUEADO : UserStatus.ATIVO);
+        audit(actor, blocked ? AuditAction.USER_BLOCKED : AuditAction.USER_UNBLOCKED, organizationId,
+                user.getEmail(), null);
     }
 
     // ------------------------------------------------------------ papéis
@@ -215,7 +232,9 @@ public class AccessAdminService {
         if (roles.existsByOrganizationIdAndNameIgnoreCase(organizationId, cleanName)) {
             throw new AccessRuleException("manager.access.error.roleTaken");
         }
-        return roles.save(new Role(organizationId, cleanName, permissions));
+        var role = roles.save(new Role(organizationId, cleanName, permissions));
+        audit(actor, AuditAction.ROLE_CREATED, organizationId, cleanName, permissionDiff(Set.of(), permissions));
+        return role;
     }
 
     @Transactional
@@ -234,8 +253,11 @@ public class AccessAdminService {
         }
         checkKeepsRoleManager(organizationId, m -> m.getRole().getId().equals(roleId)
                 ? new Member(m.getUser().getId(), m.getUser().isActive(), permissions) : member(m));
+        var target = cleanName.equals(role.getName()) ? cleanName : role.getName() + " → " + cleanName;
+        var diff = permissionDiff(role.getPermissions(), permissions);
         role.rename(cleanName);
         role.replacePermissions(permissions);
+        audit(actor, AuditAction.ROLE_UPDATED, organizationId, target, diff);
     }
 
     @Transactional
@@ -249,6 +271,27 @@ public class AccessAdminService {
             throw new AccessRuleException("manager.access.error.roleInUse");
         }
         roles.delete(role);
+        audit(actor, AuditAction.ROLE_DELETED, organizationId, role.getName(), null);
+    }
+
+    // ------------------------------------------------------------ auditoria (ADR 0018)
+
+    /** Grava depois do commit: uma ação recusada pelas travas acima nunca chega aqui. */
+    private void audit(ManagerPrincipal actor, AuditAction action, UUID organizationId, String target, String detail) {
+        audit.record(new AuditEvent(action, AuditOutcome.OK, organizationId, actor.userId(),
+                actor.globalKey() ? AuditLog.GLOBAL_KEY : actor.email(), target, detail, null));
+    }
+
+    /**
+     * O que entrou e saiu do papel, como {@code +CHAT_SEND -USERS_MANAGE} (nomes do catálogo, na
+     * ordem dele; a tela traduz). Null sem mudança.
+     */
+    static String permissionDiff(Set<Permission> before, Set<Permission> after) {
+        var parts = Arrays.stream(Permission.values())
+                .filter(p -> before.contains(p) != after.contains(p))
+                .map(p -> (after.contains(p) ? "+" : "-") + p.name())
+                .toList();
+        return parts.isEmpty() ? null : String.join(" ", parts);
     }
 
     // ------------------------------------------------------------ organizações

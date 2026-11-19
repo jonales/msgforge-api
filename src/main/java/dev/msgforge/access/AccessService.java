@@ -6,6 +6,7 @@ import dev.msgforge.access.AccessRules.Subject;
 import dev.msgforge.instance.Instance;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
@@ -130,6 +131,19 @@ public class AccessService {
             return new LoginResult.Disabled();
         }
         return new LoginResult.Success(new ManagerPrincipal(user.getId(), user.getEmail()));
+    }
+
+    /**
+     * A conta com este e-mail, para a auditoria de um login que falhou: com conta, grava quem foi
+     * tentado; sem, grava só "conta inexistente", nunca o texto digitado (ADR 0018).
+     */
+    @Transactional(readOnly = true)
+    public Optional<ManagerPrincipal> account(String email) {
+        if (email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        return users.findByEmail(ManagerUser.normalizeEmail(email))
+                .map(user -> new ManagerPrincipal(user.getId(), user.getEmail()));
     }
 
     @Transactional

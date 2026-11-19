@@ -736,3 +736,20 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 @media (prefers-reduced-motion: reduce) {
     .password-meter .meter-fill { transition: none; }
 }
+
+/* Auditoria (ADR 0018) */
+.badge.failed { background: var(--err-bg); color: var(--err-text); }
+.audit-filters { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0 0 var(--gap); }
+.audit-filters a { display: inline-flex; align-items: center; min-height: 44px; color: var(--muted);
+    text-decoration: none; border-bottom: 2px solid transparent; }
+.audit-filters a:hover { color: var(--text); }
+.audit-filters a[aria-current="page"] { color: var(--text); font-weight: 650; border-bottom-color: var(--accent); }
+.audit .audit-when, .audit .audit-ip { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* break-word, e não anywhere: o e-mail só quebra se não couber numa linha inteira da coluna */
+.audit .email, .audit .audit-target { overflow-wrap: break-word; }
+.audit .audit-target { margin-left: 4px; }
+.audit-detail { margin-top: 6px; }
+.audit-detail li.removed { text-decoration: line-through; color: var(--muted); }
+.audit-pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 16px; }
+.audit-pager a { display: inline-flex; align-items: center; min-height: 44px; }
+.audit-pager a:only-child { margin-left: auto; }
