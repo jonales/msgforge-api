@@ -195,7 +195,39 @@ Motor no cobalt-2 com os PRs #9, #10 e #11.
 | Logout | ✅ depois do cobalt-2#11, a conexão fecha logo depois do desvínculo (antes: 47 s) |
 | `MESSAGES_SET` (histórico "Recente") | ✅ o evento chega; o histórico vem em partes |
 
-## Cobertura das rotas (levantamento de 2026-11-16)
+## Rodada de 2026-11-19
+
+Duas instâncias conectadas (TESTE-1 e TESTE-2), motor no cobalt-2 `cd7b1919`, eventos num receptor de
+webhook local. Conferido no aparelho pelo usuário: mapa, PDF, nota de voz, imagem e cartão de contato.
+
+| Item | Resultado |
+|---|---|
+| `sendLocation` | ✅ o mapa abre no ponto; `locationMessage` com coordenadas, nome e endereço |
+| `sendContact` (um e dois contatos) | ✅ envio. No celular, "adicionar contato"; no Web, "adicionar a grupo" (o Web mostra isso para vCard com `waid`). ❌ Recebido: o `messages.upsert` sai sem o `vcard` (só o nome) |
+| `sendPoll` | ✅ voto único. ❌ O voto chega como `pollUpdateMessage: {}`, sem a chave da enquete nem a opção |
+| `sendMedia` documento (PDF com `fileName`) | ✅ |
+| `sendMedia` vídeo H.264 1080p60 | ✅ |
+| `sendMedia` vídeo HEVC/H.265 1080p | ❌ 500: o ffmpeg embutido no motor não tem o decodificador HEVC (`avcodec_find_decoder(173)`). Vídeo de iPhone costuma ser HEVC |
+| `sendWhatsAppAudio` com WAV | ✅ sai como nota de voz OGG/Opus |
+| `sendReaction` e remoção (`""`) | ✅ os dois chegam como `messages.upsert` |
+| `fetchAllGroups` | ✅ nas duas contas (34 e 3 grupos), com participantes |
+| `inviteCode`, `revokeInviteCode`, `acceptInviteCode` (código e link) | ✅ entra pelo código novo e o `add` chega. ❌ Código vencido (410 `gone`) volta 500. Quem foi removido por um admin não volta pelo link logo depois (401, regra do WhatsApp), e também vira 500 |
+| `leaveGroup` | ✅ sai e notifica as duas. ❌ Sair de um grupo em que já não está devolve `leave: true` |
+| `updateProfileName` | ✅ o outro número vê o nome novo. ❌ O `fetchProfile` continua com o nome antigo (o `messages.upsert` já traz o novo) |
+| `updateProfileStatus` | ❌ 500 (NPE no motor), **mas o recado muda** no servidor: o `IqSetAboutResponse` exige `id` numérico e o WhatsApp devolve o id em hexadecimal |
+| `fetchProfile` (recado) | ❌ `status` sempre `null`, inclusive da própria conta: a consulta `w:mex` volta `result{}` vazio |
+| `fetchProfilePictureUrl` | ✅ |
+| `markMessageAsRead` | ✅ `READ` só na mensagem pedida |
+| `whatsappNumbers` | ✅ com o 9 e formatado (`+55 (61) 9...`) resolvem para o mesmo JID; sem o DDI, `exists: false` |
+| `sendPresence` (`composing`, `recording`) | ✅ aparece e volta a `available` no fim do `delay` (reteste do #48) |
+| `settings/set` com a conexão aberta | ✅ `readMessages` ligado vale na hora (o `READ` sai em menos de 1 s) |
+
+Defeitos abertos desta rodada: na Msgforge, o `vcard` do contato recebido, o 500 do convite recusado, o
+`leaveGroup` sem participação e o nome antigo no `fetchProfile`; no motor, o recado (troca e leitura) e o
+vídeo HEVC; o voto de enquete vazio (ver se o motor já decifra). Não testados nesta rodada: proxy, código
+de pareamento, `syncFullHistory: true` e `delete` de instância conectada.
+
+## Cobertura das rotas (levantamento de 2026-11-16, atualizado em 2026-11-19)
 
 As 42 rotas da API cruzadas com as rodadas acima, o `CLAUDE.md` e o ledger do motor
 (`cobalt-2/docs/engine-review/STATUS.md`). ✅ = visto ao vivo; 🟡 = em parte; ⬜ = nenhum registro.
@@ -204,16 +236,22 @@ Ao validar um item, mude a marca aqui e registre a rodada.
 | Grupo | ✅ validadas | 🟡 em parte | ⬜ sem registro |
 |---|---|---|---|
 | Instance | `create`, `connect` (QR), `logout`; `connectionState` e `fetchInstances` (indireto) | | `connect?number=` (pairing code), `delete` |
-| Message | `sendText` (com `delay`), `sendWhatsAppAudio` (MP3, OGG, `encoding: false`) | `sendMedia` (falta documento e vídeo que transcodifica), `sendReaction` (falta remover) | `sendLocation`, `sendContact`, `sendPoll` |
-| Chat | `fetchProfile`, `updateProfilePicture`, `findMessages`/`findChats` (só banco) | `sendPresence` (corrigido no #48, sem reteste), `markMessageAsRead` (só via `readMessages`), `whatsappNumbers` (só via `resolve` dos envios) | `fetchProfilePictureUrl`, `updateProfileName`, `updateProfileStatus` |
-| Group | `create`, `findGroupInfos`, `participants`, `updateParticipant` (4 ações), `updateGroupSubject`, `updateGroupDescription`, `updateGroupPicture`, `updateSetting` | | `fetchAllGroups`, `inviteCode`, `revokeInviteCode`, `acceptInviteCode`, `leaveGroup`; grupo com participantes em LID |
-| Settings/proxy/webhook | `webhook/set`/`find` | `settings/set`/`find` (falta troca com a conexão aberta e `syncFullHistory: true`) | `proxy/set`/`find` e o proxy no `create` |
+| Message | `sendText` (com `delay`), `sendWhatsAppAudio` (MP3, OGG, WAV, `encoding: false`), `sendLocation`, `sendReaction` (com remoção) | `sendMedia` (vídeo HEVC falha), `sendContact` (o recebido sai sem `vcard`), `sendPoll` (o voto chega vazio) | |
+| Chat | `fetchProfilePictureUrl`, `updateProfileName`, `updateProfilePicture`, `markMessageAsRead`, `whatsappNumbers`, `sendPresence`, `findMessages`/`findChats` (só banco) | `fetchProfile` (recado sempre null; nome antigo depois da troca), `updateProfileStatus` (500, mas muda) | |
+| Group | `create`, `fetchAllGroups`, `findGroupInfos`, `participants`, `updateParticipant` (4 ações), `updateGroupSubject`, `updateGroupDescription`, `updateGroupPicture`, `updateSetting`, `inviteCode`, `revokeInviteCode` | `acceptInviteCode` (recusa vira 500), `leaveGroup` (sem participação devolve sucesso) | grupo com participantes em LID |
+| Settings/proxy/webhook | `webhook/set`/`find`, `settings/set`/`find` (com a conexão aberta) | | `proxy/set`/`find` e o proxy no `create`; `syncFullHistory: true` |
 
 Pendências do motor que só se veem ao vivo: retry (`receipt type=retry`, 3.1), nome em "Aparelhos
 conectados" num pareamento novo (3.11), vídeo que transcodifica (3.7) e `removeProfilePicture`
 (sem rota na API).
 
 ## Próxima rodada (pendências, por risco)
+
+**Estado em 2026-11-19:** os itens 3 a 6 e quase todo o 7 rodaram (ver "Rodada de 2026-11-19"). Faltam
+o 1 (proxy), o 2 (código de pareamento), do 7 o `syncFullHistory: true` e o `delete` de instância
+conectada, e o reteste dos defeitos daquela rodada depois de corrigidos. No item 3, quem foi removido
+por um admin não volta pelo link logo depois (401 do WhatsApp): para testar o convite, crie o grupo
+pelo B com o A e faça o A **sair** (`leaveGroup`) antes de aceitar o código.
 
 Mesma stack do passo 1, duas instâncias (`A` e `B`, números de teste). Nos comandos,
 `K=$AUTHENTICATION_API_KEY`, `NB` = número do B e `G` = um grupo de teste criado pelo A.

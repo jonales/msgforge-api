@@ -405,6 +405,8 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
    funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
    Figurinha, botões e listas ainda não existem.
+   O cartão de contato recebido sai sem o `vcard` (o `CobaltMessageMapper` copia só o nome) e o voto
+   de enquete sai como `pollUpdateMessage: {}` (rodada de 2026-11-19).
 2. O RabbitMQ usa um exchange tópico, e não filas por evento (`docs/COMPATIBILIDADE.md`).
 3. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect, sem fixar o IP), nem
    nos webhooks nem na mídia por URL. Para webhooks vem desligado por padrão; para a mídia vale
@@ -439,7 +441,15 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
      por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
      `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas
      pela própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
-8. Motor (cobalt-2, corrigido e validado em 2026-11-15): vídeo (#4), foto da própria conta (#9),
+8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`), ainda sem correção:
+   - Msgforge: `acceptInviteCode` recusado pelo WhatsApp (410, 401) vira 500; `leaveGroup` de grupo em
+     que a conta não está devolve `leave: true`; `fetchProfile` mostra o nome antigo depois do
+     `updateProfileName`.
+   - Motor: `updateProfileStatus` dá 500 (NPE: o `IqSetAboutResponse` exige `id` numérico, o WhatsApp
+     manda hexadecimal), mas o recado muda; o recado do `fetchProfile` é sempre null (`w:mex` vazio);
+     vídeo HEVC/H.265 falha (o ffmpeg embutido não tem o decodificador; vídeo de iPhone).
+   - Manager: os status (`status@broadcast`) aparecem na lista de conversas.
+9. Motor (cobalt-2, corrigido e validado em 2026-11-15): vídeo (#4), foto da própria conta (#9),
    status de contato (#10) e logout que fecha a conexão (#11). Em "Aparelhos conectados" o aparelho
    aparece como "Windows": o nome vem do `DeviceProps.os` (fixo no motor) e o ícone do
    `platformType` (o celular desenha com os ícones dele; não há campo de imagem). O usuário decidiu
