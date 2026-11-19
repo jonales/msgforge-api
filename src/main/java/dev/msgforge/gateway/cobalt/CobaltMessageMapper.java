@@ -190,14 +190,12 @@ final class CobaltMessageMapper {
                 yield new Content("reactionMessage", fields);
             }
             case ContactMessage contact -> {
-                contact.displayName().ifPresent(v -> fields.put("displayName", v));
+                fields.putAll(contactFields(contact));
                 yield new Content("contactMessage", fields);
             }
             case ContactsArrayMessage array -> {
                 array.displayName().ifPresent(v -> fields.put("displayName", v));
-                fields.put("contacts", array.contacts().stream()
-                        .map(c -> c.displayName().<Map<String, Object>>map(n -> Map.of("displayName", n)).orElse(Map.of()))
-                        .toList());
+                fields.put("contacts", array.contacts().stream().map(CobaltMessageMapper::contactFields).toList());
                 yield new Content("contactsArrayMessage", fields);
             }
             case PollCreationMessage poll -> {
@@ -266,5 +264,13 @@ final class CobaltMessageMapper {
             return "desktop";
         }
         return "unknown";
+    }
+
+    /** Nome e vCard do cartão de contato, como no contrato ({@code displayName}, {@code vcard}). */
+    static Map<String, Object> contactFields(ContactMessage contact) {
+        var fields = new LinkedHashMap<String, Object>();
+        contact.displayName().ifPresent(v -> fields.put("displayName", v));
+        contact.vcard().ifPresent(v -> fields.put("vcard", v));
+        return fields;
     }
 }

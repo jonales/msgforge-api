@@ -89,8 +89,8 @@ caminho anterior até ser refeita, por exemplo quando o servidor reinicia e rest
 | POST | `/group/updateSetting/{instancia}?groupJid=` | `action`: announcement, not_announcement, locked ou unlocked |
 | GET | `/group/inviteCode/{instancia}?groupJid=` | Link e código do convite |
 | POST | `/group/revokeInviteCode/{instancia}?groupJid=` | Novo código (o anterior deixa de valer) |
-| GET | `/group/acceptInviteCode/{instancia}?inviteCode=` | Entra no grupo pelo código ou link |
-| DELETE | `/group/leaveGroup/{instancia}?groupJid=` | Sai do grupo |
+| GET | `/group/acceptInviteCode/{instancia}?inviteCode=` | Entra no grupo pelo código ou link. Recusa do WhatsApp é 400: `Invite code expired or revoked`, `Not allowed to join this group` (ex.: removida por um admin há pouco) ou `Invalid invite code` |
+| DELETE | `/group/leaveGroup/{instancia}?groupJid=` | Sai do grupo (404 se a conta não está nele) |
 | POST | `/settings/set/{instancia}` | Troca as configurações (rejectCall, groupsIgnore...); valem na hora |
 | GET | `/settings/find/{instancia}` | Mostra as configurações |
 | POST | `/proxy/set/{instancia}` | Define ou remove (`enabled: false`) o proxy; vale na próxima conexão |

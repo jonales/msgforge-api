@@ -10,10 +10,13 @@ import com.github.auties00.cobalt.wire.core.message.MessageStatus;
 import com.github.auties00.cobalt.wire.linked.chat.ChatMessageInfo;
 import com.github.auties00.cobalt.wire.linked.chat.ChatMessageInfoBuilder;
 import com.github.auties00.cobalt.wire.linked.message.LinkedMessageContainer;
+import com.github.auties00.cobalt.wire.linked.message.contact.ContactMessageBuilder;
+import com.github.auties00.cobalt.wire.linked.message.contact.ContactsArrayMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.media.DocumentMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.media.ImageMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.poll.PollCreationMessageBuilder;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -208,5 +211,26 @@ class CobaltMessageMapperTest {
         assertThat(CobaltMessageMapper.device("3EB0C431C26A1916E07E00")).isEqualTo("web");
         assertThat(CobaltMessageMapper.device("ABCDEF0123456789ABCDEF0123456789")).isEqualTo("android");
         assertThat(CobaltMessageMapper.device(null)).isEqualTo("unknown");
+    }
+
+    @Test
+    void aReceivedContactCardKeepsTheVcard() {
+        var vcard = "BEGIN:VCARD\nVERSION:3.0\nFN:Teste Um\nTEL;type=CELL;waid=5561999990001:+5561999990001\nEND:VCARD";
+        var one = new ContactMessageBuilder().displayName("Teste Um").vcard(vcard).build();
+        var two = new ContactsArrayMessageBuilder().displayName("2 contacts")
+                .contacts(List.of(one, new ContactMessageBuilder().displayName("Dois").vcard("BEGIN:VCARD\nEND:VCARD").build()))
+                .build();
+
+        var single = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, false,
+                LinkedMessageContainer.of(one)), INSTANCE).orElseThrow();
+        var array = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, false,
+                LinkedMessageContainer.of(two)), INSTANCE).orElseThrow();
+
+        assertThat(map(map(single.get("message")).get("contactMessage")))
+                .containsEntry("displayName", "Teste Um").containsEntry("vcard", vcard);
+        var contacts = (List<?>) map(map(array.get("message")).get("contactsArrayMessage")).get("contacts");
+        assertThat(contacts).hasSize(2);
+        assertThat(map(contacts.get(0))).containsEntry("vcard", vcard);
+        assertThat(map(contacts.get(1))).containsEntry("displayName", "Dois");
     }
 }
