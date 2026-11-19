@@ -16,13 +16,15 @@
 </head>
 <body>
 
-<!-- Quem está logado, "Usuários" (para quem gerencia usuários) e "Sair", à direita (ADR 0010) -->
+<!-- Quem está logado, "Usuários", "Auditoria" (para quem tem a permissão) e "Sair", à direita (ADR 0010) -->
 <header th:fragment="header" class="topbar" th:with="me=${@managerTopbar.view()}">
     <a class="brand" th:href="@{/manager}" th:text="#{manager.brand}">Msgforge</a>
     <span class="brand-sub" th:text="#{manager.subtitle}">Manager</span>
     <nav class="topbar-account" th:attr="aria-label=#{manager.topbar.account}">
         <span class="topbar-who" th:text="${me.email} ?: #{manager.topbar.globalKey}">ana@exemplo.com</span>
         <a class="topbar-link" th:if="${me.users}" th:href="@{/manager/users}" th:text="#{manager.topbar.users}">Usuários</a>
+        <a class="topbar-link" th:if="${me.audit}" th:href="@{/manager/audit}" th:text="#{manager.topbar.audit}"
+           th:attr="aria-current=${currentPage == 'audit'} ? 'page' : null">Auditoria</a>
         <a class="topbar-link" th:if="${me.server}" th:href="@{/manager/server}" th:text="#{manager.nav.server}"
            th:attr="aria-current=${currentPage == 'server'} ? 'page' : null">Servidor</a>
         <!-- Tema: Sistema, Claro ou Escuro. Um POST comum grava o cookie e volta para esta página -->

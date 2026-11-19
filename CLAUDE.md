@@ -210,6 +210,14 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   Toda tela que definir senha (troca, esqueci a senha) usa a mesma política. Permissão nova: migration no `CHECK` de `role_permission` e textos
   `manager.permission.*` (o `PermissionCatalogTest` cobra os dois). Nos ITs, limpe com
   `AccessFixtures.reset` (o `TRUNCATE instance` não alcança usuários).
+- `audit/` (ADR 0018): `AuditLog` grava `audit_event` por SQL direto (sem JPA, sem FK; quem agiu também
+  em texto, `@chave` para a chave global), **depois do commit** e numa transação própria (falha só vai ao
+  log). Login pelo `web/LoginAudit` (handlers do `ManagerSecurityConfig`): `OK`, `FAILED`, `BLOCKED` (um
+  por IP por janela do limitador), `DISABLED`, e logout; na falha, a conta só se existir, senão
+  `@desconhecida` sem o texto digitado. Ações de pessoas e papéis no `AccessAdminService`, só as que dão
+  certo (papel guarda `+PERM -PERM`). `AuditRetention` apaga depois de `AUDIT_RETENTION_DAYS` (180).
+  Tela `/manager/audit` (`AUDIT_VIEW`, link "Auditoria" no topo): por organização; a plataforma inteira
+  só para o admin. Ação nova: `AuditAction` + `CHECK` da tabela + `manager.audit.action.*`.
 
 ## Convenções
 
@@ -359,6 +367,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     (`USER`, `MANAGER_KEY`, `API_KEY`, `API_TOKEN`), o id e o nome da hora (`SentBy`); o eco do envio
     que chegar antes só ganha o autor. A conversa mostra "por Ana" (`MessageHistory.sentBy`, uma
     consulta por página, fora do `findMessages` do contrato).
+  - [x] auditoria (`AuditController`, `/manager/audit`, ADR 0018): filtros por tipo, 50 por página.
   - [x] usuários e papéis (`AccessController`, `/manager/users` com `USERS_MANAGE` e
     `/manager/roles` com `ROLES_MANAGE`; link "Usuários" no topo, ao lado de "Sair"). Sem a
     permissão, a tela "Sem acesso" com 403.

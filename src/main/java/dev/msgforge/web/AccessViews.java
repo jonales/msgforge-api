@@ -72,7 +72,7 @@ public final class AccessViews {
      * Permissões do catálogo cuja tela ainda não existe: aparecem com "Em breve" (PRODUCT.md,
      * "honesto sobre o que existe"). Tire daqui quando a função chegar.
      */
-    static final Set<Permission> SOON = Set.of(Permission.INSTANCE_CONNECT_LINK, Permission.AUDIT_VIEW);
+    static final Set<Permission> SOON = Set.of(Permission.INSTANCE_CONNECT_LINK);
 
     /** @param soon a função ainda não existe; dá para marcar, para o papel já nascer pronto */
     public record PermissionOption(String name, boolean checked, boolean grantable, boolean soon) {}

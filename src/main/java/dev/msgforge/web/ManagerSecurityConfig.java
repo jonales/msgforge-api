@@ -46,7 +46,8 @@ public class ManagerSecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain managerChain(HttpSecurity http, AuthenticationProvider managerAuthentication,
-                                     LoginAttemptLimiter limiter, AccessService access) throws Exception {
+                                     LoginAttemptLimiter limiter, AccessService access, LoginAudit audit)
+            throws Exception {
         http.securityMatcher("/manager", "/manager/**")
                 .addFilterBefore(new ActiveSessionFilter(access), AuthorizationFilter.class)
                 .authenticationProvider(managerAuthentication)
@@ -67,13 +68,15 @@ public class ManagerSecurityConfig {
                             limiter.succeeded(request.getRemoteAddr());
                             if (authentication.getPrincipal() instanceof ManagerPrincipal who) {
                                 access.recordLogin(who);
+                                audit.succeeded(request, who);
                             }
                             response.sendRedirect(request.getContextPath() + "/manager");
                         })
-                        .failureHandler(failureHandler(limiter)))
+                        .failureHandler(failureHandler(limiter, audit)))
                 .exceptionHandling(errors -> errors.authenticationEntryPoint(entryPoint()))
                 .logout(logout -> logout
                         .logoutUrl("/manager/logout")
+                        .addLogoutHandler((request, response, authentication) -> audit.loggedOut(request, authentication))
                         .logoutSuccessUrl("/manager/login?logout"))
                 .headers(headers -> headers.contentSecurityPolicy(csp -> csp.policyDirectives(
                         "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
@@ -116,10 +119,10 @@ public class ManagerSecurityConfig {
     }
 
     /**
-     * Conta a falha aqui (uma vez por requisição), e não no provider: o Boot registra o provider
+     * Conta a falha (e grava na auditoria) aqui, uma vez por requisição, e não no provider: o Boot registra o provider
      * também no AuthenticationManager pai, e numa chave errada ele é chamado duas vezes.
      */
-    private static AuthenticationFailureHandler failureHandler(LoginAttemptLimiter limiter) {
+    private static AuthenticationFailureHandler failureHandler(LoginAttemptLimiter limiter, LoginAudit audit) {
         var redirect = new ExceptionMappingAuthenticationFailureHandler();
         redirect.setExceptionMappings(Map.of(
                 LockedException.class.getName(), "/manager/login?blocked",
@@ -129,6 +132,7 @@ public class ManagerSecurityConfig {
             if (exception instanceof BadCredentialsException) {
                 limiter.failed(request.getRemoteAddr());
             }
+            audit.failed(request, exception);
             redirect.onAuthenticationFailure(request, response, exception);
         };
     }

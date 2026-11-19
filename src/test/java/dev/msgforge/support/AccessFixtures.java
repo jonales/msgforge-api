@@ -7,7 +7,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * Limpeza do modelo de acesso entre testes: o {@code TRUNCATE instance CASCADE} da base não alcança
- * usuários e papéis. Volta ao estado da migration (organização padrão com os papéis-modelo).
+ * usuários e papéis. Volta ao estado da migration (organização padrão com os papéis-modelo), sem
+ * auditoria.
  */
 public final class AccessFixtures {
 
@@ -20,6 +21,7 @@ public final class AccessFixtures {
     private AccessFixtures() {}
 
     public static void reset(JdbcTemplate jdbc) {
+        jdbc.update("DELETE FROM audit_event");
         jdbc.update("DELETE FROM membership");
         jdbc.update("DELETE FROM app_user");
         jdbc.update("DELETE FROM role WHERE organization_id = ? AND id NOT IN (?, ?, ?, ?)",

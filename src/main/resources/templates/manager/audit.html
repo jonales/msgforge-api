@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
+<head th:replace="~{manager/fragments/layout :: head(#{manager.audit.title})}"></head>
+<body>
+<header th:replace="~{manager/fragments/layout :: header}"></header>
+<main class="container access-page">
+    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
+    <div class="page-head">
+        <h1 th:text="#{manager.audit.title}">Auditoria</h1>
+    </div>
+    <p class="muted lead" th:text="${wholePlatform} ? #{manager.audit.introPlatform} : #{manager.audit.intro(${organizationName})}">
+        Quem entrou no Manager e o que mudou em pessoas e papéis.</p>
+
+    <!-- Escopo: só quando há mais de uma opção (o admin da plataforma tem também "Plataforma inteira") -->
+    <form class="org-switch inline-form" method="get" th:action="@{/manager/audit}" th:if="${scopes.size() > 1}">
+        <input type="hidden" name="filter" th:value="${filter}">
+        <label for="org"><span th:text="#{manager.audit.scope}">Mostrar</span>
+            <select id="org" name="org">
+                <option th:each="s : ${scopes}" th:value="${s.id}" th:selected="${s.selected}"
+                        th:text="${s.id == null} ? #{manager.audit.scope.platform} : ${s.name}">Padrão</option>
+            </select>
+        </label>
+        <button type="submit" th:text="#{manager.access.switch}">Trocar</button>
+    </form>
+
+    <nav class="audit-filters" th:attr="aria-label=#{manager.audit.filter}">
+        <a th:each="f : ${filters}" th:href="@{/manager/audit(org=${organizationId},filter=${f})}"
+           th:text="#{'manager.audit.filter.' + ${f}}"
+           th:attr="aria-current=${f == filter} ? 'page' : null">Tudo</a>
+    </nav>
+
+    <section class="card" aria-labelledby="audit-title">
+        <h2 id="audit-title" class="visually-hidden" th:text="#{manager.audit.records}">Registros</h2>
+        <p class="muted" th:if="${#lists.isEmpty(rows)}"
+           th:text="${filter == 'ALL'} ? #{manager.audit.empty} : #{manager.audit.emptyFilter}">Nada registrado ainda.</p>
+        <div class="table-scroll" th:unless="${#lists.isEmpty(rows)}">
+            <table class="people audit">
+                <thead>
+                <tr>
+                    <th scope="col" th:text="#{manager.audit.col.when}">Quando</th>
+                    <th scope="col" th:text="#{manager.audit.col.who}">Quem</th>
+                    <th scope="col" th:text="#{manager.audit.col.what}">O quê</th>
+                    <th scope="col" th:text="#{manager.audit.col.outcome}">Resultado</th>
+                    <th scope="col" th:text="#{manager.audit.col.ip}">Endereço IP</th>
+                    <th scope="col" th:if="${wholePlatform}" th:text="#{manager.audit.col.organization}">Organização</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr th:each="r : ${rows}">
+                    <td class="audit-when"><time th:datetime="${r.iso}" th:text="${r.when}">19/11/2026 22:41:07</time></td>
+                    <td th:attr="data-label=#{manager.audit.col.who}">
+                        <span class="email" th:if="${r.actor}" th:text="${r.actor}">ana@exemplo.com</span>
+                        <span class="muted" th:unless="${r.actor}" th:text="#{'manager.audit.actor.' + ${r.actorKind}}">Chave da API</span>
+                    </td>
+                    <td th:attr="data-label=#{manager.audit.col.what}">
+                        <span th:text="#{'manager.audit.action.' + ${r.action}}">Entrou</span>
+                        <strong class="audit-target" th:if="${r.target}" th:text="${r.target}">Atendente</strong>
+                        <ul class="permission-chips audit-detail" th:unless="${#lists.isEmpty(r.detail)}">
+                            <li th:each="d : ${r.detail}"
+                                th:classappend="${d.permission != null} ? (${d.added} ? 'added' : 'removed')"
+                                th:text="${d.permission != null}
+                                    ? (${d.added} ? #{manager.audit.permission.added(#{'manager.permission.' + ${d.permission}})}
+                                                  : #{manager.audit.permission.removed(#{'manager.permission.' + ${d.permission}})})
+                                    : ${d.text}">+ Ver status</li>
+                        </ul>
+                    </td>
+                    <td th:attr="data-label=#{manager.audit.col.outcome}">
+                        <span class="badge" th:classappend="${r.ok} ? 'open' : 'failed'"
+                              th:text="#{'manager.audit.outcome.' + ${r.outcome}}">Concluído</span>
+                    </td>
+                    <td class="audit-ip" th:attr="data-label=#{manager.audit.col.ip}" th:text="${r.ip}">203.0.113.7</td>
+                    <td th:if="${wholePlatform}" th:attr="data-label=#{manager.audit.col.organization}"
+                        th:text="${r.organization}">Padrão</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <nav class="audit-pager" th:if="${older != null or paged}" th:attr="aria-label=#{manager.audit.pages}">
+            <a th:if="${paged}" th:href="@{/manager/audit(org=${organizationId},filter=${filter})}"
+               th:text="#{manager.audit.newest}">← Mais recentes</a>
+            <a th:if="${older != null}" th:href="@{/manager/audit(org=${organizationId},filter=${filter},before=${older})}"
+               th:text="#{manager.audit.older}">Mais antigos →</a>
+        </nav>
+    </section>
+    <p class="muted small" th:text="${retentionDays > 0} ? #{manager.audit.retention(${retentionDays})} : #{manager.audit.retentionForever}">
+        Registros com mais de 180 dias são apagados.</p>
+</main>
+</body>
+</html>
