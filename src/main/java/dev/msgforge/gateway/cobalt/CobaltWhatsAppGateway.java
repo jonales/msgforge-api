@@ -11,6 +11,7 @@ import com.github.auties00.cobalt.client.linked.LinkedWhatsAppClientPasskeyAuthe
 import com.github.auties00.cobalt.client.linked.LinkedWhatsAppClientVerificationHandler;
 import com.github.auties00.cobalt.client.linked.WhatsAppLinkedClientErrorResult;
 import com.github.auties00.cobalt.exception.linked.WhatsAppConnectionException;
+import com.github.auties00.cobalt.exception.linked.WhatsAppServerRuntimeException;
 import com.github.auties00.cobalt.stanza.model.SizedInputStream;
 import com.github.auties00.cobalt.stanza.model.Stanza;
 import com.github.auties00.cobalt.stanza.model.StanzaAttribute;
@@ -1341,11 +1342,43 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     @Override
     public String acceptGroupInvite(Instance instance, String inviteCode) {
         var connection = requireConnected(instance);
-        var group = call(() -> connection.api.joinGroupViaInvite(inviteCode), "entrada no grupo");
+        var group = call(() -> {
+            try {
+                return connection.api.joinGroupViaInvite(inviteCode);
+            } catch (WhatsAppServerRuntimeException e) {
+                throw inviteRejection(e.getMessage()).map(RuntimeException.class::cast).orElse(e);
+            }
+        }, "entrada no grupo");
         if (group == null) {
             throw new BadRequestException("Invalid invite code");
         }
         return group.toString();
+    }
+
+    private static final java.util.regex.Pattern REJECTION_CODE = java.util.regex.Pattern.compile("code=(\\d{3})");
+
+    /**
+     * Recusa do WhatsApp ao convite (código 4xx) vira 400 com o motivo, e não 500: é o código que não
+     * vale, não uma falha do servidor. 410: vencido ou revogado; 401/403: a conta não pode entrar (ex.:
+     * foi removida por um admin há pouco); 404: não existe.
+     */
+    static Optional<BadRequestException> inviteRejection(String message) {
+        if (message == null) {
+            return Optional.empty();
+        }
+        var matcher = REJECTION_CODE.matcher(message);
+        if (!matcher.find()) {
+            return Optional.empty();
+        }
+        var code = Integer.parseInt(matcher.group(1));
+        return switch (code) {
+            case 410 -> Optional.of(new BadRequestException("Invite code expired or revoked"));
+            case 401, 403 -> Optional.of(new BadRequestException("Not allowed to join this group"));
+            case 404, 406 -> Optional.of(new BadRequestException("Invalid invite code"));
+            default -> code >= 400 && code < 500
+                    ? Optional.of(new BadRequestException("Invite rejected by WhatsApp (code " + code + ")"))
+                    : Optional.empty();
+        };
     }
 
     @Override
@@ -1408,11 +1441,21 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         call(() -> connection.api.editGroupMetadata(edit.build()), what);
     }
 
+    /**
+     * Sai do grupo. O WhatsApp aceita a saída de um grupo em que a conta já não está (e até notifica),
+     * então a participação é conferida antes: fora dele, 404 (como no stub).
+     */
     @Override
     public void leaveGroup(Instance instance, String groupJid) {
         var connection = requireConnected(instance);
+        var group = Jid.of(groupJid);
+        var member = call(() -> connection.api.queryParticipatingGroups(false, false), "consulta dos grupos").stream()
+                .anyMatch(metadata -> metadata.jid().equals(group));
+        if (!member) {
+            throw new dev.msgforge.common.ApiExceptionHandler.NotFoundException("Group not found: " + groupJid);
+        }
         call(() -> {
-            connection.api.leaveGroup(Jid.of(groupJid));
+            connection.api.leaveGroup(group);
             return null;
         }, "saída do grupo");
     }

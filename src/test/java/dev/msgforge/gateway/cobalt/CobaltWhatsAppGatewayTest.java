@@ -112,6 +112,8 @@ class CobaltWhatsAppGatewayTest {
         assertThat((System.nanoTime() - start) / 1_000_000).as("não espera o qrWaitMs inteiro").isLessThan(2900);
         assertThat(result.qrCode()).isNull();
         assertThat(result.pairingCode()).isNull();
+        // O CLOSE é publicado pela thread do tratador de erros do motor: pode chegar logo depois do retorno
+        awaitEvents(2, ConnectionUpdated.class);
         assertThat(events).filteredOn(ConnectionUpdated.class::isInstance)
                 .extracting(e -> ((ConnectionUpdated) e).state(), e -> ((ConnectionUpdated) e).statusReason())
                 .containsExactly(
@@ -537,6 +539,20 @@ class CobaltWhatsAppGatewayTest {
     }
 
     @Test
+    void inviteRejectionsBecomeBadRequests() {
+        assertThat(CobaltWhatsAppGateway.inviteRejection("Join group via invite rejected: code=410, text=gone"))
+                .get().extracting(Throwable::getMessage).isEqualTo("Invite code expired or revoked");
+        assertThat(CobaltWhatsAppGateway.inviteRejection("Join group via invite rejected: code=401, text=not-authorized"))
+                .get().extracting(Throwable::getMessage).isEqualTo("Not allowed to join this group");
+        assertThat(CobaltWhatsAppGateway.inviteRejection("rejected: code=429, text=rate-overlimit"))
+                .get().extracting(Throwable::getMessage).isEqualTo("Invite rejected by WhatsApp (code 429)");
+        // Erro do servidor (5xx) ou sem código continua sendo falha do motor
+        assertThat(CobaltWhatsAppGateway.inviteRejection("server error: code=500, text=internal")).isEmpty();
+        assertThat(CobaltWhatsAppGateway.inviteRejection("timeout")).isEmpty();
+        assertThat(CobaltWhatsAppGateway.inviteRejection(null)).isEmpty();
+    }
+
+    @Test
     void pairingNumbersAreDigitsOnly() {
         assertThat(CobaltWhatsAppGateway.pairingNumber("+55 (61) 99999-9999")).isEqualTo(5561999999999L);
         assertThatThrownBy(() -> CobaltWhatsAppGateway.pairingNumber("123")).isInstanceOf(BadRequestException.class);
@@ -553,5 +569,18 @@ class CobaltWhatsAppGatewayTest {
     private static OutgoingMedia media(String type) {
         return new OutgoingMedia("5561999999999@s.whatsapp.net", type, "application/octet-stream", "x",
                 "legenda", "a.pdf", null);
+    }
+
+    /** Espera (até 5 s) ter pelo menos {@code count} eventos do tipo; nunca presume que outra thread já publicou. */
+    private void awaitEvents(int count, Class<?> type) {
+        var deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (events.stream().filter(type::isInstance).count() < count && System.nanoTime() < deadline) {
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 }
