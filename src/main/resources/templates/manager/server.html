@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
-<!-- Servidor (ServerController): estado do SMTP e e-mail de teste (ADR 0011). Só leitura: a
-     configuração vem das variáveis de ambiente. -->
+<!-- Servidor (ServerController): SMTP configurado aqui ou pelo ambiente, teste de conexão e e-mail de teste
+     (ADR 0011 e 0019). A senha nunca volta para a tela. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.server.title})}"></head>
 <body>
 <header th:replace="~{manager/fragments/layout :: header}"></header>
@@ -22,30 +22,105 @@
                   th:text="${smtp.enabled} ? #{manager.server.email.on} : #{manager.server.email.off}">Ligado</span>
         </div>
 
-        <p class="note" th:unless="${smtp.enabled}" th:text="#{manager.server.email.offText}">Sem SMTP_HOST.</p>
+        <!-- De onde vem a configuração em uso -->
+        <p class="note" th:switch="${smtp.source}">
+            <span th:case="'DATABASE'" th:text="#{manager.server.smtp.source.database(${smtp.updatedBy} ?: '-', ${smtp.updatedAt} ?: '-')}">Definida aqui.</span>
+            <span th:case="'ENVIRONMENT'" th:text="#{manager.server.smtp.source.environment}">Vem do ambiente.</span>
+            <span th:case="*" th:text="#{manager.server.smtp.source.none}">Desligado.</span>
+        </p>
+        <div class="flash error" role="alert" th:if="${smtp.problem}"
+             th:text="#{manager.server.smtp.problem(${smtp.problem})}">A senha guardada não decifra.</div>
+
+        <dl class="summary" th:if="${smtp.enabled}">
+            <div>
+                <dt th:text="#{manager.server.email.server}">Servidor</dt>
+                <dd><code th:text="${smtp.address}">smtp.exemplo.com:587</code></dd>
+            </div>
+            <div>
+                <dt th:text="#{manager.server.email.security}">Conexão</dt>
+                <dd th:text="${smtp.starttls} ? #{manager.server.email.starttls} : #{manager.server.email.noStarttls}">STARTTLS</dd>
+            </div>
+            <div>
+                <dt th:text="#{manager.server.email.auth}">Login</dt>
+                <dd th:text="${smtp.authenticated} ? #{manager.server.email.authUser} : #{manager.server.email.authNone}">Com usuário</dd>
+            </div>
+            <div>
+                <dt th:text="#{manager.server.email.from}">Remetente</dt>
+                <dd>
+                    <code th:if="${smtp.from}" th:text="${smtp.from}">avisos@exemplo.com</code>
+                    <span class="muted" th:unless="${smtp.from}" th:text="#{manager.server.email.fromMissing}">Não definido</span>
+                </dd>
+            </div>
+        </dl>
+
+        <h3 id="smtp-form-title" class="server-subtitle" th:text="#{manager.server.smtp.formTitle}">Configurar o SMTP</h3>
+        <div class="flash success" role="status" th:if="${smtpTest != null and smtpTest.ok}"
+             th:text="#{manager.server.smtp.test.ok}">Conectou e entrou.</div>
+        <div class="flash error" role="alert" th:if="${smtpTest != null and !smtpTest.ok}"
+             th:text="#{manager.server.smtp.test.failed(${smtpTest.reason})}">Não conectou.</div>
+        <form th:action="@{/manager/server/smtp}" method="post" novalidate aria-labelledby="smtp-form-title"
+              th:with="e=${smtpErrors}">
+            <label th:with="err=${e['host']}">
+                <span th:text="#{manager.server.smtp.host}">Servidor</span>
+                <input id="smtp-host" name="host" required maxlength="253" spellcheck="false" autocapitalize="off"
+                       placeholder="smtp.exemplo.com" th:value="${smtpForm.host}"
+                       th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'smtp-host-error' : null">
+                <span class="field-error" id="smtp-host-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+            </label>
+            <label th:with="err=${e['port']}">
+                <span th:text="#{manager.server.smtp.port}">Porta</span>
+                <input name="port" inputmode="numeric" maxlength="5" th:value="${smtpForm.port}"
+                       th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='smtp-port-hint' + (${err != null} ? ' smtp-port-error' : '')">
+                <span class="field-error" id="smtp-port-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                <span class="hint" id="smtp-port-hint" th:text="#{manager.server.smtp.port.hint}">587 com STARTTLS.</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" name="starttls" value="true" th:checked="${smtpForm.starttls}">
+                <span th:text="#{manager.server.smtp.starttls}">Exigir STARTTLS</span>
+            </label>
+            <label th:with="err=${e['username']}">
+                <span th:text="#{manager.server.smtp.username}">Usuário</span>
+                <input name="username" maxlength="254" spellcheck="false" autocapitalize="off" autocomplete="off"
+                       th:value="${smtpForm.username}"
+                       th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='smtp-user-hint' + (${err != null} ? ' smtp-user-error' : '')">
+                <span class="field-error" id="smtp-user-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                <span class="hint" id="smtp-user-hint" th:text="#{manager.server.smtp.username.hint}">Em branco: sem login.</span>
+            </label>
+            <label th:with="err=${e['password']}">
+                <span th:text="#{manager.server.smtp.password}">Senha</span>
+                <input name="password" type="password" autocomplete="new-password" maxlength="500"
+                       th:placeholder="${smtpForm.hasPassword} ? #{manager.server.smtp.password.kept} : ''"
+                       th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='smtp-pass-hint' + (${err != null} ? ' smtp-pass-error' : '')">
+                <span class="field-error" id="smtp-pass-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                <span class="hint" id="smtp-pass-hint"
+                      th:text="${secretsEnabled} ? #{manager.server.smtp.password.hint} : #{manager.server.smtp.password.noKey}">Cifrada.</span>
+            </label>
+            <label th:with="err=${e['from']}">
+                <span th:text="#{manager.server.smtp.from}">Remetente</span>
+                <input name="from" maxlength="320" spellcheck="false" autocapitalize="off"
+                       placeholder="Msgforge &lt;avisos@exemplo.com&gt;" th:value="${smtpForm.from}"
+                       th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby='smtp-from-hint' + (${err != null} ? ' smtp-from-error' : '')">
+                <span class="field-error" id="smtp-from-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+                <span class="hint" id="smtp-from-hint" th:text="#{manager.server.smtp.from.hint}">Em branco: o usuário.</span>
+            </label>
+            <label th:with="err=${e['timeoutMs']}">
+                <span th:text="#{manager.server.smtp.timeout}">Tempo máximo (ms)</span>
+                <input name="timeoutMs" inputmode="numeric" maxlength="6" th:value="${smtpForm.timeoutMs}"
+                       th:attr="aria-invalid=${err != null} ? 'true' : null,aria-describedby=${err != null} ? 'smtp-timeout-error' : null">
+                <span class="field-error" id="smtp-timeout-error" th:if="${err}" th:text="#{${err}}">Erro</span>
+            </label>
+            <span class="field-error" th:if="${e['test']}" th:text="#{${e['test']}}" role="alert">Muitos testes.</span>
+            <div class="form-actions">
+                <button type="submit" name="action" value="test" th:text="#{manager.server.smtp.test}">Testar conexão</button>
+                <button type="submit" name="action" value="save" class="primary" th:text="#{manager.server.smtp.save}">Salvar</button>
+            </div>
+            <p class="muted small" th:text="#{manager.server.smtp.testHint}">Testar não salva nem envia.</p>
+        </form>
+        <form th:if="${smtp.fromDatabase}" th:action="@{/manager/server/smtp/remove}" method="post" class="inline-form">
+            <button type="submit" class="link" th:text="#{manager.server.smtp.remove}">Voltar ao SMTP do ambiente</button>
+        </form>
 
         <th:block th:if="${smtp.enabled}">
-            <dl class="summary">
-                <div>
-                    <dt th:text="#{manager.server.email.server}">Servidor</dt>
-                    <dd><code th:text="${smtp.address}">smtp.exemplo.com:587</code></dd>
-                </div>
-                <div>
-                    <dt th:text="#{manager.server.email.security}">Conexão</dt>
-                    <dd th:text="${smtp.starttls} ? #{manager.server.email.starttls} : #{manager.server.email.noStarttls}">STARTTLS</dd>
-                </div>
-                <div>
-                    <dt th:text="#{manager.server.email.auth}">Login</dt>
-                    <dd th:text="${smtp.authenticated} ? #{manager.server.email.authUser} : #{manager.server.email.authNone}">Com usuário</dd>
-                </div>
-                <div>
-                    <dt th:text="#{manager.server.email.from}">Remetente</dt>
-                    <dd>
-                        <code th:if="${smtp.from}" th:text="${smtp.from}">avisos@exemplo.com</code>
-                        <span class="muted" th:unless="${smtp.from}" th:text="#{manager.server.email.fromMissing}">Não definido</span>
-                    </dd>
-                </div>
-            </dl>
             <p class="muted small" th:text="#{manager.server.email.deliverability}">SPF e DKIM.</p>
 
             <h3 id="test-title" class="server-subtitle" th:text="#{manager.server.test.title}">Enviar e-mail de teste</h3>

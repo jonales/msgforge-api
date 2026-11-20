@@ -21,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import dev.msgforge.notification.Notification;
+import dev.msgforge.notification.EmailSender;
 import dev.msgforge.notification.NotificationService;
 import dev.msgforge.support.IntegrationTest;
 import org.hamcrest.Matchers;
@@ -58,7 +59,7 @@ class ServerPageIT extends IntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("manager/server"))
                 .andExpect(content().string(Matchers.containsString("Desligado")))
-                .andExpect(content().string(Matchers.containsString("SMTP_HOST")))
+                .andExpect(content().string(Matchers.containsString("SMTP_*")))
                 .andExpect(content().string(Matchers.not(Matchers.containsString("name=\"email\""))))
                 .andExpect(content().string(Matchers.containsString("aria-current=\"page\"")));
     }
@@ -92,6 +93,99 @@ class ServerPageIT extends IntegrationTest {
             AccessFixtures.reset(jdbc);
         }
     }
+
+    @Test
+    void smtpSavedHereWinsAndGoesBackToTheEnvironment() throws Exception {
+        try {
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp").with(admin()).with(csrf())
+                            .param("action", "save").param("host", "127.0.0.1").param("port", "2525")
+                            .param("from", "Msgforge <avisos@msgforge.test>").param("timeoutMs", "2000"))
+                    .andExpect(redirectedUrl("/manager/server"))
+                    .andExpect(flash().attribute("success", "manager.server.smtp.saved"));
+
+            // Vale na hora, sem reiniciar
+            assertThat(notifications.isEmailEnabled()).isTrue();
+            assertThat(notifications.emailStatus().source()).isEqualTo(EmailSender.Source.DATABASE);
+            mvc.perform(MockMvcRequestBuilders.get("/manager/server").with(admin()))
+                    .andExpect(content().string(Matchers.containsString("definida aqui")))
+                    .andExpect(content().string(Matchers.containsString("127.0.0.1:2525")))
+                    .andExpect(content().string(Matchers.containsString("Voltar ao SMTP do ambiente")));
+            assertThat(jdbc.queryForObject("SELECT target FROM audit_event WHERE action = 'SERVER_SMTP_UPDATED'",
+                    String.class)).isEqualTo("127.0.0.1:2525");
+
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp/remove").with(admin()).with(csrf()))
+                    .andExpect(flash().attribute("success", "manager.server.smtp.removed"));
+            assertThat(notifications.isEmailEnabled()).isFalse();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM smtp_settings", Long.class)).isZero();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM audit_event WHERE action = 'SERVER_SMTP_REMOVED'",
+                    Long.class)).isOne();
+        } finally {
+            cleanSmtp();
+        }
+    }
+
+    @Test
+    void thePasswordIsStoredEncryptedAndNeverShown() throws Exception {
+        var password = "senha-do-smtp-que-nao-aparece-na-tela";
+        try {
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp").with(admin()).with(csrf())
+                            .param("action", "save").param("host", "smtp.msgforge.test").param("port", "587")
+                            .param("username", "avisos@msgforge.test").param("password", password)
+                            .param("starttls", "true"))
+                    .andExpect(flash().attribute("success", "manager.server.smtp.saved"));
+            var stored = jdbc.queryForObject("SELECT password_encrypted FROM smtp_settings", String.class);
+            assertThat(stored).isNotBlank().doesNotContain(password);
+            mvc.perform(MockMvcRequestBuilders.get("/manager/server").with(admin()))
+                    .andExpect(content().string(Matchers.not(Matchers.containsString(password))))
+                    .andExpect(content().string(Matchers.containsString("guardada; em branco, continua a mesma")));
+
+            // Salvar de novo com a senha em branco mantém a guardada
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp").with(admin()).with(csrf())
+                            .param("action", "save").param("host", "smtp.msgforge.test").param("port", "2587")
+                            .param("username", "avisos@msgforge.test").param("starttls", "true"))
+                    .andExpect(flash().attribute("success", "manager.server.smtp.saved"));
+            assertThat(jdbc.queryForObject("SELECT password_encrypted FROM smtp_settings", String.class)).isEqualTo(stored);
+        } finally {
+            cleanSmtp();
+        }
+    }
+
+    @Test
+    void invalidFieldsAndFailedTestsDoNotSaveAnything() throws Exception {
+        try {
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp").with(admin()).with(csrf())
+                            .param("action", "save").param("host", "smtp exemplo;com").param("port", "587"))
+                    .andExpect(flash().attribute("smtpErrors",
+                            java.util.Map.of("host", "manager.server.smtp.error.host.invalid")));
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp").with(admin()).with(csrf())
+                            .param("action", "save").param("host", "smtp.msgforge.test")
+                            .param("username", "avisos@msgforge.test"))
+                    .andExpect(flash().attribute("smtpErrors",
+                            java.util.Map.of("password", "manager.server.smtp.error.password.required")));
+            // Porta fechada: o teste falha com o motivo e não salva
+            var result = mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp").with(admin()).with(csrf())
+                            .param("action", "test").param("host", "127.0.0.1").param("port", "1")
+                            .param("timeoutMs", "1000"))
+                    .andExpect(redirectedUrl("/manager/server")).andReturn();
+            var test = (EmailSender.TestResult) result.getFlashMap().get("smtpTest");
+            assertThat(test.ok()).isFalse();
+            assertThat(test.reason()).isNotBlank();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM smtp_settings", Long.class)).isZero();
+            assertThat(notifications.isEmailEnabled()).isFalse();
+        } finally {
+            cleanSmtp();
+        }
+    }
+
+    /** Os contextos de teste dividem o banco: SMTP deixado aqui faria os outros pegarem linhas EMAIL. */
+    private void cleanSmtp() {
+        jdbc.update("DELETE FROM smtp_settings");
+        AccessFixtures.reset(jdbc);
+        reloadEmail.reload();
+    }
+
+    @Autowired
+    private EmailSender reloadEmail;
 
     /** Admin da plataforma (a chave global): a tela Servidor é só dele. */
     private static RequestPostProcessor admin() {
