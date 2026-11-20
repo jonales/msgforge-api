@@ -16,44 +16,71 @@
 </head>
 <body>
 
-<!-- Quem está logado, "Usuários", "Auditoria" (para quem tem a permissão) e "Sair", à direita (ADR 0010) -->
-<header th:fragment="header" class="topbar" th:with="me=${@managerTopbar.view()}">
+<!-- Menu lateral de todas as telas (fora da instância): a marca, as seções do Manager (só as que a
+     pessoa pode abrir) e, no pé, quem está logado, o tema e "Sair". Dentro da instância, o mesmo
+     formato com os itens dela (sideInstance). No celular, a lateral vira o topo: marca e conta numa
+     linha e as seções numa faixa de abas que rola dentro dela mesma. -->
+<aside th:fragment="header" class="app-side" th:with="me=${@managerTopbar.view()}">
+    <div th:replace="~{manager/fragments/layout :: sideBrand}"></div>
+    <nav class="panel-nav" th:attr="aria-label=#{manager.side.label}">
+        <ul>
+            <li><a th:href="@{/manager}" th:attr="aria-current=${me.current == 'instances'} ? 'page' : null"
+                   th:text="#{manager.instances.title}">Instâncias</a></li>
+            <li th:if="${me.users}"><a th:href="@{/manager/users}" th:attr="aria-current=${me.current == 'users'} ? 'page' : null"
+                   th:text="#{manager.topbar.users}">Usuários</a></li>
+            <li th:if="${me.roles}"><a th:href="@{/manager/roles}" th:attr="aria-current=${me.current == 'roles'} ? 'page' : null"
+                   th:text="#{manager.roles.title}">Papéis</a></li>
+            <li th:if="${me.audit}"><a th:href="@{/manager/audit}" th:attr="aria-current=${me.current == 'audit'} ? 'page' : null"
+                   th:text="#{manager.topbar.audit}">Auditoria</a></li>
+            <li th:if="${me.server}"><a th:href="@{/manager/server}" th:attr="aria-current=${me.current == 'server'} ? 'page' : null"
+                   th:text="#{manager.nav.server}">Servidor</a></li>
+        </ul>
+    </nav>
+    <div th:replace="~{manager/fragments/layout :: sideAccount(${me})}"></div>
+</aside>
+
+<!-- Lateral dentro da instância: a mesma moldura, com os itens da instância (panelNav) no lugar das
+     seções do Manager; a volta para a lista fica no topo do menu -->
+<aside th:fragment="sideInstance(name, can, current)" class="app-side" th:with="me=${@managerTopbar.view()}">
+    <div th:replace="~{manager/fragments/layout :: sideBrand}"></div>
+    <nav th:replace="~{manager/fragments/layout :: panelNav(${name}, ${can}, ${current})}"></nav>
+    <div th:replace="~{manager/fragments/layout :: sideAccount(${me})}"></div>
+</aside>
+
+<div th:fragment="sideBrand" class="side-brand">
     <a class="brand" th:href="@{/manager}" th:text="#{manager.brand}">Msgforge</a>
     <span class="brand-sub" th:text="#{manager.subtitle}">Manager</span>
-    <nav class="topbar-account" th:attr="aria-label=#{manager.topbar.account}">
-        <span class="topbar-who" th:text="${me.email} ?: #{manager.topbar.globalKey}">ana@exemplo.com</span>
-        <a class="topbar-link" th:if="${me.users}" th:href="@{/manager/users}" th:text="#{manager.topbar.users}">Usuários</a>
-        <a class="topbar-link" th:if="${me.audit}" th:href="@{/manager/audit}" th:text="#{manager.topbar.audit}"
-           th:attr="aria-current=${currentPage == 'audit'} ? 'page' : null">Auditoria</a>
-        <a class="topbar-link" th:if="${me.server}" th:href="@{/manager/server}" th:text="#{manager.nav.server}"
-           th:attr="aria-current=${currentPage == 'server'} ? 'page' : null">Servidor</a>
-        <!-- Tema: Sistema, Claro ou Escuro. Um POST comum grava o cookie e volta para esta página -->
-        <details class="theme-menu" th:with="theme=${@managerTheme.choice()}">
-            <summary class="topbar-link">
-                <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
-                    <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                    <path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/>
-                </svg>
-                <span class="theme-word" th:text="#{manager.theme.label}">Tema</span>
-                <span class="visually-hidden" th:text="': ' + #{'manager.theme.' + ${theme.value()}}">: Sistema</span>
-            </summary>
-            <form class="theme-options" th:action="@{/manager/theme}" method="post">
-                <input type="hidden" name="back" th:value="${@managerTheme.back()}">
-                <p class="theme-title" id="theme-title" th:text="#{manager.theme.choose}">Tema do Manager</p>
-                <div role="group" aria-labelledby="theme-title">
-                    <button type="submit" name="theme" class="theme-option" th:each="option : ${@managerTheme.choices()}"
-                            th:value="${option.value()}" th:attr="aria-pressed=${option == theme}">
-                        <span th:text="#{'manager.theme.' + ${option.value()}}">Sistema</span>
-                        <span class="theme-hint small" th:text="#{'manager.theme.' + ${option.value()} + '.hint'}">Segue o aparelho</span>
-                    </button>
-                </div>
-            </form>
-        </details>
-        <form class="topbar-logout" th:action="@{/manager/logout}" method="post">
-            <button type="submit" class="link" th:text="#{manager.signOut}">Sair</button>
+</div>
+
+<!-- Pé da lateral: quem está logado, o tema (Sistema, Claro ou Escuro: um POST comum grava o cookie e
+     volta para esta página) e "Sair" -->
+<div th:fragment="sideAccount(me)" class="side-account" role="group" th:attr="aria-label=#{manager.topbar.account}">
+    <p class="side-who" th:text="${me.email} ?: #{manager.topbar.globalKey}">ana@exemplo.com</p>
+    <details class="theme-menu" th:with="theme=${@managerTheme.choice()}">
+        <summary class="side-link">
+            <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
+                <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/>
+            </svg>
+            <span class="theme-word" th:text="#{manager.theme.label}">Tema</span>
+            <span class="visually-hidden" th:text="': ' + #{'manager.theme.' + ${theme.value()}}">: Sistema</span>
+        </summary>
+        <form class="theme-options" th:action="@{/manager/theme}" method="post">
+            <input type="hidden" name="back" th:value="${@managerTheme.back()}">
+            <p class="theme-title" id="theme-title" th:text="#{manager.theme.choose}">Tema do Manager</p>
+            <div role="group" aria-labelledby="theme-title">
+                <button type="submit" name="theme" class="theme-option" th:each="option : ${@managerTheme.choices()}"
+                        th:value="${option.value()}" th:attr="aria-pressed=${option == theme}">
+                    <span th:text="#{'manager.theme.' + ${option.value()}}">Sistema</span>
+                    <span class="theme-hint small" th:text="#{'manager.theme.' + ${option.value()} + '.hint'}">Segue o aparelho</span>
+                </button>
+            </div>
         </form>
-    </nav>
-</header>
+    </details>
+    <form class="side-logout" th:action="@{/manager/logout}" method="post">
+        <button type="submit" class="side-link" th:text="#{manager.signOut}">Sair</button>
+    </form>
+</div>
 
 <!-- Indicador da nova instância guiada. Os passos já feitos viram links enquanto dá para voltar
      (antes de criar); o atual leva aria-current="step". -->

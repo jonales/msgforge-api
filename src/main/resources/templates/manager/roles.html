@@ -2,14 +2,8 @@
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <head th:replace="~{manager/fragments/layout :: head(#{manager.roles.title})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container access-page">
-    <p class="breadcrumb">
-        <a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a>
-        <th:block th:if="${canManageUsers}"> ·
-            <a th:href="@{/manager/users(org=${organization.id})}" th:text="#{manager.users.title}">Usuários</a>
-        </th:block>
-    </p>
     <div class="page-head">
         <h1 th:text="#{manager.roles.title}">Papéis</h1>
         <a class="button primary" th:href="@{/manager/roles/new(org=${organization.id})}"

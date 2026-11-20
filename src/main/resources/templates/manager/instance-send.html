@@ -3,13 +3,12 @@
 <!-- Painel da instância, Envio de teste: um número e um texto. O envio também vai para o histórico. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.send} + ' · ' + ${instance.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: sideInstance(${instance.name}, ${can}, 'send')}"></aside>
 <main class="container wide instance-panel">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <p class="flash success" th:if="${sentId}" th:text="#{manager.flash.sentId(${sentId})}"></p>
 
     <div class="panel-shell">
-    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'send')}"></nav>
     <div class="panel-main">
         <header class="panel-head">
             <h1 th:text="#{manager.panelNav.send}">Envio de teste</h1>

@@ -94,7 +94,7 @@ const { chromium } = require('playwright');
   await page.check('input[name=confirm]'); await page.click('button.danger');
   await page.waitForURL(base + '/manager'); await page.waitForSelector('.flash.success'); step('instância excluída');
 
-  await page.click('.topbar-logout button'); await page.waitForURL('**/manager/login?logout'); step('logout do manager');
+  await page.click('.side-logout button'); await page.waitForURL('**/manager/login?logout'); step('logout do manager');
   const r = await page.goto(base + '/manager'); if (!page.url().endsWith('/manager/login')) throw new Error('sessão continuou');
   step('após sair, /manager volta para o login');
 

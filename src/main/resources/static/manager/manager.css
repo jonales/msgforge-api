@@ -54,23 +54,26 @@ h3 { font-size: var(--fs-h3); line-height: 1.4; font-weight: 600; }
 .muted { color: var(--muted); }
 .small { font-size: .85rem; }
 
-.topbar { display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-          background: var(--surface); border-bottom: 1px solid var(--border); }
+/* Moldura de todas as telas logadas: menu lateral à esquerda e o conteúdo com o resto. Dentro da
+   instância a lateral é a mesma, só troca os itens. No celular (abaixo), a lateral vira o topo. */
+body:has(> .app-side) { display: grid; grid-template-columns: 232px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
+.app-side { position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; display: flex;
+    flex-direction: column; gap: 18px; padding: 16px 12px; background: var(--surface);
+    border-right: 1px solid var(--border); }
+.side-brand { display: flex; align-items: baseline; gap: 8px; padding: 4px 12px 0; }
 .brand { font-weight: 700; color: var(--text); text-decoration: none; }
 .brand-sub { color: var(--muted); }
-.topbar-logout { margin-left: auto; }
-/* Conta no topo (ADR 0010): quem está logado, "Usuários" e "Sair", discretos, à direita */
-.topbar-account { display: flex; align-items: center; gap: 4px 12px; margin-left: auto; min-width: 0; }
-.topbar-account .topbar-logout { margin-left: 0; }
-/* Quem está logado: o mesmo tamanho e respiro dos links ao lado, só sem sublinhado */
-.topbar-who { color: var(--muted); padding: 4px 8px; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; max-width: 28ch; }
-.topbar-link { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 8px; color: var(--muted);
-    text-decoration: none; border-radius: 6px; }
-.topbar-link:hover { color: var(--text); text-decoration: underline; text-underline-offset: 3px; }
-@media (max-width: 560px) { .topbar-who { display: none; } }
-.topbar-link[aria-current=page] { color: var(--text); font-weight: 600; }
-.topbar-link + .topbar-logout { margin-left: 0; }
+.app-side .panel-nav { position: static; }
+/* Pé da lateral: conta, tema e sair, separados do menu */
+.side-account { margin-top: auto; display: grid; gap: 2px; padding-top: 12px; border-top: 1px solid var(--border); }
+.side-who { margin: 0 0 4px; padding: 0 12px; color: var(--muted); font-size: var(--fs-small); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+.side-logout { margin: 0; }
+.side-link { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px 12px;
+    border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; text-align: left;
+    text-decoration: none; cursor: pointer; }
+.side-link:hover { background: var(--hover); }
+.side-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 /* Tema no menu da conta: um <details> com três botões de envio (sem script). A opção atual leva
    aria-pressed="true" e um visto desenhado; a cor nunca é o único sinal. */
 .theme-menu { position: relative; }
@@ -79,7 +82,7 @@ h3 { font-size: var(--fs-h3); line-height: 1.4; font-weight: 600; }
 .theme-menu > summary::-webkit-details-marker { display: none; }
 .theme-menu > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .theme-menu[open] > summary { color: var(--text); background: var(--hover); }
-.theme-options { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; width: 15rem; margin: 0;
+.theme-options { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 10; width: auto; margin: 0;
     padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     box-shadow: 0 8px 24px -8px rgb(0 0 0 / .22); }
 .theme-title { margin: 4px 8px 6px; font-size: var(--fs-small); font-weight: 600; color: var(--muted); }
@@ -92,15 +95,23 @@ button.theme-option::before { content: ""; grid-row: 1 / span 2; justify-self: c
 .theme-option[aria-pressed=true]::before { border-color: currentColor; }
 .theme-option .theme-hint { grid-column: 2; font-weight: 400; color: var(--muted); }
 .theme-option[aria-pressed=true] .theme-hint { color: inherit; }
-/* Celular: o topo não pode passar da largura da tela. "Manager" sai, o tema vira só o ícone (o nome
-   continua para o leitor de tela) e, se ainda faltar espaço, a conta quebra linha. */
-@media (max-width: 560px) {
-    .brand-sub { display: none; }
-    .topbar-account { flex-wrap: wrap; justify-content: flex-end; }
-    .theme-menu > summary { min-width: 44px; min-height: 44px; justify-content: center; }
+/* Celular e tela estreita: a lateral vira o topo. Marca e conta numa linha (o e-mail sai; o tema vira
+   só o ícone, com o nome para o leitor de tela) e o menu numa faixa de abas logo abaixo. */
+@media (max-width: 860px) {
+    body:has(> .app-side) { display: block; }
+    .app-side { position: static; height: auto; overflow: visible; flex-direction: row; flex-wrap: wrap;
+        align-items: center; gap: 0 8px; padding: 8px 16px 0; border-right: 0; }
+    .side-brand { padding: 0; }
+    .side-account { order: 1; margin: 0 0 0 auto; padding: 0; border-top: 0; display: flex; align-items: center; gap: 4px; }
+    .side-who { display: none; }
+    .side-link { width: auto; min-height: 44px; }
+    .app-side .panel-nav { order: 2; flex: 0 0 calc(100% + 32px); min-width: 0; }
+    .theme-options { left: auto; right: 0; bottom: auto; top: calc(100% + 6px); width: 15rem; }
+    .theme-menu > summary { min-width: 44px; justify-content: center; }
     .theme-menu > summary .theme-word { position: absolute; width: 1px; height: 1px; overflow: hidden;
         clip-path: inset(50%); white-space: nowrap; }
 }
+@media (max-width: 560px) { .brand-sub { display: none; } }
 
 .container { max-width: 980px; margin: 0 auto; padding: 16px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
@@ -194,11 +205,10 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 /* Lista e conversa rolam cada uma no seu painel, na altura da janela, e a página não rola. Em janela
    muito baixa, volta a rolar a página inteira. */
 @media (min-height: 560px) {
-    .page-fill { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+    .page-fill { height: 100vh; height: 100dvh; overflow: hidden; grid-template-rows: minmax(0, 1fr); }
     .page-fill > main { flex: 1; min-height: 0; width: 100%; display: flex; flex-direction: column; }
-    .page-fill .panel-shell { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-    .page-fill .panel-nav { align-self: start; }
-    .page-fill .panel-main { min-height: 0; display: flex; flex-direction: column; }
+    .page-fill .panel-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .page-fill .panel-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     .page-fill .messages-layout { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
     .page-fill .chats { overflow-y: auto; overscroll-behavior: contain; }
     .page-fill .conversation-pane { min-height: 0; overflow: hidden; }
@@ -215,8 +225,10 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
     .conversation-back:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
 @media (max-width: 860px) {
-    .page-fill .panel-shell { grid-template-rows: auto minmax(0, 1fr); }
     .page-fill .panel-head p { display: none; }
+}
+@media (max-width: 860px) and (min-height: 560px) {
+    body.page-fill:has(> .app-side) { display: flex; flex-direction: column; }
 }
 .chat-group-title { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; font-size: var(--fs-small);
     font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
@@ -290,11 +302,16 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .container.wide { max-width: 1200px; }
 .panel-head { margin-bottom: 14px; }
 .panel-head p { margin: 4px 0 0; max-width: 75ch; }
-.panel-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 32px; align-items: start; }
+.panel-shell { display: block; }
 /* O painel usa a largura da tela: o menu encosta à esquerda e o conteúdo fica com o resto (centrado em
    1200px, sobravam duas faixas vazias nas telas largas) */
 .container.instance-panel { max-width: none; margin: 0; }
-@media (min-width: 861px) { .container.instance-panel { padding: 20px 32px 32px; } }
+/* Com a lateral, todas as telas começam no mesmo ponto (encostadas no menu, como as da instância) */
+@media (min-width: 861px) {
+    /* e ocupam toda a largura ao lado do menu (sem a faixa vazia à direita nas telas largas); os
+       parágrafos longos já têm o próprio limite de leitura */
+    body:has(> .app-side) > main.container { max-width: none; margin: 0; padding: 20px 32px 32px; }
+}
 .panel-nav-head { display: grid; gap: 4px; margin: 0 0 12px; padding: 0 12px 12px; border-bottom: 1px solid var(--border); }
 .panel-back a, a.panel-back { color: var(--muted); text-decoration: none; font-size: var(--fs-small); }
 /* A volta para a lista não é um item do menu: sem o recuo dos itens, alinhada ao nome da instância */
@@ -305,16 +322,14 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .panel-nav-title { margin: 0; font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
 /* Uma largura só para o conteúdo de todas as telas do painel (título, abas e cartões terminam no mesmo
    ponto); Mensagens, com lista e conversa lado a lado, usa a largura toda */
-.panel-main { min-width: 0; max-width: 1120px; }
-.panel-main.panel-main-full { max-width: none; }
-.panel-nav { position: sticky; top: 12px; }
+.panel-main { min-width: 0; }
+
 .panel-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .panel-nav a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px;
     border-radius: 8px; color: var(--text); text-decoration: none; }
 .panel-nav a:hover { background: var(--hover); }
 .panel-nav a[aria-current=page] { background: var(--accent-fill); color: var(--accent-text); font-weight: 600; }
 @media (max-width: 860px) {
-    .panel-shell { grid-template-columns: minmax(0, 1fr); gap: 16px; }
     .panel-nav { position: static; margin: 0 -16px; }
     .panel-nav-head { margin: 0; padding: 0 16px 8px; border-bottom: 0; }
     .panel-nav ul { display: flex; gap: 0; padding: 0 16px; overflow-x: auto; overscroll-behavior-x: contain;

@@ -4,12 +4,11 @@
 <!-- page-fill: no computador, a lista e a conversa rolam cada uma no seu painel, na altura da janela
      (a página não rola). No celular, a lista e a conversa são telas separadas. -->
 <body class="page-fill">
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: sideInstance(${instanceName}, ${can}, 'messages')}"></aside>
 <main class="container wide instance-panel">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
 
     <div class="panel-shell">
-    <nav th:replace="~{manager/fragments/layout :: panelNav(${instanceName}, ${can}, 'messages')}"></nav>
     <div class="panel-main panel-main-full">
         <header class="panel-head">
             <h1 th:text="#{manager.messages.title}">Mensagens</h1>

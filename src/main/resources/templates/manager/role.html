@@ -2,7 +2,7 @@
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <head th:replace="~{manager/fragments/layout :: head(${form.id == null} ? #{manager.roles.new} : ${form.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container access-page role-page" th:with="isNew=${form.id == null}">
     <p class="breadcrumb"><a th:href="@{/manager/roles(org=${organization.id})}" th:text="#{manager.roles.back}">← Papéis</a></p>
     <h1 th:text="${isNew} ? #{manager.roles.new} : ${form.name}">Gestor</h1>
