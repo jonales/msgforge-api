@@ -15,6 +15,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.AuthenticationTrustResolver;
+import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
@@ -23,13 +25,17 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.ExceptionMappingAuthenticationFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.WebAuthenticationDetails;
+import org.springframework.security.web.csrf.CsrfException;
 
 /**
  * Spring Security <b>só</b> para o Manager ({@code /manager/**}, ADR 0005).
@@ -42,6 +48,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetails;
 public class ManagerSecurityConfig {
 
     static final String ROLE = "MANAGER";
+    private static final AuthenticationTrustResolver TRUST = new AuthenticationTrustResolverImpl();
 
     @Bean
     @Order(1)
@@ -73,7 +80,7 @@ public class ManagerSecurityConfig {
                             response.sendRedirect(request.getContextPath() + "/manager");
                         })
                         .failureHandler(failureHandler(limiter, audit)))
-                .exceptionHandling(errors -> errors.authenticationEntryPoint(entryPoint()))
+                .exceptionHandling(errors -> errors.authenticationEntryPoint(entryPoint()).accessDeniedHandler(csrfExpired()))
                 .logout(logout -> logout
                         .logoutUrl("/manager/logout")
                         .addLogoutHandler((request, response, authentication) -> audit.loggedOut(request, authentication))
@@ -114,6 +121,30 @@ public class ManagerSecurityConfig {
                 response.setHeader("HX-Redirect", request.getContextPath() + "/manager/login");
             } else {
                 login.commence(request, response, ex);
+            }
+        };
+    }
+
+    /**
+     * Token CSRF inválido quase sempre é sessão que acabou (expirou ou o servidor reiniciou, e a sessão fica em
+     * memória) com a página ainda aberta: em vez da página 403 genérica, volta ao login com o aviso. O htmx recebe
+     * 401 + HX-Redirect, como no entry point. Só sem login: quem está logado e manda token errado recebe o 403 padrão.
+     */
+    private static AccessDeniedHandler csrfExpired() {
+        var fallback = new AccessDeniedHandlerImpl();
+        return (request, response, ex) -> {
+            var who = SecurityContextHolder.getContext().getAuthentication();
+            // logado com token errado não é sessão perdida: 403 como sempre
+            if (!(ex instanceof CsrfException) || (who != null && !TRUST.isAnonymous(who))) {
+                fallback.handle(request, response, ex);
+                return;
+            }
+            var login = request.getContextPath() + "/manager/login?expired";
+            if ("true".equals(request.getHeader("HX-Request"))) {
+                response.setStatus(401);
+                response.setHeader("HX-Redirect", login);
+            } else {
+                response.sendRedirect(login);
             }
         };
     }
