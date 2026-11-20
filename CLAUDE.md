@@ -83,6 +83,11 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     escolhido no Manager (card "Conectar" e criar) e aplicado só ao criar a conexão nova
     (`discardHistory`/`defaultHistory`/`fullHistory` do Cobalt). Não é rota da API (settings
     estão fora do contrato).
+  - Queda de rede (Mac dormindo, 20/11/2026): os avisos de conexão do motor (login e queda) saem por
+    `publishConnection`, numa fila por instância fora da thread do motor (que está interrompida na queda) e sem
+    deixar exceção voltar para ele; o `EventDispatcher` grava o estado com nova tentativa (`common/Retry`). No
+    motor, cobalt-2#18: listener que falha não pula mais o pedido de reconexão, e a espera pelo monitor de rede
+    (vigil, que congela em silêncio) tem teto de 30 s. Validado tirando o contêiner da rede por 90 s.
   - Reconectar no mesmo processo depois de uma queda definitiva funciona (cobalt-2#17: reabrir a sessão fecha o
     handle anterior do `messages.mv`); quando o `connect()` do motor falha, o gateway encerra o cliente que falhou.
   - Sessão salva que o motor não consegue abrir **não** é apagada: o connect falha com
