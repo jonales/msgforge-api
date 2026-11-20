@@ -315,7 +315,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     atualiza por htmx; o envio de teste do Manager também vai para o histórico). Cada tipo é lido do
     JSON gravado por `web/MessageContent` (selado; tipo novo = record + `case` no template + texto
     `manager.messages.kind.*`; desconhecido vira rótulo neutro). Lista dividida em Pessoas e Grupos
-    (`ChatList`); o nome do grupo vem do motor (`GroupNames`, uma consulta por instância, 5 min, nunca
+    (`ChatList`; os status, `status@broadcast`, ficam fora da lista, mas continuam no histórico e no `/chat/findChats`); o nome do grupo vem do motor (`GroupNames`, uma consulta por instância, 5 min, nunca
     do pushName de quem mandou). Na conversa: separador de dia, remetente (pushName + número, LID
     como veio) só no começo de cada sequência (`ManagerViews.rows`). Apagada para todos vira
     `protocolMessage` REVOKE no histórico (`MessageHistory.markRevoked`). Reação (`reactionMessage`, linha
@@ -444,9 +444,8 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
      por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
      `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas
      pela própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
-8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`): corrigidos na Msgforge (#68 e este
-   PR) e no motor (cobalt-2#15 e #16). Resta: os status (`status@broadcast`) aparecem na lista de
-   conversas do Manager.
+8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`): todos os defeitos corrigidos na
+   Msgforge (#68, #69 e a saída dos status da lista do Manager) e no motor (cobalt-2#15 e #16).
 9. Motor (cobalt-2, corrigido e validado em 2026-11-15): vídeo (#4), foto da própria conta (#9),
    status de contato (#10) e logout que fecha a conexão (#11). Em "Aparelhos conectados" o aparelho
    aparece como "Windows": o nome vem do `DeviceProps.os` (fixo no motor) e o ícone do

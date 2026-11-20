@@ -125,4 +125,15 @@ class ConversationRowsTest {
         assertThat(list.size()).isEqualTo(4);
         assertThat(ChatList.of(List.of()).empty()).isTrue();
     }
+
+    @Test
+    void statusesAreNotAChat() {
+        var text = new MessageContent.Text("story");
+        var list = ChatList.of(List.of(
+                new ChatRow("status@broadcast", "Fulano", text, "", false, null),
+                new ChatRow("5561911111111@s.whatsapp.net", null, text, "", false, null)));
+        assertThat(list.people()).extracting(ChatRow::jid).containsExactly("5561911111111@s.whatsapp.net");
+        assertThat(list.groups()).isEmpty();
+        assertThat(ChatList.of(List.of(new ChatRow("status@broadcast", null, text, "", true, null))).empty()).isTrue();
+    }
 }
