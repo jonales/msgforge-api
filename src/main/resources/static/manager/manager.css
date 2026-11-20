@@ -753,3 +753,10 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
 .audit-pager { display: flex; justify-content: space-between; gap: 16px; margin-top: 16px; }
 .audit-pager a { display: inline-flex; align-items: center; min-height: 44px; }
 .audit-pager a:only-child { margin-left: auto; }
+
+/* Tela Servidor: últimos e-mails de teste (ADR 0019) */
+.test-emails { margin-top: 12px; }
+.test-email-list { list-style: none; margin: 6px 0 4px; padding: 0; display: grid; gap: 6px; }
+.test-email-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.test-email-list code { overflow-wrap: anywhere; }
+.test-email-reason { flex-basis: 100%; color: var(--err-text); overflow-wrap: anywhere; }

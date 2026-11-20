@@ -177,6 +177,31 @@ class ServerPageIT extends IntegrationTest {
         }
     }
 
+    @Test
+    void theTestEmailResultShowsOnTheScreen() throws Exception {
+        var to = uniqueName("resultado") + "@exemplo.com";
+        try {
+            // SMTP numa porta fechada: o e-mail entra na fila e a tela mostra o que aconteceu com ele
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/smtp").with(admin()).with(csrf())
+                            .param("action", "save").param("host", "127.0.0.1").param("port", "1")
+                            .param("timeoutMs", "1000"))
+                    .andExpect(flash().attribute("success", "manager.server.smtp.saved"));
+            mvc.perform(MockMvcRequestBuilders.post("/manager/server/test-email").with(admin()).with(csrf())
+                            .param("email", to))
+                    .andExpect(flash().attribute("sentTo", to));
+            mvc.perform(MockMvcRequestBuilders.get("/manager/server/test-emails").with(admin()))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string(Matchers.containsString(to)))
+                    .andExpect(content().string(Matchers.containsString("Últimos e-mails de teste")));
+            mvc.perform(MockMvcRequestBuilders.get("/manager/server").with(admin()))
+                    .andExpect(content().string(Matchers.containsString("Testar login (não envia e-mail)")))
+                    .andExpect(content().string(Matchers.containsString(to)));
+        } finally {
+            jdbc.update("DELETE FROM outbox WHERE order_key = ?", to);
+            cleanSmtp();
+        }
+    }
+
     /** Os contextos de teste dividem o banco: SMTP deixado aqui faria os outros pegarem linhas EMAIL. */
     private void cleanSmtp() {
         jdbc.update("DELETE FROM smtp_settings");

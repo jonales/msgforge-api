@@ -51,6 +51,30 @@ public class ServerController {
         }
     }
 
+    /**
+     * Um e-mail de teste e o que aconteceu com ele. Público: o template lê os campos.
+     *
+     * @param state   {@code queued}, {@code sending}, {@code retrying}, {@code delivered} ou {@code failed}
+     * @param reason  o motivo da última falha (sem senha), ou null
+     */
+    public record TestEmailRow(String to, String when, String state, String reason) {
+
+        public boolean pending() {
+            return "queued".equals(state) || "sending".equals(state) || "retrying".equals(state);
+        }
+
+        static TestEmailRow of(dev.msgforge.event.outbox.Outbox.Recent r) {
+            var state = switch (r.state()) {
+                case PENDENTE -> r.attempts() > 0 ? "retrying" : "queued";
+                case EM_ENVIO -> "sending";
+                case FEITO -> "delivered";
+                case MORTO -> "failed";
+            };
+            var reason = r.lastError() == null ? null : r.lastError().length() > 300 ? r.lastError().substring(0, 300) : r.lastError();
+            return new TestEmailRow(r.orderKey(), WHEN.format(r.updatedAt()), state, reason);
+        }
+    }
+
     /** O que preenche o formulário: o que está em uso ou o que a pessoa digitou (nunca a senha). */
     public record SmtpForm(String host, String port, String username, String from, boolean starttls,
                            String timeoutMs, boolean hasPassword) {}
@@ -99,6 +123,7 @@ public class ServerController {
             model.addAttribute("smtpErrors", Map.of());
         }
         model.addAttribute("secretsEnabled", secrets.enabled());
+        addTestEmails(model);
         if (!model.containsAttribute("typedEmail")) {
             model.addAttribute("typedEmail", "");
         }
@@ -129,6 +154,23 @@ public class ServerController {
             flash.addFlashAttribute("error", "manager.server.test.failed");
         }
         return "redirect:/manager/server";
+    }
+
+    /** Só a lista dos últimos e-mails de teste: a tela busca de novo enquanto algum está pendente. */
+    @GetMapping("/test-emails")
+    public String testEmails(Model model, HttpServletResponse response) {
+        if (!allowed()) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return "manager/forbidden";
+        }
+        addTestEmails(model);
+        return "manager/server :: testEmails";
+    }
+
+    private void addTestEmails(Model model) {
+        var rows = notifications.recentTestEmails().stream().map(TestEmailRow::of).toList();
+        model.addAttribute("testEmails", rows);
+        model.addAttribute("testEmailsPending", rows.stream().anyMatch(TestEmailRow::pending));
     }
 
     /** Salva ou testa o SMTP digitado ({@code action} = {@code save} ou {@code test}). */
