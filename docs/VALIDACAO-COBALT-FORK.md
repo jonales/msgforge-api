@@ -222,7 +222,13 @@ webhook local. Conferido no aparelho pelo usuário: mapa, PDF, nota de voz, imag
 | `sendPresence` (`composing`, `recording`) | ✅ aparece e volta a `available` no fim do `delay` (reteste do #48) |
 | `settings/set` com a conexão aberta | ✅ `readMessages` ligado vale na hora (o `READ` sai em menos de 1 s) |
 
-Defeitos abertos desta rodada: na Msgforge, o `vcard` do contato recebido, o 500 do convite recusado, o
+**Correções (mesmo dia, validadas ao vivo):** msgforge-api#68 (vCard recebido, convite recusado
+vira 400, `leaveGroup` sem participação vira 404), cobalt-2#15 (troca de recado sem NPE, nome do
+contato pelas mensagens), cobalt-2#16 (voto decifrado também por quem criou a enquete; recado lido
+pelo protocolo `status` do usync, com o `contact`) e o PR seguinte da Msgforge (voto no
+`messages.upsert` com `selectedOptions`, vídeo HEVC convertido para H.264 antes do envio).
+
+Defeitos abertos desta rodada (antes das correções acima): na Msgforge, o `vcard` do contato recebido, o 500 do convite recusado, o
 `leaveGroup` sem participação e o nome antigo no `fetchProfile`; no motor, o recado (troca e leitura) e o
 vídeo HEVC; o voto de enquete vazio (ver se o motor já decifra). Não testados nesta rodada: proxy, código
 de pareamento, `syncFullHistory: true` e `delete` de instância conectada.

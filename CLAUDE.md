@@ -100,7 +100,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
-  Enquete no Cobalt: `PollCreationMessage` com `selectableOptionsCount` e chave aleatória.
+  Enquete no Cobalt: `PollCreationMessage` com `selectableOptionsCount` e chave aleatória. O voto recebido sai
+  como `pollUpdateMessage` com `selectedOptions` decifradas pelo motor (a enquete enviada fica no Store dele,
+  cobalt-2#16; memória, some no reinício).
 - `/chat/*` (`ChatService`) usa `checkNumbers`, `markRead`, `sendPresence`, `fetchProfile`,
   `profilePictureUrl` e `updateProfile` (`ProfileUpdate` selado). Foto e recado escondidos pela
   privacidade viram null, não erro. `markRead` de mensagem fora do Store do Cobalt marca a conversa
@@ -442,11 +444,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
      por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
      `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas
      pela própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
-8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`), ainda sem correção:
-   - Motor: a leitura do recado (`queryAbout`) volta sempre vazia: as três consultas do motor falham
-     (`mexGetAbout` e usync via MEX dão 400 do servidor; `usync` com `status` não tem resposta). Precisa
-     ver como o WhatsApp Web atual monta a consulta (módulo só carregado depois do login).
-   - Manager: os status (`status@broadcast`) aparecem na lista de conversas.
+8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`): corrigidos na Msgforge (#68 e este
+   PR) e no motor (cobalt-2#15 e #16). Resta: os status (`status@broadcast`) aparecem na lista de
+   conversas do Manager.
 9. Motor (cobalt-2, corrigido e validado em 2026-11-15): vídeo (#4), foto da própria conta (#9),
    status de contato (#10) e logout que fecha a conexão (#11). Em "Aparelhos conectados" o aparelho
    aparece como "Windows": o nome vem do `DeviceProps.os` (fixo no motor) e o ícone do
