@@ -155,7 +155,13 @@ public interface WhatsAppGateway {
     record OutgoingText(String jid, String text, Integer delayMs, Boolean linkPreview) {}
 
     record OutgoingMedia(String jid, String mediaType, String mimeType, String media,
-                         String caption, String fileName, Integer delayMs) {}
+                         String caption, String fileName, Integer delayMs) {
+
+        /** A mesma mídia com outro tipo (ex.: o vídeo convertido para H.264 passa a ser video/mp4). */
+        public OutgoingMedia withMimeType(String type) {
+            return new OutgoingMedia(jid, mediaType, type, media, caption, fileName, delayMs);
+        }
+    }
 
     /**
      * {@code media}: os campos de mídia da mensagem enviada, no formato do {@code messages.upsert}

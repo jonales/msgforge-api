@@ -100,7 +100,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
 - Envios além de texto/mídia passam por `WhatsAppGateway.send(Instance, Outgoing)`, com
   `Outgoing` **selado** (VoiceNote, Location, Contacts, Reaction, Poll): um tipo novo obriga stub e
   Cobalt a tratá-lo. vCard é montado em `message/VCards` (com escape, contra injeção de campos).
-  Enquete no Cobalt: `PollCreationMessage` com `selectableOptionsCount` e chave aleatória.
+  Enquete no Cobalt: `PollCreationMessage` com `selectableOptionsCount` e chave aleatória. O voto recebido sai
+  como `pollUpdateMessage` com `selectedOptions` decifradas pelo motor (a enquete enviada fica no Store dele,
+  cobalt-2#16; memória, some no reinício).
 - `/chat/*` (`ChatService`) usa `checkNumbers`, `markRead`, `sendPresence`, `fetchProfile`,
   `profilePictureUrl` e `updateProfile` (`ProfileUpdate` selado). Foto e recado escondidos pela
   privacidade viram null, não erro. `markRead` de mensagem fora do Store do Cobalt marca a conversa
@@ -126,6 +128,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   no reinício) e, sem achar, remonta a mensagem a partir do `StoredMedia` (tipo neutro, lido por
   `MessageContent.stored`). Linha antiga, sem esses campos, fica com o aviso por tipo.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
+  `VideoTranscoder`: vídeo MP4/MOV que não é H.264 (HEVC do iPhone) vira H.264 Main sem B-frames antes
+  do upload (o ffmpeg do motor não decodifica HEVC); usa arquivos temporários (o `moov` do MOV vem no
+  fim), `-f mov` e `-protocol_whitelist file`, limite de tempo 5x o do áudio.
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log). O ffmpeg roda
   com `-protocol_whitelist pipe` (uma playlist hls/concat no stdin não abre arquivo nem URL).
@@ -405,7 +410,6 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
    funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
    Figurinha, botões e listas ainda não existem.
-   O voto de enquete sai como `pollUpdateMessage: {}` (rodada de 2026-11-19).
 2. O RabbitMQ usa um exchange tópico, e não filas por evento (`docs/COMPATIBILIDADE.md`).
 3. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect, sem fixar o IP), nem
    nos webhooks nem na mídia por URL. Para webhooks vem desligado por padrão; para a mídia vale
@@ -440,12 +444,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
      por conexão, em memória); `profilePicUrl` sempre null; `MESSAGES_SET` sem `isLatest` e
      `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas
      pela própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
-8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`), ainda sem correção:
-   - Motor: o nome do contato (`chosenName`) não é atualizado pelo `pushName` das mensagens, então o
-     `fetchProfile` mostra o nome antigo depois de um `updateProfileName`. `updateProfileStatus` dá 500 (NPE: o `IqSetAboutResponse` exige `id` numérico, o WhatsApp
-     manda hexadecimal), mas o recado muda; o recado do `fetchProfile` é sempre null (`w:mex` vazio);
-     vídeo HEVC/H.265 falha (o ffmpeg embutido não tem o decodificador; vídeo de iPhone).
-   - Manager: os status (`status@broadcast`) aparecem na lista de conversas.
+8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`): corrigidos na Msgforge (#68 e este
+   PR) e no motor (cobalt-2#15 e #16). Resta: os status (`status@broadcast`) aparecem na lista de
+   conversas do Manager.
 9. Motor (cobalt-2, corrigido e validado em 2026-11-15): vídeo (#4), foto da própria conta (#9),
    status de contato (#10) e logout que fecha a conexão (#11). Em "Aparelhos conectados" o aparelho
    aparece como "Windows": o nome vem do `DeviceProps.os` (fixo no motor) e o ícone do

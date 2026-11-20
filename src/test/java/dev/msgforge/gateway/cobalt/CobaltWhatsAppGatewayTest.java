@@ -44,6 +44,8 @@ class CobaltWhatsAppGatewayTest {
 
     private static final dev.msgforge.gateway.media.AudioTranscoder TRANSCODER =
             new dev.msgforge.gateway.media.AudioTranscoder(new dev.msgforge.gateway.media.MediaProperties("ffmpeg", 30000, 1 << 24));
+    private static final dev.msgforge.gateway.media.VideoTranscoder VIDEOS = new dev.msgforge.gateway.media.VideoTranscoder(
+            new dev.msgforge.gateway.media.MediaProperties("ffmpeg", 30000, 1 << 24), TRANSCODER);
 
     private static final dev.msgforge.security.SecretCipher SECRETS =
             new dev.msgforge.security.SecretCipher("chave-de-teste-com-pelo-menos-32-caracteres");
@@ -70,12 +72,12 @@ class CobaltWhatsAppGatewayTest {
                 null, "cobalt",
                 new MsgforgeProperties.Cobalt("Msgforge", 3000, 3000, mediaMaxBytes, deadProxy(), sessionDir.toString()));
         if (productionMediaCheck) {
-            return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties, SECRETS);
+            return new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, VIDEOS, properties, SECRETS);
         }
         // O servidor de teste fica em 127.0.0.1, que o download de mídia de verdade sempre recusa
         var downloader = new dev.msgforge.gateway.media.MediaDownloader(url -> java.util.Optional.empty(),
                 java.time.Duration.ofSeconds(3));
-        return new CobaltWhatsAppGateway(events::add, sessions, downloader, TRANSCODER, properties, SECRETS);
+        return new CobaltWhatsAppGateway(events::add, sessions, downloader, TRANSCODER, VIDEOS, properties, SECRETS);
     }
 
     private static Instance instance(String name) {
@@ -196,7 +198,7 @@ class CobaltWhatsAppGatewayTest {
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
                             "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));
-            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties, SECRETS);
+            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, VIDEOS, properties, SECRETS);
             var instance = instance("corrida");
             try {
                 var start = new java.util.concurrent.CountDownLatch(1);
@@ -245,7 +247,7 @@ class CobaltWhatsAppGatewayTest {
                     null, "cobalt",
                     new MsgforgeProperties.Cobalt("Msgforge", 300, 3000, 1024,
                             "http://127.0.0.1:" + proxy.getLocalPort(), sessionDir.toString()));
-            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, properties, SECRETS);
+            var gateway = new CobaltWhatsAppGateway(events::add, sessions, new PrivateNetworkGuard(false), TRANSCODER, VIDEOS, properties, SECRETS);
             var instance = instance("pendente");
             try {
                 gateway.connect(instance, null);   // fica esperando o QR: nunca loga

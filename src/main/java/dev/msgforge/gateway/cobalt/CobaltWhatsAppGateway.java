@@ -53,6 +53,7 @@ import dev.msgforge.gateway.Jids;
 import dev.msgforge.gateway.StoredMedia;
 import dev.msgforge.gateway.WhatsAppGateway;
 import dev.msgforge.gateway.media.AudioTranscoder;
+import dev.msgforge.gateway.media.VideoTranscoder;
 import dev.msgforge.gateway.media.MediaDownloader;
 import dev.msgforge.gateway.media.MediaSignatures;
 import dev.msgforge.gateway.session.SessionStore;
@@ -189,6 +190,7 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     private final ApplicationEventPublisher events;
     private final SessionStore sessions;
     private final AudioTranscoder transcoder;
+    private final VideoTranscoder videos;
     private final MsgforgeProperties.Cobalt config;
     private final SecretCipher secrets;
     /** Janela do lote de app state (ver {@link AppStateFilter}). */
@@ -201,20 +203,21 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
 
     @Autowired
     public CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
-                                 PrivateNetworkGuard guard, AudioTranscoder transcoder,
+                                 PrivateNetworkGuard guard, AudioTranscoder transcoder, VideoTranscoder videos,
                                  MsgforgeProperties properties, SecretCipher secrets) {
         this(events, sessions, MediaDownloader.guarded(guard, Duration.ofMillis(properties.cobalt().sendTimeoutMs())),
-                transcoder, properties, secrets);
+                transcoder, videos, properties, secrets);
     }
 
     CobaltWhatsAppGateway(ApplicationEventPublisher events, SessionStore sessions,
-                          MediaDownloader downloader, AudioTranscoder transcoder,
+                          MediaDownloader downloader, AudioTranscoder transcoder, VideoTranscoder videos,
                           MsgforgeProperties properties, SecretCipher secrets) {
         this.secrets = secrets;
         this.events = events;
         this.sessions = sessions;
         this.downloader = downloader;
         this.transcoder = transcoder;
+        this.videos = videos;
         this.config = properties.cobalt();
     }
 
@@ -850,6 +853,11 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var bytes = loadMedia(media.media());
         if ("video".equals(media.mediaType()) && !MediaSignatures.isVideo(bytes)) {
             throw new BadRequestException("media is not a supported video (MP4, 3GP or WebM)");
+        }
+        // HEVC (iPhone) e outros codecs: o ffmpeg do motor não decodifica; vira H.264 antes do upload
+        if ("video".equals(media.mediaType()) && VideoTranscoder.needsH264(bytes) && videos.available()) {
+            bytes = videos.toH264(bytes);
+            media = media.withMimeType("video/mp4");
         }
         var jid = resolve(connection, media.jid());
         var message = buildMedia(media);

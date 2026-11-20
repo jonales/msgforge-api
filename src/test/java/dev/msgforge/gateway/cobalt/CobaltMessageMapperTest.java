@@ -15,6 +15,8 @@ import com.github.auties00.cobalt.wire.linked.message.contact.ContactsArrayMessa
 import com.github.auties00.cobalt.wire.linked.message.media.DocumentMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.media.ImageMessageBuilder;
 import com.github.auties00.cobalt.wire.linked.message.poll.PollCreationMessageBuilder;
+import com.github.auties00.cobalt.wire.linked.message.poll.PollEncValueBuilder;
+import com.github.auties00.cobalt.wire.linked.message.poll.PollUpdateMessageBuilder;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -232,5 +234,25 @@ class CobaltMessageMapperTest {
         assertThat(contacts).hasSize(2);
         assertThat(map(contacts.get(0))).containsEntry("vcard", vcard);
         assertThat(map(contacts.get(1))).containsEntry("displayName", "Dois");
+    }
+
+    @Test
+    void aPollVoteCarriesThePollKeyAndTheChosenOptions() {
+        var pollKey = new MessageKeyBuilder().parentJid(Jid.of("5561999999999@s.whatsapp.net")).fromMe(true)
+                .id("3EB0701C5CD4EB98319BFC").build();
+        var vote = new PollUpdateMessageBuilder().pollCreationMessageKey(pollKey)
+                .vote(new PollEncValueBuilder().encPayload(new byte[] {1, 2}).encIv(new byte[] {3}).build())
+                .build();
+        vote.setSelectedOptions(List.of("Sim"));
+
+        var data = CobaltMessageMapper.upsert(message("5561999999999@s.whatsapp.net", null, false,
+                LinkedMessageContainer.of(vote)), INSTANCE).orElseThrow();
+
+        var update = map(map(data.get("message")).get("pollUpdateMessage"));
+        assertThat(map(update.get("pollCreationMessageKey"))).containsEntry("id", "3EB0701C5CD4EB98319BFC")
+                .containsEntry("fromMe", true);
+        assertThat(map(update.get("vote"))).containsEntry("encPayload", "AQI=").containsEntry("encIv", "Aw==");
+        assertThat(update.get("selectedOptions")).isEqualTo(List.of("Sim"));
+        assertThat(data).containsEntry("messageType", "pollUpdateMessage");
     }
 }
