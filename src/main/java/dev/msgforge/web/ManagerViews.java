@@ -394,9 +394,16 @@ public final class ManagerViews {
     /** A lista dividida: conversas com pessoas e grupos, cada uma da mais recente para a mais antiga. */
     public record ChatList(List<ChatRow> people, List<ChatRow> groups) {
 
+        /**
+         * Os status (stories, {@code status@broadcast}) não são uma conversa: saem da lista do Manager. Continuam
+         * no histórico, e o {@code /chat/findChats} da API (contrato) devolve tudo como antes.
+         */
         public static ChatList of(List<ChatRow> rows) {
-            return new ChatList(rows.stream().filter(r -> !r.group()).toList(),
-                    rows.stream().filter(ChatRow::group).toList());
+            var conversas = rows.stream()
+                    .filter(r -> !dev.msgforge.instance.InstanceSettings.STATUS_BROADCAST.equals(r.jid()))
+                    .toList();
+            return new ChatList(conversas.stream().filter(r -> !r.group()).toList(),
+                    conversas.stream().filter(ChatRow::group).toList());
         }
 
         public boolean empty() {
