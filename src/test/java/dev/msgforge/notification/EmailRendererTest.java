@@ -27,7 +27,7 @@ class EmailRendererTest {
         assertThat(email.html()).contains("<h1", "O e-mail do Msgforge está funcionando", "lang=\"pt-BR\"")
                 .doesNotContain("??");
         assertThat(email.text()).startsWith("O e-mail do Msgforge está funcionando")
-                .contains("tela Servidor do Manager").doesNotContain("<", "??");
+                .contains("tela E-mail do Manager").doesNotContain("<", "??");
     }
 
     @Test

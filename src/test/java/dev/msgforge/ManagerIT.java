@@ -75,6 +75,7 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(GET("/manager/manager.js")).andExpect(status().isOk());
         // Sem ícone declarado, o navegador pede /favicon.ico, que cai na API (401) e suja o console
         mvc.perform(GET("/manager/favicon.svg")).andExpect(status().isOk());
+        mvc.perform(GET("/manager/icons.svg")).andExpect(status().isOk());
         mvc.perform(GET("/manager/login")).andExpect(content().string(containsString("/manager/favicon.svg")));
         mvc.perform(GET("/manager/stream/instances")).andExpect(status().is3xxRedirection());
         // Um token de instância não abre o Manager
@@ -1062,15 +1063,19 @@ class ManagerIT extends IntegrationTest {
 
     @Test
     void themeChoiceIsKeptInACookieAndRenderedOnTheHtmlTag() throws Exception {
-        // Sem escolha: segue o sistema, sem data-theme; o seletor fica no menu da conta, sem script inline
+        // Sem escolha: segue o sistema, sem data-theme; o botão da lateral mostra o atual e grava o próximo
+        // (Sistema -> Claro), sem script inline
         var page = html("/manager");
         assertThat(page).doesNotContain("data-theme=").contains("action=\"/manager/theme\"")
-                .contains("value=\"system\"").contains("value=\"light\"").contains("value=\"dark\"")
-                .contains("aria-pressed=\"true\"").doesNotContain("onclick").doesNotContain("<script>");
+                .contains("name=\"theme\" value=\"light\"").contains("Tema: Sistema")
+                .doesNotContain("onclick").doesNotContain("<script>");
+        mvc.perform(asManager(GET("/manager")).cookie(new jakarta.servlet.http.Cookie("msgforge_theme", "light")))
+                .andExpect(content().string(containsString("name=\"theme\" value=\"dark\"")));
 
         var saved = mvc.perform(asManager(POST("/manager/theme")).with(csrf())
                         .param("theme", "dark").param("back", "/manager/server"))
                 .andExpect(redirectedUrl("/manager/server"))
+                .andExpect(flash().attribute("themeChanged", "dark"))
                 .andReturn().getResponse().getHeader("Set-Cookie");
         assertThat(saved).startsWith("msgforge_theme=dark;").contains("Path=/manager").contains("HttpOnly")
                 .contains("SameSite=Strict").contains("Max-Age=31536000");

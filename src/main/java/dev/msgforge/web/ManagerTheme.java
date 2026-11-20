@@ -20,13 +20,18 @@ public class ManagerTheme {
 
     static final String COOKIE = "msgforge_theme";
 
-    /** As opções, na ordem do seletor. {@code SYSTEM} não guarda cookie nem põe atributo. */
+    /** As opções, na ordem em que o botão de tema passa por elas. {@code SYSTEM} não guarda cookie nem põe atributo. */
     public enum Choice {
         SYSTEM, LIGHT, DARK;
 
         /** Valor do cookie e do {@code data-theme}; null no Sistema. */
         public String attribute() {
             return this == SYSTEM ? null : name().toLowerCase(Locale.ROOT);
+        }
+
+        /** O próximo do botão de tema: Sistema, Claro, Escuro e de volta ao Sistema. */
+        public Choice next() {
+            return values()[(ordinal() + 1) % values().length];
         }
 
         /** O valor do formulário ({@code system}, {@code light}, {@code dark}). */
@@ -52,15 +57,10 @@ public class ManagerTheme {
         return choice().attribute();
     }
 
-    /** A escolha guardada, para marcar a opção atual no seletor. */
+    /** A escolha guardada (o botão mostra a atual e grava a próxima). */
     public Choice choice() {
         var request = request();
         return request == null ? Choice.SYSTEM : read(request);
-    }
-
-    /** As opções do seletor, na ordem. */
-    public Choice[] choices() {
-        return Choice.values();
     }
 
     /**

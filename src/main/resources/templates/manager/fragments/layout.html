@@ -25,15 +25,15 @@
     <nav class="panel-nav" th:attr="aria-label=#{manager.side.label}">
         <ul>
             <li><a th:href="@{/manager}" th:attr="aria-current=${me.current == 'instances'} ? 'page' : null"
-                   th:text="#{manager.instances.title}">Instâncias</a></li>
+                   ><svg th:replace="~{manager/fragments/layout :: icon('phone')}"></svg><span th:text="#{manager.instances.title}">Instâncias</span></a></li>
             <li th:if="${me.users}"><a th:href="@{/manager/users}" th:attr="aria-current=${me.current == 'users'} ? 'page' : null"
-                   th:text="#{manager.topbar.users}">Usuários</a></li>
+                   ><svg th:replace="~{manager/fragments/layout :: icon('people')}"></svg><span th:text="#{manager.topbar.users}">Usuários</span></a></li>
             <li th:if="${me.roles}"><a th:href="@{/manager/roles}" th:attr="aria-current=${me.current == 'roles'} ? 'page' : null"
-                   th:text="#{manager.roles.title}">Papéis</a></li>
+                   ><svg th:replace="~{manager/fragments/layout :: icon('shield-lock')}"></svg><span th:text="#{manager.roles.title}">Papéis</span></a></li>
             <li th:if="${me.audit}"><a th:href="@{/manager/audit}" th:attr="aria-current=${me.current == 'audit'} ? 'page' : null"
-                   th:text="#{manager.topbar.audit}">Auditoria</a></li>
+                   ><svg th:replace="~{manager/fragments/layout :: icon('journal-text')}"></svg><span th:text="#{manager.topbar.audit}">Auditoria</span></a></li>
             <li th:if="${me.server}"><a th:href="@{/manager/server}" th:attr="aria-current=${me.current == 'server'} ? 'page' : null"
-                   th:text="#{manager.nav.server}">Servidor</a></li>
+                   ><svg th:replace="~{manager/fragments/layout :: icon('envelope')}"></svg><span th:text="#{manager.nav.server}">Servidor</span></a></li>
         </ul>
     </nav>
     <div th:replace="~{manager/fragments/layout :: sideAccount(${me})}"></div>
@@ -47,6 +47,10 @@
     <div th:replace="~{manager/fragments/layout :: sideAccount(${me})}"></div>
 </aside>
 
+<!-- Ícone do Manager (Bootstrap Icons, só os usados, em /manager/icons.svg; MIT, ver THIRD-PARTY-NOTICES).
+     Decorativo: o texto do item está sempre ao lado. -->
+<svg th:fragment="icon(name)" class="icon" aria-hidden="true" focusable="false" width="16" height="16"><use th:href="@{/manager/icons.svg} + '#i-' + ${name}"></use></svg>
+
 <div th:fragment="sideBrand" class="side-brand">
     <a class="brand" th:href="@{/manager}" th:text="#{manager.brand}">Msgforge</a>
     <span class="brand-sub" th:text="#{manager.subtitle}">Manager</span>
@@ -56,29 +60,22 @@
      volta para esta página) e "Sair" -->
 <div th:fragment="sideAccount(me)" class="side-account" role="group" th:attr="aria-label=#{manager.topbar.account}">
     <p class="side-who" th:text="${me.email} ?: #{manager.topbar.globalKey}">ana@exemplo.com</p>
-    <details class="theme-menu" th:with="theme=${@managerTheme.choice()}">
-        <summary class="side-link">
-            <svg class="icon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16">
-                <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                <path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/>
-            </svg>
-            <span class="theme-word" th:text="#{manager.theme.label}">Tema</span>
-            <span class="visually-hidden" th:text="': ' + #{'manager.theme.' + ${theme.value()}}">: Sistema</span>
-        </summary>
-        <form class="theme-options" th:action="@{/manager/theme}" method="post">
-            <input type="hidden" name="back" th:value="${@managerTheme.back()}">
-            <p class="theme-title" id="theme-title" th:text="#{manager.theme.choose}">Tema do Manager</p>
-            <div role="group" aria-labelledby="theme-title">
-                <button type="submit" name="theme" class="theme-option" th:each="option : ${@managerTheme.choices()}"
-                        th:value="${option.value()}" th:attr="aria-pressed=${option == theme}">
-                    <span th:text="#{'manager.theme.' + ${option.value()}}">Sistema</span>
-                    <span class="theme-hint small" th:text="#{'manager.theme.' + ${option.value()} + '.hint'}">Segue o aparelho</span>
-                </button>
-            </div>
-        </form>
-    </details>
+    <!-- Um clique passa para o próximo tema (Sistema, Claro, Escuro) e a página volta com o aviso -->
+    <form class="theme-switch" th:action="@{/manager/theme}" method="post"
+          th:with="theme=${@managerTheme.choice()}, next=${theme.next()}">
+        <input type="hidden" name="back" th:value="${@managerTheme.back()}">
+        <input type="hidden" name="theme" th:value="${next.value()}">
+        <button type="submit" class="side-link"
+                th:with="now=#{'manager.theme.' + ${theme.value()}}, then=#{'manager.theme.' + ${next.value()}}"
+                th:title="#{manager.theme.next(${now}, ${then})}">
+            <svg th:replace="~{manager/fragments/layout :: icon('circle-half')}"></svg>
+            <span class="theme-word" th:text="#{manager.theme.label} + ': ' + ${now}">Tema: Sistema</span>
+            <span class="visually-hidden" th:text="'. ' + #{manager.theme.nextHint(${then})}">. Muda para Claro</span>
+        </button>
+    </form>
+    <p class="toast" role="status" th:if="${themeChanged}" th:text="#{'manager.theme.changed.' + ${themeChanged}}">Tema claro definido.</p>
     <form class="side-logout" th:action="@{/manager/logout}" method="post">
-        <button type="submit" class="side-link" th:text="#{manager.signOut}">Sair</button>
+        <button type="submit" class="side-link"><svg th:replace="~{manager/fragments/layout :: icon('box-arrow-right')}"></svg><span th:text="#{manager.signOut}">Sair</span></button>
     </form>
 </div>
 
@@ -117,24 +114,24 @@
 <nav th:fragment="panelNav(name, can, current)" class="panel-nav" th:attr="aria-label=#{manager.panelNav.label}">
     <!-- Quem é a instância e a volta para a lista ficam no topo do menu (sem trilha repetindo o menu) -->
     <div class="panel-nav-head">
-        <a class="panel-back" th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a>
+        <a class="panel-back" th:href="@{/manager}"><svg th:replace="~{manager/fragments/layout :: icon('arrow-left')}"></svg><span th:text="#{manager.instances.title}">Instâncias</span></a>
         <p class="panel-nav-title" th:text="${name}">vendas</p>
     </div>
     <ul>
         <li><a th:href="@{/manager/instances/{n}(n=${name})}" th:attr="aria-current=${current == 'overview'} ? 'page' : null"
-               th:text="#{manager.panelNav.overview}">Visão geral</a></li>
+               ><svg th:replace="~{manager/fragments/layout :: icon('speedometer2')}"></svg><span th:text="#{manager.panelNav.overview}">Visão geral</span></a></li>
         <li><a th:href="@{/manager/instances/{n}/connection(n=${name})}" th:attr="aria-current=${current == 'connection'} ? 'page' : null"
-               th:text="#{manager.panelNav.connection}">Conexão</a></li>
+               ><svg th:replace="~{manager/fragments/layout :: icon('qr-code')}"></svg><span th:text="#{manager.panelNav.connection}">Conexão</span></a></li>
         <li th:if="${can.chats}"><a th:href="@{/manager/instances/{n}/messages(n=${name})}" th:attr="aria-current=${current == 'messages'} ? 'page' : null"
-               th:text="#{manager.panelNav.messages}">Mensagens</a></li>
+               ><svg th:replace="~{manager/fragments/layout :: icon('chat-dots')}"></svg><span th:text="#{manager.panelNav.messages}">Mensagens</span></a></li>
         <li th:if="${can.send}"><a th:href="@{/manager/instances/{n}/send(n=${name})}" th:attr="aria-current=${current == 'send'} ? 'page' : null"
-               th:text="#{manager.panelNav.send}">Envio de teste</a></li>
+               ><svg th:replace="~{manager/fragments/layout :: icon('send')}"></svg><span th:text="#{manager.panelNav.send}">Envio de teste</span></a></li>
         <!-- Uma tela por grupo (chamadas, leitura, presença, histórico, proxy, webhook) -->
         <li th:if="${can.settings()}"><a th:href="@{/manager/instances/{n}/settings(n=${name})}" th:attr="aria-current=${current == 'settings'} ? 'page' : null"
-               th:text="#{manager.panelNav.settings}">Configurações</a></li>
+               ><svg th:replace="~{manager/fragments/layout :: icon('gear')}"></svg><span th:text="#{manager.panelNav.settings}">Configurações</span></a></li>
         <!-- Integrações da instância (bot com IA e as que vêm "Em breve") -->
         <li><a th:href="@{/manager/instances/{n}/integrations(n=${name})}" th:attr="aria-current=${current == 'integrations'} ? 'page' : null"
-               th:text="#{manager.panelNav.integrations}">Integrações</a></li>
+               ><svg th:replace="~{manager/fragments/layout :: icon('puzzle')}"></svg><span th:text="#{manager.panelNav.integrations}">Integrações</span></a></li>
     </ul>
 </nav>
 
