@@ -73,6 +73,20 @@ class ManagerAccessIT extends IntegrationTest {
         return (MockHttpSession) result.getRequest().getSession(false);
     }
 
+    @Test
+    void staleLoginTokenGoesBackToLoginWithNotice() throws Exception {
+        // sessão perdida (servidor reiniciou) com a página de login aberta: o token CSRF não vale mais
+        mvc.perform(MockMvcRequestBuilders.post("/manager/login").with(csrf().useInvalidToken())
+                        .param("username", "manager").param("apikey", API_KEY))
+                .andExpect(redirectedUrl("/manager/login?expired"));
+        mvc.perform(MockMvcRequestBuilders.post("/manager/login").header("HX-Request", "true")
+                        .param("username", "manager").param("apikey", API_KEY))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("HX-Redirect", "/manager/login?expired"));
+        mvc.perform(MockMvcRequestBuilders.get("/manager/login").param("expired", ""))
+                .andExpect(content().string(containsString("Sua sessão expirou")));
+    }
+
     private static ManagerPrincipal principalOf(MockHttpSession session) {
         var context = (SecurityContext) session.getAttribute(
                 HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);

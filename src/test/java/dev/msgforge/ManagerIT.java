@@ -88,7 +88,7 @@ class ManagerIT extends IntegrationTest {
         mvc.perform(POST("/manager/login").with(csrf()).param("username", "manager").param("apikey", API_KEY))
                 .andExpect(redirectedUrl("/manager"));
         mvc.perform(POST("/manager/login").param("username", "manager").param("apikey", API_KEY))
-                .andExpect(status().isForbidden());   // sem CSRF
+                .andExpect(redirectedUrl("/manager/login?expired"));   // sem CSRF: não entra, volta ao login
     }
 
     @Test

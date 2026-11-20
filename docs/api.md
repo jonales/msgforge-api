@@ -4,6 +4,10 @@ A API segue um contrato estável: rotas, campos e eventos não mudam entre vers�
 limitações de cada rota estão em [COMPATIBILIDADE.md](COMPATIBILIDADE.md). A documentação
 OpenAPI da instância em execução fica em `/docs`.
 
+`GET /` (sem chave) diz se a API está no ar e traz a versão e os links absolutos do Manager
+(`manager`) e da documentação (`documentation`). Atrás de proxy, o endereço segue o host e o esquema
+informados por um proxy confiável (`TRUSTED_PROXIES`).
+
 ## Autenticação
 
 O header `apikey` leva a chave global (acesso a tudo) ou o token da instância (acesso só às rotas
