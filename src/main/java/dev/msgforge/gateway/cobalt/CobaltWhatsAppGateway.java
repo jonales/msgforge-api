@@ -337,6 +337,13 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
                             name, ConnectionState.CLOSE, REASON_CONNECTION_CLOSED));
                 }
                 connection.firstCode.complete(NO_CODE);
+                // Encerra o cliente que falhou (socket, tarefas do motor): um connect novo monta outro
+                connection.closingOnPurpose = true;
+                try {
+                    connection.api.disconnect();
+                } catch (RuntimeException ignored) {
+                    // já encerrado pelo próprio motor
+                }
             }
         });
         return connection;

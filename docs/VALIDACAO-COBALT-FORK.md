@@ -233,6 +233,17 @@ Defeitos abertos desta rodada (antes das correções acima): na Msgforge, o `vca
 vídeo HEVC; o voto de enquete vazio (ver se o motor já decifra). Não testados nesta rodada: proxy, código
 de pareamento, `syncFullHistory: true` e `delete` de instância conectada.
 
+## Rodada de 2026-11-20
+
+Proxy SOCKS5 local (só 127.0.0.1; o container chega por `host.docker.internal`) na TESTE-2.
+
+| Item | Resultado |
+|---|---|
+| `proxy/set` sem senha + reconexão | ✅ conexão ao WhatsApp passou pelo proxy (log do proxy); mensagem entregue; a outra instância não passou por ele |
+| `proxy/set` com usuário e senha | ✅ autenticou no proxy; `proxy/find` sem a senha; no banco, cifrada (`v1:`) |
+| Proxy fora do ar | ✅ instância `close`, sessão mantida (marcador e pasta), sem QR novo |
+| Reconectar depois da queda, sem reiniciar | ❌ → ✅ dava 500 `OverlappingFileLockException` (o motor nunca fechava o `messages.mv`); corrigido no cobalt-2 (reabrir a sessão fecha o handle anterior) e no gateway (encerra o cliente que falhou). Retestado: `connect` 200, `open`, mensagem entregue |
+
 ## Cobertura das rotas (levantamento de 2026-11-16, atualizado em 2026-11-19)
 
 As 42 rotas da API cruzadas com as rodadas acima, o `CLAUDE.md` e o ledger do motor
@@ -245,7 +256,7 @@ Ao validar um item, mude a marca aqui e registre a rodada.
 | Message | `sendText` (com `delay`), `sendWhatsAppAudio` (MP3, OGG, WAV, `encoding: false`), `sendLocation`, `sendReaction` (com remoção) | `sendMedia` (vídeo HEVC falha), `sendContact` (o recebido sai sem `vcard`), `sendPoll` (o voto chega vazio) | |
 | Chat | `fetchProfilePictureUrl`, `updateProfileName`, `updateProfilePicture`, `markMessageAsRead`, `whatsappNumbers`, `sendPresence`, `findMessages`/`findChats` (só banco) | `fetchProfile` (recado sempre null; nome antigo depois da troca), `updateProfileStatus` (500, mas muda) | |
 | Group | `create`, `fetchAllGroups`, `findGroupInfos`, `participants`, `updateParticipant` (4 ações), `updateGroupSubject`, `updateGroupDescription`, `updateGroupPicture`, `updateSetting`, `inviteCode`, `revokeInviteCode` | `acceptInviteCode` (recusa vira 500), `leaveGroup` (sem participação devolve sucesso) | grupo com participantes em LID |
-| Settings/proxy/webhook | `webhook/set`/`find`, `settings/set`/`find` (com a conexão aberta) | | `proxy/set`/`find` e o proxy no `create`; `syncFullHistory: true` |
+| Settings/proxy/webhook | `webhook/set`/`find`, `settings/set`/`find` (com a conexão aberta), `proxy/set`/`find` (SOCKS5 com e sem senha, 2026-11-20) | | o proxy no `create`; `syncFullHistory: true` |
 
 Pendências do motor que só se veem ao vivo: retry (`receipt type=retry`, 3.1), nome em "Aparelhos
 conectados" num pareamento novo (3.11), vídeo que transcodifica (3.7) e `removeProfilePicture`
@@ -253,8 +264,7 @@ conectados" num pareamento novo (3.11), vídeo que transcodifica (3.7) e `remove
 
 ## Próxima rodada (pendências, por risco)
 
-**Estado em 2026-11-19:** os itens 3 a 6 e quase todo o 7 rodaram (ver "Rodada de 2026-11-19"). Faltam
-o 1 (proxy), o 2 (código de pareamento), do 7 o `syncFullHistory: true` e o `delete` de instância
+**Estado em 2026-11-20:** os itens 1 (proxy, rodada de 2026-11-20) e 3 a 6 e quase todo o 7 rodaram. Faltam o 2 (código de pareamento), do 7 o `syncFullHistory: true` e o `delete` de instância
 conectada, e o reteste dos defeitos daquela rodada depois de corrigidos. No item 3, quem foi removido
 por um admin não volta pelo link logo depois (401 do WhatsApp): para testar o convite, crie o grupo
 pelo B com o A e faça o A **sair** (`leaveGroup`) antes de aceitar o código.

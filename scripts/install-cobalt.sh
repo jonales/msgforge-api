@@ -9,7 +9,7 @@ set -euo pipefail
 
 COBALT_REPO="${COBALT_REPO:-https://github.com/jonales/cobalt-2.git}"
 # Commit do fork testado com o Msgforge. Ao trocar, rode os testes e o roteiro ao vivo.
-COBALT_REF=bf832375b2cf5db59d55bf8f750ebcc64ca8b871
+COBALT_REF=d2218d3577d01d8d02b75a0fbffc13e2670b8fe0
 
 m2="${MAVEN_REPO_LOCAL:-$HOME/.m2/repository}"
 marker="$m2/com/github/auties00/cobalt-lib/0.1.0/.installed-ref"

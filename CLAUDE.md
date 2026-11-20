@@ -83,6 +83,8 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
     escolhido no Manager (card "Conectar" e criar) e aplicado só ao criar a conexão nova
     (`discardHistory`/`defaultHistory`/`fullHistory` do Cobalt). Não é rota da API (settings
     estão fora do contrato).
+  - Reconectar no mesmo processo depois de uma queda definitiva funciona (cobalt-2#17: reabrir a sessão fecha o
+    handle anterior do `messages.mv`); quando o `connect()` do motor falha, o gateway encerra o cliente que falhou.
   - Sessão salva que o motor não consegue abrir **não** é apagada: o connect falha com
     `GatewayException` e o marcador e a pasta ficam (antes, virava QR novo por cima da sessão).
   - Diagnóstico do protocolo: `LOGGING_LEVEL_DEV_MSGFORGE_GATEWAY_COBALT_WIRE=DEBUG` registra os
