@@ -229,7 +229,7 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   por IP por janela do limitador), `DISABLED`, e logout; na falha, a conta só se existir, senão
   `@desconhecida` sem o texto digitado. Ações de pessoas e papéis no `AccessAdminService`, só as que dão
   certo (papel guarda `+PERM -PERM`). `AuditRetention` apaga depois de `AUDIT_RETENTION_DAYS` (180).
-  Tela `/manager/audit` (`AUDIT_VIEW`, link "Auditoria" no topo): por organização; a plataforma inteira
+  Tela `/manager/audit` (`AUDIT_VIEW`, item "Auditoria" da lateral): por organização; a plataforma inteira
   só para o admin. Ação nova: `AuditAction` + `CHECK` da tabela + `manager.audit.action.*`.
 
 ## Convenções
@@ -343,7 +343,12 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     `Range` (206) e manda `Content-Length` e `Accept-Ranges`, que o `<audio>`/`<video>` usam. Nota de
     voz sai como `audio/ogg; codecs=opus`; o Safari não toca OGG/Opus, então o áudio tem o link
     "Baixar o áudio".
-  - [x] menu do painel (`layout :: panelNav(nome, can, atual)`): **cada item é uma tela** (nunca
+  - [x] navegação lateral única (20/11/2026, pedido do usuário): não há mais barra no topo. Toda tela logada
+    tem a lateral `app-side` (`layout :: header` fora da instância: Instâncias, Usuários, Papéis, Auditoria,
+    Servidor, só os que a pessoa pode abrir, item atual pela rota em `ManagerTopbar.section`;
+    `layout :: sideInstance(nome, can, atual)` dentro dela, com o `panelNav`). No pé, a conta, o tema e "Sair".
+    No celular a lateral vira o topo: marca e conta numa linha e o menu como faixa de abas.
+  - [x] menu do painel (`layout :: panelNav(nome, can, atual)`, dentro do `sideInstance`): **cada item é uma tela** (nunca
     âncora): Visão geral `/{n}` (cabeçalho da conta: foto de 64 px, nome do perfil, número e estado; abaixo,
     motor, histórico no pareamento e criada em. Foto por `/{n}/avatar` (`ManagerAvatarController`: busca
     no servidor, cache de 10 min também no navegador, só JPEG; conta pareada sem foto = 204, nunca
@@ -382,7 +387,7 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     consulta por página, fora do `findMessages` do contrato).
   - [x] auditoria (`AuditController`, `/manager/audit`, ADR 0018): filtros por tipo, 50 por página.
   - [x] usuários e papéis (`AccessController`, `/manager/users` com `USERS_MANAGE` e
-    `/manager/roles` com `ROLES_MANAGE`; link "Usuários" no topo, ao lado de "Sair"). Sem a
+    `/manager/roles` com `ROLES_MANAGE`; itens "Usuários" e "Papéis" da lateral). Sem a
     permissão, a tela "Sem acesso" com 403.
   - [x] filtro por papel (fatia 5 da ADR 0010): toda rota com `{nome}` passa por
     `ManagerAccess.require(nome, permissão)`. Instância que a pessoa não vê (outra organização ou

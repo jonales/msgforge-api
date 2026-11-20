@@ -4,7 +4,7 @@
      abandona aqui volta pelo painel dela. O trecho ao vivo é o mesmo do painel (instance :: live). -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.wizard.stepOf(${step}, ${totalSteps})} + ': ' + #{'manager.wizard.step.' + ${step}} + ' · ' + ${instance.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container wizard connect-page">
     <nav th:replace="~{manager/fragments/layout :: panelCrumbs(${instance.name}, 'manager.panelNav.connection')}"></nav>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>

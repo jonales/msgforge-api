@@ -4,9 +4,8 @@
      (ADR 0011 e 0019). A senha nunca volta para a tela. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.server.title})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container server" th:with="fieldErr=${fieldError}">
-    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
     <div class="page-head">
         <h1 th:text="#{manager.server.title}">Servidor</h1>
     </div>

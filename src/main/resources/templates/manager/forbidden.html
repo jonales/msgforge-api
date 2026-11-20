@@ -2,7 +2,7 @@
 <html lang="pt-BR" xmlns:th="http://www.thymeleaf.org" th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}">
 <head th:replace="~{manager/fragments/layout :: head(#{manager.forbidden.title})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container access-page">
     <h1 th:text="#{manager.forbidden.title}">Sem acesso</h1>
     <p class="muted" th:text="#{manager.forbidden.hint}">Seu papel não inclui esta tela.</p>

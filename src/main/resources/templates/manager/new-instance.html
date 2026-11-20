@@ -4,9 +4,8 @@
      recarregar funcionam sem JavaScript. O título da aba leva o passo, para o leitor de tela. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.wizard.stepOf(${step}, ${totalSteps})} + ': ' + #{'manager.wizard.step.' + ${step}} + ' · ' + #{manager.wizard.title})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container wizard" th:with="fieldErr=${fieldError}">
-    <p class="breadcrumb"><a th:href="@{/manager}" th:text="#{manager.back}">← Instâncias</a></p>
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <nav th:replace="~{manager/fragments/layout :: steps(${step}, ${totalSteps}, ${createdName == null})}"></nav>
 

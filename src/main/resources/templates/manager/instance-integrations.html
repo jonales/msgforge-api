@@ -5,11 +5,10 @@
      configuração. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.integrations} + ' · ' + ${instance.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: sideInstance(${instance.name}, ${can}, 'integrations')}"></aside>
 <main class="container wide instance-panel">
 
     <div class="panel-shell">
-    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'integrations')}"></nav>
     <div class="panel-main">
         <header class="panel-head">
             <h1 th:text="#{manager.panelNav.integrations}">Integrações</h1>

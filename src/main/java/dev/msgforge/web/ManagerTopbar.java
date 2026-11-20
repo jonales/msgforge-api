@@ -7,10 +7,13 @@ import dev.msgforge.access.ManagerPrincipal;
 import dev.msgforge.access.Permission;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
- * Quem está logado, para o topo das telas ({@code ${@managerTopbar.view()}} no fragmento
- * {@code header}). Só roda quando o topo é desenhado, e não nos trechos do polling e do SSE.
+ * Quem está logado e o que aparece no menu lateral fora da instância ({@code ${@managerTopbar.view()}}
+ * nos fragmentos {@code header} e {@code sideInstance}). Só roda quando a lateral é desenhada, e não nos
+ * trechos do polling e do SSE.
  */
 @Component("managerTopbar")
 public class ManagerTopbar {
@@ -22,19 +25,50 @@ public class ManagerTopbar {
     }
 
     /**
-     * @param email null quando entrou com a chave global
-     * @param users mostra o link "Usuários" (gerencia usuários em alguma organização)
-     * @param audit mostra o link "Auditoria" (vê a auditoria em alguma organização)
+     * @param email   null quando entrou com a chave global
+     * @param users   mostra "Usuários" (gerencia usuários em alguma organização)
+     * @param roles   mostra "Papéis" (gerencia papéis em alguma organização)
+     * @param server  mostra "Servidor" (admin da plataforma)
+     * @param audit   mostra "Auditoria" (vê a auditoria em alguma organização)
+     * @param current o item atual do menu ({@code instances}, {@code users}, {@code roles}, {@code audit},
+     *                {@code server}) ou null
      */
-    public record View(String email, boolean users, boolean server, boolean audit) {}
+    public record View(String email, boolean users, boolean roles, boolean server, boolean audit, String current) {}
 
     public View view() {
         var who = current();
+        var page = section(path());
         if (who == null) {
-            return new View(null, false, false, false);
+            return new View(null, false, false, false, false, page);
         }
         return new View(who.email(), !access.organizationsWhere(who, Permission.USERS_MANAGE).isEmpty(),
-                access.isPlatformAdmin(who), !access.organizationsWhere(who, Permission.AUDIT_VIEW).isEmpty());
+                !access.organizationsWhere(who, Permission.ROLES_MANAGE).isEmpty(), access.isPlatformAdmin(who),
+                !access.organizationsWhere(who, Permission.AUDIT_VIEW).isEmpty(), page);
+    }
+
+    /** O item do menu lateral de uma rota do Manager (o caminho sem o contexto); null se nenhum. */
+    static String section(String path) {
+        if (path == null) {
+            return null;
+        }
+        var rest = path.startsWith("/manager") ? path.substring("/manager".length()) : path;
+        if (rest.isEmpty() || rest.equals("/") || rest.startsWith("/instances")) {
+            return "instances";
+        }
+        for (var section : new String[] {"users", "roles", "audit", "server"}) {
+            if (rest.equals("/" + section) || rest.startsWith("/" + section + "/")) {
+                return section;
+            }
+        }
+        return null;
+    }
+
+    private static String path() {
+        if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
+            var request = attributes.getRequest();
+            return request.getRequestURI().substring(request.getContextPath().length());
+        }
+        return null;
     }
 
     /** O usuário da requisição; null fora de uma sessão do Manager. */

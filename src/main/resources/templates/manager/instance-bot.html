@@ -5,12 +5,11 @@
      Cada aba salva só o que é dela. A chave nunca volta para a tela. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.bot.title} + ' · ' + ${instance.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: sideInstance(${instance.name}, ${can}, 'integrations')}"></aside>
 <main class="container wide instance-panel" th:with="errors=${fieldErrors != null ? fieldErrors : {:}}">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
 
     <div class="panel-shell">
-    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'integrations')}"></nav>
     <div class="panel-main">
         <p class="panel-back"><a th:href="@{/manager/instances/{n}/integrations(n=${instance.name})}" th:text="#{manager.bot.back}">← Integrações</a></p>
         <header class="panel-head">

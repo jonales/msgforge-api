@@ -3,7 +3,7 @@
 <!-- Instância que não existe ou que a pessoa não vê: a mesma página (404) nos dois casos. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.notFound.title})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container access-page">
     <h1 th:text="#{manager.notFound.title}">Instância não encontrada</h1>
     <p class="muted" th:text="#{manager.notFound.hint}">Ela não existe ou não está entre as suas.</p>

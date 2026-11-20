@@ -4,13 +4,12 @@
      JS). Cada grupo tem o seu "salvar"; o POST de um grupo só muda o que é dele. -->
 <head th:replace="~{manager/fragments/layout :: head(#{'manager.settings.group.' + ${group}} + ' · ' + ${instance.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: sideInstance(${instance.name}, ${can}, 'settings')}"></aside>
 <main class="container wide instance-panel"
       th:with="errors=${fieldErrors != null ? fieldErrors : {:}},base=@{/manager/instances/{n}(n=${instance.name})}">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
 
     <div class="panel-shell">
-    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'settings')}"></nav>
     <div class="panel-main">
         <header class="panel-head">
             <h1 th:text="#{manager.settings.title}">Configurações</h1>

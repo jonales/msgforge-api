@@ -4,7 +4,7 @@
      atalhos para as outras telas. Conectar, desconectar e excluir ficam na tela Conexão. -->
 <head th:replace="~{manager/fragments/layout :: head(${instance.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: sideInstance(${instance.name}, ${can}, 'overview')}"></aside>
 <main class="container wide instance-panel">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <div class="flash warning" role="status" th:if="${createdToken}">
@@ -13,7 +13,6 @@
 
 
     <div class="panel-shell">
-    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'overview')}"></nav>
     <div class="panel-main">
         <header class="panel-head">
             <h1 th:text="#{manager.panelNav.overview}">Visão geral</h1>

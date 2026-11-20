@@ -3,7 +3,7 @@
 <!-- Página inicial do Manager: a lista de instâncias, com uma ação principal por estado. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.instances.title})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: header}"></aside>
 <main class="container home">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
     <p class="flash success" th:if="${deletedName}" th:text="#{manager.flash.deletedName(${deletedName})}"></p>

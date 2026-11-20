@@ -4,12 +4,11 @@
      conectar quando a instância está fora do ar e, por último, desconectar e excluir. -->
 <head th:replace="~{manager/fragments/layout :: head(#{manager.panelNav.connection} + ' · ' + ${instance.name})}"></head>
 <body>
-<header th:replace="~{manager/fragments/layout :: header}"></header>
+<aside th:replace="~{manager/fragments/layout :: sideInstance(${instance.name}, ${can}, 'connection')}"></aside>
 <main class="container wide instance-panel connection-page">
     <div th:replace="~{manager/fragments/layout :: flash}"></div>
 
     <div class="panel-shell">
-    <nav th:replace="~{manager/fragments/layout :: panelNav(${instance.name}, ${can}, 'connection')}"></nav>
     <div class="panel-main">
         <header class="panel-head">
             <h1 th:text="#{manager.panelNav.connection}">Conexão</h1>
