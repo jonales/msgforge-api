@@ -126,6 +126,9 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   no reinício) e, sem achar, remonta a mensagem a partir do `StoredMedia` (tipo neutro, lido por
   `MessageContent.stored`). Linha antiga, sem esses campos, fica com o aviso por tipo.
 - `gateway/media/`: a imagem Docker traz o ffmpeg (o Cobalt usa o `ffprobe` para a duração).
+  `VideoTranscoder`: vídeo MP4/MOV que não é H.264 (HEVC do iPhone) vira H.264 Main sem B-frames antes
+  do upload (o ffmpeg do motor não decodifica HEVC); usa arquivos temporários (o `moov` do MOV vem no
+  fim), `-f mov` e `-protocol_whitelist file`, limite de tempo 5x o do áudio.
   `AudioTranscoder` converte a voz para OGG/Opus por stdin/stdout (sem disco), quando `encoding`
   não é false e o áudio ainda não é Opus; sem ffmpeg, envia como veio (aviso no log). O ffmpeg roda
   com `-protocol_whitelist pipe` (uma playlist hls/concat no stdin não abre arquivo nem URL).
@@ -405,7 +408,6 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
 1. `mentioned`, `quoted`, `linkPreview` e `webhookBase64` são aceitos e ignorados; `delay` só
    funciona no Cobalt ("digitando..."). Mídia recebida vai no `messages.upsert` sem download/base64.
    Figurinha, botões e listas ainda não existem.
-   O voto de enquete sai como `pollUpdateMessage: {}` (rodada de 2026-11-19).
 2. O RabbitMQ usa um exchange tópico, e não filas por evento (`docs/COMPATIBILIDADE.md`).
 3. `PrivateNetworkGuard` não cobre DNS rebinding (resolve antes do connect, sem fixar o IP), nem
    nos webhooks nem na mídia por URL. Para webhooks vem desligado por padrão; para a mídia vale
@@ -441,10 +443,9 @@ Problemas conhecidos (mantenha esta lista atual; ao corrigir um item, tire-o daq
      `progress`; sem `groups.update` para troca de foto; os eventos de grupo das operações feitas
      pela própria API dependem de o WhatsApp mandar a notificação também ao aparelho que agiu.
 8. Rodada ao vivo de 2026-11-19 (`docs/VALIDACAO-COBALT-FORK.md`), ainda sem correção:
-   - Motor: o nome do contato (`chosenName`) não é atualizado pelo `pushName` das mensagens, então o
-     `fetchProfile` mostra o nome antigo depois de um `updateProfileName`. `updateProfileStatus` dá 500 (NPE: o `IqSetAboutResponse` exige `id` numérico, o WhatsApp
-     manda hexadecimal), mas o recado muda; o recado do `fetchProfile` é sempre null (`w:mex` vazio);
-     vídeo HEVC/H.265 falha (o ffmpeg embutido não tem o decodificador; vídeo de iPhone).
+   - Motor: a leitura do recado (`queryAbout`) volta sempre vazia: as três consultas do motor falham
+     (`mexGetAbout` e usync via MEX dão 400 do servidor; `usync` com `status` não tem resposta). Precisa
+     ver como o WhatsApp Web atual monta a consulta (módulo só carregado depois do login).
    - Manager: os status (`status@broadcast`) aparecem na lista de conversas.
 9. Motor (cobalt-2, corrigido e validado em 2026-11-15): vídeo (#4), foto da própria conta (#9),
    status de contato (#10) e logout que fecha a conexão (#11). Em "Aparelhos conectados" o aparelho

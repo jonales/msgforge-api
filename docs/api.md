@@ -64,7 +64,7 @@ caminho anterior até ser refeita, por exemplo quando o servidor reinicia e rest
 | DELETE | `/instance/logout/{instancia}` | Desconecta o WhatsApp e apaga a sessão |
 | DELETE | `/instance/delete/{instancia}` | Exclui a instância |
 | POST | `/message/sendText/{instancia}` | Envia texto (`number`, `text`, `delay`) |
-| POST | `/message/sendMedia/{instancia}` | Envia mídia (`mediatype`, `media` em URL ou base64, `caption`, `fileName`) |
+| POST | `/message/sendMedia/{instancia}` | Envia mídia (`mediatype`, `media` em URL ou base64, `caption`, `fileName`). Vídeo MP4/MOV em HEVC/H.265 (iPhone) é convertido para H.264 antes do envio (Cobalt, com o ffmpeg) |
 | POST | `/message/sendWhatsAppAudio/{instancia}` | Envia áudio de voz (`audio` em URL ou base64, qualquer formato; `encoding` (padrão true) converte para OGG/Opus com o ffmpeg) |
 | POST | `/message/sendLocation/{instancia}` | Envia localização (`latitude`, `longitude`, `name`, `address`) |
 | POST | `/message/sendContact/{instancia}` | Envia um ou mais contatos (`contact: [{fullName, phoneNumber, wuid, organization, email, url}]`) |

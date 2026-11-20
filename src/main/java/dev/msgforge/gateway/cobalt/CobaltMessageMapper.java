@@ -12,6 +12,7 @@ import com.github.auties00.cobalt.wire.linked.message.Message;
 import com.github.auties00.cobalt.wire.linked.message.contact.ContactMessage;
 import com.github.auties00.cobalt.wire.linked.message.contact.ContactsArrayMessage;
 import com.github.auties00.cobalt.wire.linked.message.poll.PollCreationMessage;
+import com.github.auties00.cobalt.wire.linked.message.poll.PollUpdateMessage;
 import com.github.auties00.cobalt.wire.linked.message.group.SenderKeyDistributionMessage;
 import com.github.auties00.cobalt.wire.linked.message.location.LocationMessage;
 import com.github.auties00.cobalt.wire.linked.message.media.AudioMessage;
@@ -27,7 +28,9 @@ import com.github.auties00.cobalt.wire.linked.message.system.StickerSyncRMRMessa
 import com.github.auties00.cobalt.wire.linked.message.text.ExtendedTextMessage;
 import com.github.auties00.cobalt.wire.linked.message.text.ReactionMessage;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -205,6 +208,19 @@ final class CobaltMessageMapper {
                         .toList());
                 poll.selectableOptionsCount().ifPresent(v -> fields.put("selectableOptionsCount", v));
                 yield new Content("pollCreationMessage", fields);
+            }
+            case PollUpdateMessage vote -> {
+                // Voto: a chave da enquete, o voto cifrado (como chega do WhatsApp) e, quando o motor
+                // conseguiu decifrar (a enquete está no Store dele), as opções escolhidas pelo nome.
+                vote.pollCreationMessageKey().ifPresent(key -> fields.put("pollCreationMessageKey", key(key, null, names)));
+                vote.vote().ifPresent(enc -> {
+                    var encrypted = new LinkedHashMap<String, Object>();
+                    enc.encPayload().ifPresent(v -> encrypted.put("encPayload", Base64.getEncoder().encodeToString(v)));
+                    enc.encIv().ifPresent(v -> encrypted.put("encIv", Base64.getEncoder().encodeToString(v)));
+                    fields.put("vote", encrypted);
+                });
+                fields.put("selectedOptions", List.copyOf(vote.selectedOptions()));
+                yield new Content("pollUpdateMessage", fields);
             }
             default -> new Content(genericName(message), fields);
         };
