@@ -538,6 +538,8 @@ label > .field-error, .field-error { display: block; margin: 4px 0 0; font-size:
 .home h1 { font-size: var(--fs-h1); line-height: 1.2; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
 .lede { margin: 0; max-width: 60ch; color: var(--muted); }
 .icon { flex: none; }
+/* Os ícones do sprite pegam a cor do texto (sem isso, o <path> sai preto e some no tema escuro) */
+svg.icon { fill: currentColor; }
 a.button { gap: 8px; }
 a.button-lg { min-height: 44px; padding: 10px 18px; }
 

@@ -49,7 +49,7 @@
 
 <!-- Ícone do Manager (Bootstrap Icons, só os usados, em /manager/icons.svg; MIT, ver THIRD-PARTY-NOTICES).
      Decorativo: o texto do item está sempre ao lado. -->
-<svg th:fragment="icon(name)" class="icon" aria-hidden="true" focusable="false" width="16" height="16"><use th:href="@{/manager/icons.svg} + '#i-' + ${name}"></use></svg>
+<svg th:fragment="icon(name)" class="icon" aria-hidden="true" focusable="false" width="16" height="16" fill="currentColor"><use th:href="@{/manager/icons.svg} + '#i-' + ${name}"></use></svg>
 
 <div th:fragment="sideBrand" class="side-brand">
     <a class="brand" th:href="@{/manager}" th:text="#{manager.brand}">Msgforge</a>
