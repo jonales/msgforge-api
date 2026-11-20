@@ -308,7 +308,9 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .container.instance-panel { max-width: none; margin: 0; }
 /* Com a lateral, todas as telas começam no mesmo ponto (encostadas no menu, como as da instância) */
 @media (min-width: 861px) {
-    body:has(> .app-side) > main.container { margin: 0; padding: 20px 32px 32px; }
+    /* e ocupam toda a largura ao lado do menu (sem a faixa vazia à direita nas telas largas); os
+       parágrafos longos já têm o próprio limite de leitura */
+    body:has(> .app-side) > main.container { max-width: none; margin: 0; padding: 20px 32px 32px; }
 }
 .panel-nav-head { display: grid; gap: 4px; margin: 0 0 12px; padding: 0 12px 12px; border-bottom: 1px solid var(--border); }
 .panel-back a, a.panel-back { color: var(--muted); text-decoration: none; font-size: var(--fs-small); }
@@ -320,8 +322,7 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 .panel-nav-title { margin: 0; font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
 /* Uma largura só para o conteúdo de todas as telas do painel (título, abas e cartões terminam no mesmo
    ponto); Mensagens, com lista e conversa lado a lado, usa a largura toda */
-.panel-main { min-width: 0; max-width: 1120px; }
-.panel-main.panel-main-full { max-width: none; }
+.panel-main { min-width: 0; }
 
 .panel-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .panel-nav a { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px 12px;
