@@ -29,6 +29,8 @@ Visão do produto em `PRODUCT.md`; decisões nas ADRs 0010 a 0013.
   - [x] fatia 5: filtro das telas e do SSE pelas permissões (lista, painel, cada ação, criação
     guiada na organização de quem cria, streams por inscrito)
   - [x] auditoria (ADR 0018): login e ações de pessoas e papéis, tela `/manager/audit`, retenção
+  - [x] SMTP pelo Manager (ADR 0019): configurar, testar a conexão e voltar ao ambiente na tela Servidor
+  - [ ] modelos de e-mail editáveis e regras de disparo (ADR 0019, entregas 2 e 3)
   - [ ] convite e redefinição por e-mail, escopo por instância na tela
   - [x] base de e-mail (ADR 0011): SMTP pela outbox, modelos HTML e texto, tela Servidor com o
     estado do SMTP e o e-mail de teste

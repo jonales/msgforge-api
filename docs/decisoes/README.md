@@ -29,3 +29,4 @@ Uma decisão aceita não é editada; se ela mudar, crie um ADR novo que a substi
 | [0016](0016-licenca-agpl-com-licenca-comercial.md) | Licença AGPL-3.0-only com licença comercial à parte (licenciamento duplo) | aceita |
 | [0017](0017-politica-de-senha.md) | Política de senha do Manager: 15 caracteres a 72 bytes, sem regras de composição, bloqueio local e medidor ao digitar | aceita |
 | [0018](0018-auditoria-do-manager.md) | Auditoria do Manager: login e ações de pessoas, conta só se existir, retenção de 180 dias | aceita |
+| [0019](0019-smtp-configurado-pelo-manager.md) | SMTP configurado pelo Manager: no banco, vence o ambiente, senha cifrada, teste de conexão; modelos e disparos depois | aceita |

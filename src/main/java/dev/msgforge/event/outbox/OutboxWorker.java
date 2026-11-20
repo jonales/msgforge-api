@@ -53,7 +53,6 @@ public class OutboxWorker implements SmartLifecycle {
     private final Semaphore inFlight;
     private final EmailSender email;
     private final JsonMapper json;
-    private final Set<Type> types;
 
     private final Object signal = new Object();
     private boolean signalled;
@@ -66,8 +65,6 @@ public class OutboxWorker implements SmartLifecycle {
         this.outbox = outbox;
         this.email = email;
         this.json = json;
-        // Sem SMTP, este nó não pega e-mail: a linha espera um nó que consiga entregar (ADR 0011)
-        this.types = email.isEnabled() ? EnumSet.allOf(Type.class) : EnumSet.complementOf(EnumSet.of(Type.EMAIL));
         this.sender = sender;
         this.rabbit = rabbit;
         this.properties = properties;
@@ -145,13 +142,21 @@ public class OutboxWorker implements SmartLifecycle {
         }
     }
 
+    /**
+     * Sem SMTP, este nó não pega e-mail: a linha espera um nó que consiga entregar (ADR 0011). Decidido a cada
+     * rodada, porque o SMTP pode ser ligado ou desligado pelo Manager com o processo de pé (ADR 0019).
+     */
+    private Set<Type> types() {
+        return email.isEnabled() ? EnumSet.allOf(Type.class) : EnumSet.complementOf(EnumSet.of(Type.EMAIL));
+    }
+
     /** @return true se pode haver mais linhas prontas agora (o lote veio cheio) */
     private boolean claimAndDeliver() {
         var free = inFlight.availablePermits();
         if (free == 0) {
             return false;   // wake() chega quando uma entrega terminar
         }
-        var claimed = outbox.claim(free, lease, null, types);
+        var claimed = outbox.claim(free, lease, null, types());
         for (var entry : claimed) {
             inFlight.acquireUninterruptibly();
             deliveries.execute(() -> {

@@ -172,7 +172,13 @@ os `*IT` são pulados, não falham. No CI (`.github/workflows/ci.yml`) eles usam
   `OUTBOX_ENABLED=false`, fila em memória por destinatário (`OrderedExecutor`). Endereço passa por
   `EmailAddresses.normalize` (um endereço só, sem nome nem quebra de linha). Tipo novo de
   notificação: valor em `Notification.Kind` + os dois modelos + o assunto. Tela `/manager/server`
-  (`ServerController`): estado do SMTP e e-mail de teste.
+  (`ServerController`, ADR 0019): o SMTP se configura aqui (`SmtpAdmin` valida e cifra; `smtp_settings`,
+  uma linha, SQL direto em `SmtpSettingsStore`), vence o `SMTP_*`, vale na hora (`EmailSender.reload`; outro nó
+  relê a cada minuto pela `updated_at`) e o `OutboxWorker` decide a cada rodada se pega `EMAIL`. Senha cifrada
+  (`SecretCipher`, dono `EmailSender.SMTP_OWNER`), nunca volta à tela; "Testar conexão" sem salvar (10/min);
+  "Voltar ao ambiente" apaga a linha. Auditoria `SERVER_SMTP_UPDATED`/`REMOVED`. Nos ITs, quem grava
+  `smtp_settings` apaga no fim (os contextos dividem o banco). Próximas: modelos editáveis (placeholders de
+  lista fechada, nunca Thymeleaf vindo do banco) e regras de disparo.
 - `gateway/session/SessionStore`: blob da sessão do WhatsApp por instância (`session_store`).
   `SessionRestorer` reconecta no boot quem tem sessão; logout apaga a sessão.
 - `security/ApiKeyFilter`: a chave global libera tudo; o token da instância libera só as rotas

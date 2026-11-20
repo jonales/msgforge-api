@@ -3,10 +3,17 @@
 package dev.msgforge.notification;
 
 import dev.msgforge.event.WebhookSender.Attempt;
+import dev.msgforge.security.SecretCipher;
 import jakarta.mail.MessagingException;
 import jakarta.mail.SendFailedException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Objects;
 import java.util.Properties;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.MailException;
 import org.springframework.mail.MailParseException;
@@ -15,6 +22,7 @@ import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -27,37 +35,135 @@ import org.springframework.stereotype.Component;
 @Component
 public class EmailSender {
 
-    private final SmtpProperties properties;
-    private final JavaMailSender mail;
+    private static final Logger log = LoggerFactory.getLogger(EmailSender.class);
+    /** Dono fixo da senha do SMTP no {@link SecretCipher} (o dado associado do AES-GCM). */
+    static final UUID SMTP_OWNER = UUID.nameUUIDFromBytes("msgforge:smtp".getBytes(StandardCharsets.UTF_8));
 
+    /** De onde vem a configuração em uso (ADR 0019): a do Manager vence a do ambiente. */
+    public enum Source { DATABASE, ENVIRONMENT, NONE }
+
+    /**
+     * A configuração em uso e o envio montado com ela; trocada inteira quando a configuração muda.
+     *
+     * @param problem por que a configuração do banco não pode ser usada (senha que não decifra), ou null
+     */
+    private record Snapshot(SmtpProperties config, JavaMailSender mail, Source source, Instant version,
+                            String updatedBy, String problem) {}
+
+    private final SmtpProperties environment;
+    private final SmtpSettingsStore store;
+    private final SecretCipher cipher;
+    private volatile Snapshot current;
+
+    /** Só o ambiente (testes e quem não usa o Manager para o SMTP). */
     public EmailSender(SmtpProperties properties) {
-        this.properties = properties;
-        this.mail = properties.enabled() ? build(properties) : null;
+        this(properties, null, null);
     }
 
-    /** O SMTP está configurado (SMTP_HOST)? Sem ele, nenhuma notificação por e-mail sai. */
+    @Autowired
+    public EmailSender(SmtpProperties properties, SmtpSettingsStore store, SecretCipher cipher) {
+        this.environment = properties;
+        this.store = store;
+        this.cipher = cipher;
+        reload();
+    }
+
+    /** Relê a configuração (banco, senão ambiente) e remonta o envio. Chamado ao salvar pelo Manager. */
+    public synchronized void reload() {
+        try {
+            current = resolve();
+        } catch (RuntimeException e) {
+            // Banco fora do ar ao subir: fica o ambiente; a verificação de minuto em minuto tenta de novo
+            log.warn("Configuração do SMTP no banco ilegível ({}); usando a do ambiente", e.getClass().getSimpleName());
+            current = fromEnvironment();
+        }
+    }
+
+    /** Em mais de um nó, quem não salvou percebe a mudança pela data dela (ADR 0019). */
+    @Scheduled(initialDelayString = "PT1M", fixedDelayString = "PT1M")
+    void refreshIfChanged() {
+        if (store == null) {
+            return;
+        }
+        try {
+            if (!Objects.equals(store.lastChange().orElse(null), current.version())) {
+                reload();
+            }
+        } catch (RuntimeException e) {
+            log.debug("Não conferiu a configuração do SMTP: {}", e.getMessage());
+        }
+    }
+
+    private Snapshot resolve() {
+        var row = store == null ? null : store.find().orElse(null);
+        if (row == null) {
+            return fromEnvironment();
+        }
+        String password = null;
+        String problem = null;
+        if (row.passwordEncrypted() != null) {
+            try {
+                password = cipher.decrypt(SMTP_OWNER, row.passwordEncrypted());
+            } catch (RuntimeException e) {
+                problem = "a senha guardada não pôde ser decifrada (SECRETS_ENCRYPTION_KEY ausente ou trocada)";
+            }
+        }
+        var config = new SmtpProperties(row.host(), row.port(), row.username(), password, row.from(), row.starttls(),
+                row.timeoutMs());
+        return new Snapshot(config, problem == null ? build(config) : null, Source.DATABASE, row.updatedAt(),
+                row.updatedBy(), problem);
+    }
+
+    private Snapshot fromEnvironment() {
+        return new Snapshot(environment, environment.enabled() ? build(environment) : null,
+                environment.enabled() ? Source.ENVIRONMENT : Source.NONE, null, null, null);
+    }
+
+    /** O SMTP está configurado (Manager ou SMTP_HOST)? Sem ele, nenhuma notificação por e-mail sai. */
     public boolean isEnabled() {
-        return mail != null;
+        return current.mail() != null;
     }
 
     /** Estado do SMTP para o Manager; nunca leva a senha. */
     public record Status(boolean enabled, String host, int port, boolean starttls, boolean authenticated,
-                         String from) {}
+                         String from, Source source, Instant updatedAt, String updatedBy, String problem,
+                         String username, int timeoutMs) {}
 
     public Status status() {
-        return new Status(isEnabled(), blankToNull(properties.host()), properties.port(), properties.starttls(),
-                properties.authenticated(), sender());
+        var s = current;
+        var p = s.config();
+        return new Status(s.mail() != null, blankToNull(p.host()), p.port(), p.starttls(), p.authenticated(),
+                sender(p), s.source(), s.version(), s.updatedBy(), s.problem(), blankToNull(p.username()), p.timeoutMs());
+    }
+
+    /** Resultado de um teste de conexão: {@code reason} sem a senha. */
+    public record TestResult(boolean ok, String reason) {}
+
+    /** Conecta e faz o login com {@code config}, sem enviar nada (o "Testar" do Manager). */
+    public TestResult test(SmtpProperties config) {
+        try {
+            ((JavaMailSenderImpl) build(config)).testConnection();
+            return new TestResult(true, null);
+        } catch (MessagingException | RuntimeException e) {
+            return new TestResult(false, withoutSecret(reason(e), config.password()));
+        }
+    }
+
+    private static String withoutSecret(String text, String secret) {
+        return secret == null || secret.isEmpty() || text == null ? text : text.replace(secret, "***");
     }
 
     /** Uma tentativa de envio, multipart/alternative (texto e HTML). */
     public Attempt attempt(EmailMessage email) {
+        var s = current;
+        var mail = s.mail();
         if (mail == null) {
-            return new Attempt.Failed("SMTP desligado (sem SMTP_HOST)");
+            return new Attempt.Failed(s.problem() != null ? "SMTP: " + s.problem() : "SMTP desligado (sem configuração)");
         }
         try {
             var message = mail.createMimeMessage();
             var helper = new MimeMessageHelper(message, true, StandardCharsets.UTF_8.name());
-            var from = sender();
+            var from = sender(s.config());
             if (from != null) {
                 helper.setFrom(from);
             }
@@ -90,9 +196,9 @@ public class EmailSender {
         return false;
     }
 
-    private String sender() {
-        var from = blankToNull(properties.from());
-        return from != null ? from : blankToNull(properties.username());
+    private static String sender(SmtpProperties p) {
+        var from = blankToNull(p.from());
+        return from != null ? from : blankToNull(p.username());
     }
 
     private static JavaMailSender build(SmtpProperties p) {
