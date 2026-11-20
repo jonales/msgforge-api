@@ -74,27 +74,16 @@ body:has(> .app-side) { display: grid; grid-template-columns: 232px minmax(0, 1f
     text-decoration: none; cursor: pointer; }
 .side-link:hover { background: var(--hover); }
 .side-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-/* Tema no menu da conta: um <details> com três botões de envio (sem script). A opção atual leva
-   aria-pressed="true" e um visto desenhado; a cor nunca é o único sinal. */
-.theme-menu { position: relative; }
-.theme-menu > summary { display: inline-flex; align-items: center; gap: 6px; margin-left: 0; cursor: pointer;
-    list-style: none; }
-.theme-menu > summary::-webkit-details-marker { display: none; }
-.theme-menu > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.theme-menu[open] > summary { color: var(--text); background: var(--hover); }
-.theme-options { position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 10; width: auto; margin: 0;
-    padding: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: 0 8px 24px -8px rgb(0 0 0 / .22); }
-.theme-title { margin: 4px 8px 6px; font-size: var(--fs-small); font-weight: 600; color: var(--muted); }
-.theme-options [role=group] { display: grid; gap: 2px; }
-button.theme-option { display: grid; grid-template-columns: 18px 1fr; gap: 0 8px; align-items: center; width: 100%;
-    min-height: 44px; padding: 6px 8px; border: 0; border-radius: 8px; background: none; text-align: left; }
-button.theme-option::before { content: ""; grid-row: 1 / span 2; justify-self: center; width: 5px; height: 10px;
-    margin-top: -3px; border-right: 2px solid transparent; border-bottom: 2px solid transparent; transform: rotate(45deg); }
-.theme-option[aria-pressed=true] { font-weight: 600; background: var(--ok-bg); color: var(--ok-text); }
-.theme-option[aria-pressed=true]::before { border-color: currentColor; }
-.theme-option .theme-hint { grid-column: 2; font-weight: 400; color: var(--muted); }
-.theme-option[aria-pressed=true] .theme-hint { color: inherit; }
+/* Tema: um botão na lateral passa para o próximo (Sistema, Claro, Escuro); a página volta com um aviso
+   que some sozinho (só CSS; com movimento reduzido, fica parado e some sem deslizar) */
+.theme-switch { margin: 0; }
+.toast { position: fixed; z-index: 20; right: 24px; bottom: 24px; max-width: min(28rem, calc(100vw - 32px)); margin: 0;
+    padding: 12px 16px; border-radius: var(--radius); background: var(--ok-bg); color: var(--ok-text);
+    border: 1px solid var(--border); box-shadow: 0 8px 24px -8px rgb(0 0 0 / .25); font-weight: 600;
+    animation: toast-in .2s ease-out, toast-out .3s ease-in 3.5s forwards; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+@keyframes toast-out { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: toast-out 0s linear 4s forwards; } }
 /* Celular e tela estreita: a lateral vira o topo. Marca e conta numa linha (o e-mail sai; o tema vira
    só o ícone, com o nome para o leitor de tela) e o menu numa faixa de abas logo abaixo. */
 @media (max-width: 860px) {
@@ -106,9 +95,8 @@ button.theme-option::before { content: ""; grid-row: 1 / span 2; justify-self: c
     .side-who { display: none; }
     .side-link { width: auto; min-height: 44px; }
     .app-side .panel-nav { order: 2; flex: 0 0 calc(100% + 32px); min-width: 0; }
-    .theme-options { left: auto; right: 0; bottom: auto; top: calc(100% + 6px); width: 15rem; }
-    .theme-menu > summary { min-width: 44px; justify-content: center; }
-    .theme-menu > summary .theme-word { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    .theme-switch .side-link { min-width: 44px; justify-content: center; }
+    .theme-switch .theme-word { position: absolute; width: 1px; height: 1px; overflow: hidden;
         clip-path: inset(50%); white-space: nowrap; }
 }
 @media (max-width: 560px) { .brand-sub { display: none; } }
@@ -312,11 +300,12 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
        parágrafos longos já têm o próprio limite de leitura */
     body:has(> .app-side) > main.container { max-width: none; margin: 0; padding: 20px 32px 32px; }
 }
-.panel-nav-head { display: grid; gap: 4px; margin: 0 0 12px; padding: 0 12px 12px; border-bottom: 1px solid var(--border); }
+.panel-nav-head { display: grid; gap: 4px; margin: 0 0 12px; padding: 0 0 12px; border-bottom: 1px solid var(--border); }
+.panel-nav-head .panel-nav-title { padding: 0 12px; }
 .panel-back a, a.panel-back { color: var(--muted); text-decoration: none; font-size: var(--fs-small); }
-/* A volta para a lista não é um item do menu: sem o recuo dos itens, alinhada ao nome da instância */
-.panel-nav a.panel-back { display: inline; min-height: 0; padding: 0; border-radius: 0; }
-.panel-nav a.panel-back:hover { background: none; }
+/* A volta para a lista tem a aparência de um item do menu (sem sublinhado), em tom de apoio */
+.panel-nav a.panel-back { color: var(--muted); font-size: inherit; text-decoration: none; }
+.panel-nav a.panel-back:hover { color: var(--text); background: var(--hover); text-decoration: none; }
 .panel-back a:hover, a.panel-back:hover { color: var(--text); text-decoration: underline; }
 .panel-back { margin: 0 0 6px; }
 .panel-nav-title { margin: 0; font-weight: 700; font-size: 1.05rem; overflow-wrap: anywhere; }
@@ -332,6 +321,9 @@ th { font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: 
 @media (max-width: 860px) {
     .panel-nav { position: static; margin: 0 -16px; }
     .panel-nav-head { margin: 0; padding: 0 16px 8px; border-bottom: 0; }
+    .panel-nav-head .panel-nav-title { padding: 0; }
+    .panel-nav a.panel-back { margin: 0; padding: 0; border-bottom: 0; justify-self: start; }
+    .panel-nav a.panel-back:hover { background: none; }
     .panel-nav ul { display: flex; gap: 0; padding: 0 16px; overflow-x: auto; overscroll-behavior-x: contain;
         scrollbar-width: none; border-bottom: 1px solid var(--border);
         /* As bordas somem aos poucos: a aba cortada mostra que a faixa continua */
@@ -546,6 +538,8 @@ label > .field-error, .field-error { display: block; margin: 4px 0 0; font-size:
 .home h1 { font-size: var(--fs-h1); line-height: 1.2; font-weight: 700; letter-spacing: -.015em; text-wrap: balance; }
 .lede { margin: 0; max-width: 60ch; color: var(--muted); }
 .icon { flex: none; }
+/* Os ícones do sprite pegam a cor do texto (sem isso, o <path> sai preto e some no tema escuro) */
+svg.icon { fill: currentColor; }
 a.button { gap: 8px; }
 a.button-lg { min-height: 44px; padding: 10px 18px; }
 

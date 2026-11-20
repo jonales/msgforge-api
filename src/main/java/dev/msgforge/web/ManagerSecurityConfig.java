@@ -62,7 +62,7 @@ public class ManagerSecurityConfig {
                         // Fim de um stream SSE (ASYNC) e página de erro (ERROR) são despachos da requisição que já
                         // passou pela autorização; negá-los gerava AccessDenied ao fechar os streams numa sessão encerrada
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
-                        .requestMatchers("/manager/login", "/manager/manager.css", "/manager/manager.js", "/manager/favicon.svg",
+                        .requestMatchers("/manager/login", "/manager/manager.css", "/manager/manager.js", "/manager/favicon.svg", "/manager/icons.svg",
                                 "/manager/vendor/**").permitAll()
                         .anyRequest().hasRole(ROLE))
                 .formLogin(form -> form

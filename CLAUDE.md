@@ -283,7 +283,8 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
   métodos de records não públicos. Erro de renderização não passa pelo
   `ManagerExceptionHandler` (vira página 500); teste cada tela no `ManagerIT`.
 - Tema (Sistema, Claro, Escuro): cookie `msgforge_theme` gravado pelo `ThemeController`
-  (POST `/manager/theme`, menu da conta). O `<html>` de cada tela leva o `data-theme` pelo
+  (POST `/manager/theme`): um botão na lateral passa para o próximo (Sistema, Claro, Escuro) e a página volta
+  com o aviso "Tema claro definido" (flash `themeChanged`, `.toast` que some só com CSS). O `<html>` de cada tela leva o `data-theme` pelo
   `ManagerTheme` (`th:with="pageTheme=${@managerTheme.attribute()}" th:data-theme="${pageTheme}"`;
   o bean direto no `th:data-theme`/`th:attr` cai na restrição do Thymeleaf). Sem cookie, segue o
   `prefers-color-scheme`. Tokens pastel no `:root` do `manager.css`, contraste AA medido; o bloco
@@ -345,9 +346,11 @@ e a `ui-ux-pro-max` (design e UX), respeitando o CSP e os textos em `messages.pr
     "Baixar o áudio".
   - [x] navegação lateral única (20/11/2026, pedido do usuário): não há mais barra no topo. Toda tela logada
     tem a lateral `app-side` (`layout :: header` fora da instância: Instâncias, Usuários, Papéis, Auditoria,
-    Servidor, só os que a pessoa pode abrir, item atual pela rota em `ManagerTopbar.section`;
+    E-mail (`/manager/server`, só o SMTP), só os que a pessoa pode abrir, item atual pela rota em `ManagerTopbar.section`;
     `layout :: sideInstance(nome, can, atual)` dentro dela, com o `panelNav`). No pé, a conta, o tema e "Sair".
     No celular a lateral vira o topo: marca e conta numa linha e o menu como faixa de abas.
+    Ícones: Bootstrap Icons (MIT) num sprite próprio, `static/manager/icons.svg` (só os usados, sem CDN), pelo
+    fragmento `layout :: icon(nome)`; ícone novo = copiar o `<path>` do SVG oficial para um `<symbol id="i-nome">`.
   - [x] menu do painel (`layout :: panelNav(nome, can, atual)`, dentro do `sideInstance`): **cada item é uma tela** (nunca
     âncora): Visão geral `/{n}` (cabeçalho da conta: foto de 64 px, nome do perfil, número e estado; abaixo,
     motor, histórico no pareamento e criada em. Foto por `/{n}/avatar` (`ManagerAvatarController`: busca

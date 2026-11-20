@@ -22,7 +22,7 @@ As principais variáveis (todas em [.env.example](../.env.example)):
 | `OUTBOX_POLL_INTERVAL_MS` | `1000` | Varredura periódica da outbox, além do sinal de linha nova e do `LISTEN/NOTIFY` entre nós |
 | `OUTBOX_MAX_IN_FLIGHT` | `64` | Entregas simultâneas por nó |
 | `OUTBOX_LEASE_SECONDS` | `60` | Prazo de uma entrega em curso; vencido (o nó caiu), ela volta para a fila. Nunca fica abaixo de 3x `WEBHOOK_REQUEST_TIMEOUT_MS` |
-| `SMTP_HOST` | vazio (e-mail desligado) | Servidor SMTP das notificações por e-mail (ADR 0011). O SMTP também se configura pela tela **Servidor** do Manager (ADR 0019): a configuração de lá vence as `SMTP_*`, vale na hora e a senha fica cifrada (precisa de `SECRETS_ENCRYPTION_KEY`). Sem nenhuma das duas, nenhum e-mail sai |
+| `SMTP_HOST` | vazio (e-mail desligado) | Servidor SMTP das notificações por e-mail (ADR 0011). O SMTP também se configura pela tela **E-mail** do Manager (ADR 0019): a configuração de lá vence as `SMTP_*`, vale na hora e a senha fica cifrada (precisa de `SECRETS_ENCRYPTION_KEY`). Sem nenhuma das duas, nenhum e-mail sai |
 | `SMTP_PORT` | `587` | Porta do SMTP (587 com STARTTLS; 25 ou 1025 num servidor local de teste) |
 | `SMTP_USERNAME`, `SMTP_PASSWORD` | vazio | Login no SMTP; vazio = sem autenticação. A senha fica só na configuração: a outbox guarda o e-mail montado, nunca a credencial |
 | `SMTP_FROM` | vazio | Remetente, como `Msgforge <avisos@seudominio.com>`; vazio usa o `SMTP_USERNAME` |
@@ -56,7 +56,7 @@ tentativa, a linha vira `MORTO`. Um nó sem `SMTP_HOST` não pega linhas `EMAIL`
 nó que tenha SMTP. Com `OUTBOX_ENABLED=false`, o e-mail vai para uma fila em memória por
 destinatário, com o mesmo retry, e se perde se o processo cair.
 
-Para conferir a configuração, abra **Servidor** no Manager (`/manager/server`): a tela mostra o
+Para conferir a configuração, abra **E-mail** no Manager (`/manager/server`): a tela mostra o
 servidor, a porta e o remetente (nunca a senha) e manda um e-mail de teste para o endereço que você
 digitar.
 
