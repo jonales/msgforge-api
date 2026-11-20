@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Jônatas Meireles
 package dev.msgforge.notification;
 
+import dev.msgforge.event.outbox.Outbox;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,10 +26,12 @@ public class NotificationService {
 
     private final List<NotificationChannel> channels;
     private final EmailSender email;
+    private final Outbox outbox;
 
-    public NotificationService(List<NotificationChannel> channels, EmailSender email) {
+    public NotificationService(List<NotificationChannel> channels, EmailSender email, Outbox outbox) {
         this.channels = List.copyOf(channels);
         this.email = email;
+        this.outbox = outbox;
     }
 
     public enum Result {
@@ -49,6 +52,14 @@ public class NotificationService {
     /** Estado do SMTP para a tela Servidor do Manager (sem a senha). */
     public EmailSender.Status emailStatus() {
         return email.status();
+    }
+
+    /**
+     * Os últimos e-mails de teste e o que aconteceu com cada um (na fila, entregue ao SMTP, falhou), lidos da
+     * outbox. Com {@code OUTBOX_ENABLED=false} a fila é em memória e a lista sai vazia.
+     */
+    public List<Outbox.Recent> recentTestEmails() {
+        return outbox.recent(Outbox.Type.EMAIL, Notification.Kind.TEST.event(), 5);
     }
 
     public Result send(Notification notification) {

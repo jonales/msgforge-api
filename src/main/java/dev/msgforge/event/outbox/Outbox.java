@@ -196,6 +196,24 @@ public class Outbox {
                 """, new MapSqlParameterSource("type", type.name()), String.class));
     }
 
+    /**
+     * As últimas entregas de um evento (ex.: {@code email.test}), da mais nova para a mais velha, para a tela
+     * mostrar o que aconteceu com cada uma. As FEITO somem depois da retenção da outbox.
+     */
+    public record Recent(long id, String orderKey, State state, int attempts, String lastError,
+                         java.time.Instant createdAt, java.time.Instant updatedAt) {}
+
+    public List<Recent> recent(Type type, String event, int limit) {
+        return jdbc.query("""
+                SELECT id, order_key, state, attempts, last_error, created_at, updated_at FROM outbox
+                 WHERE type = :type AND event = :event ORDER BY id DESC LIMIT :limit
+                """, new MapSqlParameterSource().addValue("type", type.name()).addValue("event", event)
+                        .addValue("limit", limit),
+                (rs, n) -> new Recent(rs.getLong("id"), rs.getString("order_key"), State.valueOf(rs.getString("state")),
+                        rs.getInt("attempts"), rs.getString("last_error"), rs.getTimestamp("created_at").toInstant(),
+                        rs.getTimestamp("updated_at").toInstant()));
+    }
+
     /** Apaga até {@code batch} entregas FEITO mais velhas que {@code age}; devolve quantas saíram. */
     public int deleteDoneOlderThan(Duration age, int batch) {
         return jdbc.update("""
