@@ -3,6 +3,7 @@
 package dev.msgforge.event;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import dev.msgforge.common.Retry;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.DeliveryTarget.WebhookTarget;
 import dev.msgforge.event.GatewayEvent.ApplicationStartup;
@@ -29,6 +30,7 @@ import dev.msgforge.event.outbox.OutboxWorker;
 import dev.msgforge.instance.InstanceRepository;
 import dev.msgforge.instance.InstanceStateService;
 import dev.msgforge.webhook.WebhookService;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,6 +67,8 @@ import tools.jackson.databind.json.JsonMapper;
 public class EventDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(EventDispatcher.class);
+    private static final int STATE_ATTEMPTS = 4;
+    private static final Duration STATE_RETRY_DELAY = Duration.ofMillis(500);
 
     private final OrderedExecutor deliveries;
     private final MsgforgeProperties properties;
@@ -112,7 +116,7 @@ public class EventDispatcher {
     public void on(GatewayEvent event) {
         var type = typeOf(event);
         if (event instanceof ConnectionUpdated c) {
-            stateService.update(c.instanceName(), c.state(), c.wuid(), c.profileName());
+            persistState(c);
         }
         DeliveryTarget target;
         if (event instanceof ApplicationStartup) {
@@ -143,6 +147,23 @@ public class EventDispatcher {
             });
         } else {
             delivery.run();
+        }
+    }
+
+    /**
+     * Grava o estado da conexão com nova tentativa. Depois de o computador dormir, a rede e as conexões
+     * do banco caem juntas: a primeira escrita falha na conexão quebrada (o pool a descarta) e a
+     * seguinte pega uma nova. Sem isso o estado novo se perdia e o banco ficava "aberta" com a
+     * instância fora do ar. Se todas falharem, vai para o log e o evento segue para os destinos.
+     */
+    private void persistState(ConnectionUpdated c) {
+        var saved = Retry.run(STATE_ATTEMPTS, STATE_RETRY_DELAY,
+                () -> stateService.update(c.instanceName(), c.state(), c.wuid(), c.profileName()),
+                (attempt, e) -> log.warn("Estado {} da instância {} não foi gravado (tentativa {} de {}): {}",
+                        c.state().value(), c.instanceName(), attempt, STATE_ATTEMPTS, e.getMessage()));
+        if (!saved) {
+            log.error("Estado {} da instância {} não foi gravado depois de {} tentativas; o banco pode estar "
+                    + "com o estado anterior", c.state().value(), c.instanceName(), STATE_ATTEMPTS);
         }
     }
 

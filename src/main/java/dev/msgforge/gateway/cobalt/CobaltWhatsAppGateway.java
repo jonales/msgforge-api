@@ -49,6 +49,7 @@ import dev.msgforge.common.ApiExceptionHandler.BadRequestException;
 import dev.msgforge.common.ApiExceptionHandler.NumberNotOnWhatsAppException;
 import dev.msgforge.config.MsgforgeProperties;
 import dev.msgforge.event.GatewayEvent;
+import dev.msgforge.event.OrderedExecutor;
 import dev.msgforge.gateway.Jids;
 import dev.msgforge.gateway.StoredMedia;
 import dev.msgforge.gateway.WhatsAppGateway;
@@ -188,6 +189,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
     /** Serializa connect/logout por instância: nunca dois clientes do WhatsApp para a mesma sessão. */
     private final ConcurrentHashMap<UUID, Object> locks = new ConcurrentHashMap<>();
     private final ApplicationEventPublisher events;
+    /** Fila dos avisos de conexão por instância (ver {@link #publishConnection}). */
+    private final OrderedExecutor connectionEvents = new OrderedExecutor(Executors.newVirtualThreadPerTaskExecutor(), 100);
     private final SessionStore sessions;
     private final AudioTranscoder transcoder;
     private final VideoTranscoder videos;
@@ -478,8 +481,8 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
             // Antes do evento: quem reage ao connection.update "open" já pode enviar
             connection.loggedIn = true;
             connection.lastCode = null;   // conectada: não há mais QR para mostrar
-            events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.OPEN, REASON_OK,
-                    wuid, profileName));
+            publishConnection(name, new GatewayEvent.ConnectionUpdated(name, ConnectionState.OPEN, REASON_OK,
+                    wuid, profileName), true);
             connection.firstCode.complete(NO_CODE);
         });
         api.addNameChangedListener((whatsapp, oldName, newName) -> {
@@ -739,6 +742,39 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         out.append(']');
     }
 
+    /**
+     * Avisos de conexão que nascem nas threads do motor (login e queda). Saem numa thread nossa, em ordem
+     * por instância, e um erro de quem ouve nunca volta para o motor. Na queda, a thread do motor está
+     * interrompida (o banco recusa a conexão: "Interrupted during connection acquisition") e uma exceção
+     * que subisse de volta pulava o pedido de reconexão do motor: a instância nunca mais voltava.
+     * {@code wait}: o login espera o aviso sair (quem reage ao "open" já encontra o estado gravado).
+     */
+    private void publishConnection(String name, GatewayEvent.ConnectionUpdated event, boolean wait) {
+        var done = new CompletableFuture<Void>();
+        var accepted = connectionEvents.submit(name, () -> {
+            try {
+                events.publishEvent(event);
+            } catch (RuntimeException e) {
+                log.warn("[cobalt] {}: o aviso de conexão {} falhou: {}", name, event.state().value(), e.getMessage());
+            } finally {
+                done.complete(null);
+            }
+        });
+        if (!accepted) {
+            log.warn("[cobalt] {}: aviso de conexão {} descartado (fila cheia)", name, event.state().value());
+            return;
+        }
+        if (wait) {
+            try {
+                done.get(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException | TimeoutException e) {
+                log.warn("[cobalt] {}: o aviso de conexão {} demorou demais", name, event.state().value());
+            }
+        }
+    }
+
     private void onDisconnected(UUID id, Connection connection, WhatsAppClientDisconnectReason reason) {
         connection.loggedIn = false;
         if (reason != WhatsAppClientDisconnectReason.RECONNECTING) {
@@ -750,21 +786,21 @@ public class CobaltWhatsAppGateway implements WhatsAppGateway, DisposableBean {
         var name = connection.instanceName;
         log.info("[cobalt] {}: desconectada ({})", name, reason);
         switch (reason) {
-            case RECONNECTING -> events.publishEvent(
-                    new GatewayEvent.ConnectionUpdated(name, ConnectionState.CONNECTING, REASON_CONNECTION_CLOSED));
+            case RECONNECTING -> publishConnection(name,
+                    new GatewayEvent.ConnectionUpdated(name, ConnectionState.CONNECTING, REASON_CONNECTION_CLOSED), false);
             case LOGGED_OUT -> {
                 connections.remove(id, connection);
                 deleteSession(id);   // desconectado pelo celular: a sessão não vale mais
-                events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.CLOSE, REASON_LOGGED_OUT));
+                publishConnection(name, new GatewayEvent.ConnectionUpdated(name, ConnectionState.CLOSE, REASON_LOGGED_OUT), false);
             }
             case BANNED -> {
                 connections.remove(id, connection);
-                events.publishEvent(new GatewayEvent.ConnectionUpdated(name, ConnectionState.CLOSE, REASON_BANNED));
+                publishConnection(name, new GatewayEvent.ConnectionUpdated(name, ConnectionState.CLOSE, REASON_BANNED), false);
             }
             default -> {
                 connections.remove(id, connection);
-                events.publishEvent(new GatewayEvent.ConnectionUpdated(
-                        name, ConnectionState.CLOSE, REASON_CONNECTION_CLOSED));
+                publishConnection(name, new GatewayEvent.ConnectionUpdated(
+                        name, ConnectionState.CLOSE, REASON_CONNECTION_CLOSED), false);
             }
         }
     }
